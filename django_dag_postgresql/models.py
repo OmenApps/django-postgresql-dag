@@ -103,14 +103,20 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                 cursor.execute(ANCESTOR_QUERY.format(relationship_table=edge_model_table), {'id': self.id})
                 return [row[0] for row in cursor.fetchall()]
 
-        def self_and_ancestor_ids(self):
+        def ancestor_and_self_ids(self):
             return self.ancestor_ids() + [self.id]
+
+        def self_and_ancestor_ids(self):
+            return self.ancestor_and_self_ids()[::-1]
 
         def ancestors(self):
             return self.filter_order_ids(self.ancestor_ids())
 
-        def self_and_ancestors(self):
+        def ancestors_and_self(self):
             return self.filter_order_ids(self.self_and_ancestor_ids())
+
+        def self_and_ancestor(self):
+            return self.ancestor_and_self()[::-1]
 
         def descendant_ids(self):
             with connection.cursor() as cursor:
@@ -120,11 +126,17 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
         def self_and_descendant_ids(self):
             return [self.id] + self.descendant_ids()
 
+        def descendants_and_self_ids(self):
+            return self.self_and_descendant_ids()[::-1]
+
         def descendants(self):
             return self.filter_order_ids(self.descendant_ids())
 
         def self_and_descendants(self):
             return self.filter_order_ids(self.self_and_descendant_ids())
+
+        def descendants_and_self(self):
+            return self.self_and_descendants()[::-1]
 
         def clan_ids(self):
             return self.ancestor_ids() + self.self_and_descendant_ids()
