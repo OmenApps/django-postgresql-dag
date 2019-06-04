@@ -115,8 +115,8 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
         def ancestors_and_self(self):
             return self.filter_order_ids(self.self_and_ancestor_ids())
 
-        def self_and_ancestor(self):
-            return self.ancestor_and_self()[::-1]
+        def self_and_ancestors(self):
+            return self.ancestors_and_self()[::-1]
 
         def descendant_ids(self):
             with connection.cursor() as cursor:
