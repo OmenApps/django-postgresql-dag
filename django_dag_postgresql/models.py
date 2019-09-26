@@ -113,7 +113,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             return self.filter_order_ids(self.ancestor_ids())
 
         def ancestors_and_self(self):
-            return self.filter_order_ids(self.self_and_ancestor_ids())
+            return self.filter_order_ids(self.ancestor_and_self_ids())
 
         def self_and_ancestors(self):
             return self.ancestors_and_self()[::-1]
