@@ -1,6 +1,4 @@
-# Django Dag for Postgresql
-
-Directed Acyclic Graphs for Django/Postgres.
+# Django & Postgresql-based Directed Acyclic Graphs
 
 The main distinghishing factor for this project is that it can retrieve entire
 sections of a graph in a single query. The trade off is portability: it uses
@@ -14,4 +12,6 @@ compatible with other databases.
 
 1. [This excellent blog post](https://www.fusionbox.com/blog/detail/graph-algorithms-in-a-database-recursive-ctes-and-topological-sort-with-postgres/620/)
 2. [django-dag](https://pypi.org/project/django-dag/)
-3. [django-treebeard-dag](https://pypi.org/project/django-treebeard-dag/)
+3. [django-dag-postgresql](https://github.com/worsht/django-dag-postgresql)
+4. [django-treebeard-dag](https://pypi.org/project/django-treebeard-dag/)
+
