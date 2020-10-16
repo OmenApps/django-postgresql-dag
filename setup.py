@@ -3,7 +3,7 @@
 import os
 from setuptools import setup
 
-version = '0.0.3'
+version = '0.0.4'
 
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -20,18 +20,18 @@ classifiers = [
 root_dir = os.path.dirname(__file__)
 if not root_dir:
     root_dir = '.'
-long_desc = open(root_dir + '/README').read()
+long_desc = open(root_dir + '/README.md').read()
 
 setup(
-    name='django-dag-postgresql',
+    name='django-postgresql-dag',
     version=version,
-    url='https://github.com/worsht/django-dag-postgresql',
-    author='Rajiv Subrahmanyam',
-    author_email='rajiv.public@gmail.com',
+    url='https://github.com/OmenApps/django-postgresql-dag',
+    author='Jack Linke',
+    author_email='jacklinke@gmail.com',
     license='Apache Software License',
-    packages=['django_dag_postgresql'],
-    package_dir={'django_dag_postgresql': 'django_dag_postgresql'},
-    description='Directed Acyclic Graph implementation for Django / Postgresql',
+    packages=['django_postgresql_dag'],
+    package_dir={'django_postgresql_dag': 'django_postgresql_dag'},
+    description='Directed Acyclic Graph implementation for Django & Postgresql',
     classifiers=classifiers,
     long_description=long_desc,
 )
