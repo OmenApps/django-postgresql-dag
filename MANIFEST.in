@@ -1,3 +1,4 @@
-include CHANGES LICENSE NOTICE README UPDATING MANIFEST.in
-recursive-include README *.py *.rst
-recursive-include django_dag_postgres *.py *.html
+include CHANGES LICENSE README.md MANIFEST.in
+recursive-include django_postgresql_dag *.py *.html
+recursive-include example_app *.py *.html
+recursive-include tests *.py *.html
