@@ -62,13 +62,13 @@ class NodeNotReachableException(Exception):
     pass
 
 
-def filter_order(queryset, field_names, values):
+def _filter_order(queryset, field_names, values):
     """
     Filters the provided queryset for 'field_name__in values' for each given field_name in [field_names]
     orders results in the same order as provided values
 
         For instance
-            filter_order(self.__class__.objects, "pk", ids)
+            _filter_order(self.__class__.objects, "pk", ids)
         returns a queryset of the current class, with instances where the 'pk' field matches an id in ids
     """
     if not isinstance(field_names, list):
@@ -116,7 +116,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             """
             Generates a queryset, based on the current class and the provided ids
             """
-            return filter_order(self.__class__.objects, "pk", ids)
+            return _filter_order(self.__class__.objects, "pk", ids)
 
         def ancestor_ids(self):
             with connection.cursor() as cursor:
@@ -206,21 +206,30 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             """
             Returns the shortest path
             Only works from root-side toward leaf-side
+            """
+            return self.filter_order_ids(self.path_ids(target_node))
+
+
+        def path_ids(self, target_node):
+            """
+            Returns ids of the shortest path
+            Only works from root-side toward leaf-side
             # ToDo: Modify to use CTE
             """
             if self == target_node:
-                return []
+                return [self.id]
             if target_node in self.children.all():
-                return [target_node]
+                return [self.id, target_node.id]
             if target_node in self.descendants():
                 path = None
                 for child in self.children.all():
                     try:
-                        desc_path = child.path(target_node)
+                        desc_path = child.path_ids(target_node)
                         if not path or len(desc_path) < len(path):
-                            path = [child] + desc_path
+                            path = [child.id] + desc_path
                     except NodeNotReachableException:
                         pass
+                path = [self.id] + path
             else:
                 raise NodeNotReachableException
             return path
@@ -300,7 +309,7 @@ class EdgeManager(models.Manager):
         """
         Returns a queryset of all edges descended from the given node
         """
-        return filter_order(
+        return _filter_order(
             self.model.objects, "parent_id", node.self_and_descendant_ids()
         )
 
@@ -308,7 +317,7 @@ class EdgeManager(models.Manager):
         """
         Returns a queryset of all edges which are ancestors of the given node
         """
-        return filter_order(
+        return _filter_order(
             self.model.objects, "child_id", node.self_and_ancestor_ids()
         )
 
@@ -316,12 +325,31 @@ class EdgeManager(models.Manager):
         """
         Returns a queryset of all edges for ancestors, self, and descendants
         """
-        return filter_order(
+        return _filter_order(
             self.model.objects, ["parent_id", "child_id"], node.clan_ids()
         )
 
-    # ToDo: Need additional manager methods, particularly edges from node-to-node
+    def path(self, start_node, end_node):
+        """
+        Returns a queryset of all edges for the path from start_node to end_node
+        """
+        return _filter_order(
+            self.model.objects, ["parent_id", "child_id"], start_node.path_ids(end_node)
+        )
 
+    def validate_route(self, edges):
+        """
+        Given a list or set of edges, verify that they result in a contiguous route
+        """
+        # ToDo: Implement
+        pass
+
+    def sort(self, edges):
+        """
+        Given a list or set of edges, sort them from root-side to leaf-side
+        """
+        # ToDo: Implement
+        pass
 
 def edge_factory(
     node_model,
@@ -360,6 +388,6 @@ def edge_factory(
         def save(self, *args, **kwargs):
             if not kwargs.pop("disable_circular_check", False):
                 self.parent.__class__.circular_checker(self.parent, self.child)
-            super(Edge, self).save(*args, **kwargs)
+            super(Edge, self).save(*args, **kwargs)  # Call the 'real' save() method.
 
     return Edge
