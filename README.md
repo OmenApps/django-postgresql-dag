@@ -70,7 +70,7 @@ NOTE: This project is a work in progress. While functional, it is not optimized.
 
 ### Diagramatic View
 
-![Diagram of Resulting Graph](https://github.com/OmenApps/django-postgresql-dag/docs/images/graph.png)
+![Diagram of Resulting Graph](https://raw.githubusercontent.com/OmenApps/django-postgresql-dag/master/docs/images/graph.png)
 
 ### In the Shell
 
