@@ -1,3 +1,4 @@
+
 # Django & Postgresql-based Directed Acyclic Graphs
 
 The main distinguishing factor for this project is that it can retrieve entire
@@ -6,50 +7,18 @@ Postgres Common Table Expressions (CTE) to achieve this and is therefore not
 compatible with other databases.
 
 NOTE: Not all methods which would benefit from CTEs use them yet.
-NOTE: This project is a work in progress. While functional, it is not optimized.
 
-Currently provides numerous methods for retrieving nodes, and a few for retrieving edges within the graph.
+NOTE: This project is a work in progress. While functional, it is not optimized. Currently, it provides numerous methods for retrieving nodes, and a few for retrieving edges within the graph.
 
-## Example:
+## Most Simple Example:
 
 ### models.py
 
     from django.db import models
     from django_postgresql_dag.models import node_factory, edge_factory
 
-    class GroupedEdgeSet(models.Model):
-        """Set of NetworkEdges belonging to a specific Groupe
-        Serves as the primary 'Grouped' object
-        This can be thought of as a "complex edge"
-        """
-
-        name = models.CharField(max_length=100)
-
-        class GroupedType(models.TextChoices):
-            GROUPED_TYPE_A = "A", _("A")
-            GROUPED_TYPE_B = "B", _("B")
-            GROUPED_TYPE_C = "C", _("C")
-
-        grouped_type = models.CharField(
-            _("Grouped Type"),
-            choices=GroupedType.choices,
-            default=GroupedType.GROUPED_TYPE_A,
-            max_length=20,
-            help_text=_("What type of grouping is this?"),
-        )
-
-
     class NetworkEdge(edge_factory("NetworkNode", concrete=False)):
-
         name = models.CharField(max_length=100)
-
-        grouped_edge_set = models.ForeignKey(
-            GroupedEdgeSet,
-            on_delete=models.CASCADE,
-            null=True,
-            blank=True,
-            related_name="grouped_network_edges",
-        )
 
         def __str__(self):
             return self.name
@@ -60,13 +29,50 @@ Currently provides numerous methods for retrieving nodes, and a few for retrievi
 
 
     class NetworkNode(node_factory(NetworkEdge)):
-
         name = models.CharField(max_length=100)
 
         def __str__(self):
             return self.name
             
-### Shell
+### Resulting Database Tables
+
+
+#### myapp_networknode
+
+     id | name
+    ----+------
+     1  | root
+     2  | a1
+     3  | a2
+     4  | a3
+     5  | b1
+     6  | b2
+     7  | b3
+     8  | b4
+     9  | c1
+     10 | c2
+
+#### myapp_networkedge
+
+    id  | child_id | parent_id | name
+    ----+----------+-----------+---------
+     1  |       2  |         1 | root a1
+     2  |       3  |         1 | root a2
+     3  |       4  |         1 | root a3
+     4  |       5  |         2 | a1 b1
+     5  |       6  |         2 | a1 b2
+     6  |       6  |         3 | a2 b2
+     7  |       7  |         4 | a3 b3
+     8  |       8  |         4 | a3 b4
+     9  |       10 |         7 | b3 c2
+     10 |       9  |         7 | b3 c1
+     11 |       9  |         8 | b4 c1
+
+### Diagramatic View
+
+![Diagram of Resulting Graph](https://github.com/OmenApps/django-postgresql-dag/docs/images/graph.png)
+
+### In the Shell
 
     from myapp.models import GroupedEdgeSet, NetworkNode, NetworkEdge
 

@@ -33,5 +33,6 @@ setup(
     package_dir={'django_postgresql_dag': 'django_postgresql_dag'},
     description='Directed Acyclic Graph implementation for Django & Postgresql',
     classifiers=classifiers,
+    long_description_content_type="text/markdown",
     long_description=long_desc,
 )
