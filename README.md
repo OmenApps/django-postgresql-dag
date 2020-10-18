@@ -121,14 +121,11 @@ NOTE: This project is a work in progress. While functional, it is not optimized.
     # Descendant methods which return a queryset
     
     >>> root.descendants()
-    <QuerySet [<NetworkNode: a1>, <NetworkNode: a2>, <NetworkNode: a3>, <NetworkNode: b1>, <NetworkNode: b
-    2>, <NetworkNode: b3>, <NetworkNode: b4>, <NetworkNode: c1>, <NetworkNode: c2>]>
+    <QuerySet [<NetworkNode: a1>, <NetworkNode: a2>, <NetworkNode: a3>, <NetworkNode: b1>, <NetworkNode: b2>, <NetworkNode: b3>, <NetworkNode: b4>, <NetworkNode: c1>, <NetworkNode: c2>]>
     >>> root.self_and_descendants()
-    <QuerySet [<NetworkNode: root>, <NetworkNode: a1>, <NetworkNode: a2>, <NetworkNode: a3>, <NetworkNode:
-     b1>, <NetworkNode: b2>, <NetworkNode: b3>, <NetworkNode: b4>, <NetworkNode: c1>, <NetworkNode: c2>]>
+    <QuerySet [<NetworkNode: root>, <NetworkNode: a1>, <NetworkNode: a2>, <NetworkNode: a3>, <NetworkNode: b1>, <NetworkNode: b2>, <NetworkNode: b3>, <NetworkNode: b4>, <NetworkNode: c1>, <NetworkNode: c2>]>
     >>> root.descendants_and_self()
-    [<NetworkNode: c2>, <NetworkNode: c1>, <NetworkNode: b4>, <NetworkNode: b3>, <NetworkNode: b2>, <Netwo
-    rkNode: b1>, <NetworkNode: a3>, <NetworkNode: a2>, <NetworkNode: a1>, <NetworkNode: root>]
+    [<NetworkNode: c2>, <NetworkNode: c1>, <NetworkNode: b4>, <NetworkNode: b3>, <NetworkNode: b2>, <NetworkNode: b1>, <NetworkNode: a3>, <NetworkNode: a2>, <NetworkNode: a1>, <NetworkNode: root>]
     
     # Ancestor methods which return ids
     
@@ -144,8 +141,7 @@ NOTE: This project is a work in progress. While functional, it is not optimized.
     >>> c1.ancestors()
     <QuerySet [<NetworkNode: root>, <NetworkNode: a3>, <NetworkNode: b3>, <NetworkNode: b4>]>
     >>> c1.ancestors_and_self()
-    <QuerySet [<NetworkNode: root>, <NetworkNode: a3>, <NetworkNode: b3>, <NetworkNode: b4>, <NetworkNode:
-     c1>]>
+    <QuerySet [<NetworkNode: root>, <NetworkNode: a3>, <NetworkNode: b3>, <NetworkNode: b4>, <NetworkNode: c1>]>
     >>> c1.self_and_ancestors()
     [<NetworkNode: c1>, <NetworkNode: b4>, <NetworkNode: b3>, <NetworkNode: a3>, <NetworkNode: root>]
     
@@ -154,8 +150,7 @@ NOTE: This project is a work in progress. While functional, it is not optimized.
     >>> b3.clan_ids()
     [1, 4, 7, 9, 10]
     >>> b3.clan()
-    <QuerySet [<NetworkNode: root>, <NetworkNode: a3>, <NetworkNode: b3>, <NetworkNode: c1>, <NetworkNode:
-     c2>]>
+    <QuerySet [<NetworkNode: root>, <NetworkNode: a3>, <NetworkNode: b3>, <NetworkNode: c1>, <NetworkNode: c2>]>
     
     # Get all roots or leaves associated with the node
     
@@ -163,6 +158,35 @@ NOTE: This project is a work in progress. While functional, it is not optimized.
     {<NetworkNode: root>}
     >>> b3.get_leaves()
     {<NetworkNode: c1>, <NetworkNode: c2>}
+
+    # Perform path search
+
+    >>> root.path_ids_list(c1)
+    [[1, 4, 7, 9]]
+    >>> c1.path_ids_list(root)
+    Traceback (most recent call last):
+      File "<input>", line 1, in <module>
+        c1.path_ids_list(root)
+      File "/home/runner/pgdagtest/pg/models.py", line 313, in path_ids_list
+        raise NodeNotReachableException
+    pg.models.NodeNotReachableException
+    >>> c1.path_ids_list(root, directional=False)
+    [[1, 4, 7, 9]]
+    >>> root.path_ids_list(c1, max_paths=2)
+    [[1, 4, 7, 9], [1, 4, 8, 9]]
+    >>> root.shortest_path(c1)
+    <QuerySet [<NetworkNode: root>, <NetworkNode: a3>, <NetworkNode: b3>, <NetworkNode: c1>]>
+    >>> c1.shortest_path(root)
+    Traceback (most recent call last):
+      File "<input>", line 1, in <module>
+        c1.shortest_path(root)
+      File "/home/runner/pgdagtest/pg/models.py", line 323, in shortest_path
+        return self.filter_order_ids(self.path_ids_list(target_node, directional=directional)[0])
+      File "/home/runner/pgdagtest/pg/models.py", line 313, in path_ids_list
+        raise NodeNotReachableException
+    pg.models.NodeNotReachableException
+    >>> c1.shortest_path(root, directional=False)
+    <QuerySet [<NetworkNode: root>, <NetworkNode: a3>, <NetworkNode: b4>, <NetworkNode: c1>]>
     
     # Get the nodes at the start or end of an edge
     
@@ -175,7 +199,7 @@ NOTE: This project is a work in progress. While functional, it is not optimized.
     <NetworkNode: b4>
     >>> e2.child
     <NetworkNode: c1>
-    
+
     # Edge-specific Manager methods
     
     >>> NetworkEdge.objects.descendants(b3)
@@ -184,7 +208,18 @@ NOTE: This project is a work in progress. While functional, it is not optimized.
     <QuerySet [<NetworkEdge: a3 b3>, <NetworkEdge: root a3>]>
     >>> NetworkEdge.objects.clan(b3)
     <QuerySet [<NetworkEdge: root a3>, <NetworkEdge: a3 b3>, <NetworkEdge: b3 c2>, <NetworkEdge: b3 c1>]>
-    >>> NetworkEdge.objects.path(root, c1)
+    >>> NetworkEdge.objects.shortest_path(root, c1)
+    <QuerySet [<NetworkEdge: root a3>, <NetworkEdge: a3 b3>, <NetworkEdge: b3 c1>]>
+    >>> NetworkEdge.objects.shortest_path(c1, root)
+    Traceback (most recent call last):
+      File "<input>", line 1, in <module>
+        NetworkEdge.objects.shortest_path(c1, root)
+      File "/home/runner/pgdagtest/pg/models.py", line 425, in shortest_path
+        self.model.objects, ["parent_id", "child_id"], start_node.path_ids_list(end_node)[0]
+      File "/home/runner/pgdagtest/pg/models.py", line 313, in path_ids_list
+        raise NodeNotReachableException
+    pg.models.NodeNotReachableException
+    >>> NetworkEdge.objects.shortest_path(c1, root, directional=False)
     <QuerySet [<NetworkEdge: root a3>, <NetworkEdge: a3 b4>, <NetworkEdge: b4 c1>]>
 
 
