@@ -53,6 +53,56 @@ GROUP BY id
 ORDER BY MAX(depth), id ASC
 """
 
+DOWNWARD_PATH_QUERY = """
+WITH RECURSIVE traverse(parent_id, child_id, depth, path) AS (
+    SELECT
+        first.parent_id,
+        first.child_id,
+        1 AS depth,
+        ARRAY[first.parent_id] AS path
+        FROM {relationship_table} AS first
+    WHERE parent_id = %(starting_node)s
+UNION ALL
+    SELECT
+        first.parent_id,
+        first.child_id,
+        second.depth + 1 AS depth,
+        path || first.parent_id AS path
+        FROM {relationship_table} AS first, traverse AS second
+    WHERE first.parent_id = second.child_id
+    AND (first.parent_id <> ALL(second.path))
+    AND second.depth <= %(max_depth)s
+)      
+SELECT path FROM traverse
+    WHERE child_id = %(ending_node)s
+    LIMIT %(max_paths)s;
+"""
+
+UPWARD_PATH_QUERY = """
+WITH RECURSIVE traverse(child_id, parent_id, depth, path) AS (
+    SELECT
+        first.child_id,
+        first.parent_id,
+        1 AS depth,
+        ARRAY[first.child_id] AS path
+        FROM {relationship_table} AS first
+    WHERE child_id = %(starting_node)s
+UNION ALL
+    SELECT
+        first.child_id,
+        first.parent_id,
+        second.depth + 1 AS depth,
+        path || first.child_id AS path
+        FROM {relationship_table} AS first, traverse AS second
+    WHERE first.child_id = second.parent_id
+    AND (first.child_id <> ALL(second.path))
+    AND second.depth <= %(max_depth)s
+)      
+SELECT path FROM traverse
+    WHERE parent_id = %(ending_node)s
+    LIMIT %(max_paths)s;
+"""
+
 
 class NodeNotReachableException(Exception):
     """
@@ -178,7 +228,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         def descendant_edges_set(self, cached_results=None):
             """
-            Returns a set of descendant edges
+            Returns a set of descendants edges
             # ToDo: Modify to use CTE
             """
             if cached_results is None:
@@ -188,7 +238,6 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             else:
                 res = set()
                 for f in self.children.all():
-                    # ToDo: Add try...except block
                     res.add(edge_model.objects.get(parent=self.id, child=f.id))
                     res.update(f.descendant_edges_set(cached_results=cached_results))
                 cached_results[self.id] = res
@@ -196,7 +245,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         def ancestor_edges_set(self, cached_results=None):
             """
-            Returns a set of ancestor edges
+            Returns a set of ancestors edges
             # ToDo: Modify to use CTE
             """
             if cached_results is None:
@@ -206,7 +255,6 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             else:
                 res = set()
                 for f in self.parents.all():
-                    # ToDo: Add try...except block
                     res.add(edge_model.objects.get(child=self.id, parent=f.id))
                     res.update(f.ancestor_edges_set(cached_results=cached_results))
                 cached_results[self.id] = res
@@ -220,6 +268,82 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             edges.update(self.descendant_edges_set())
             edges.update(self.ancestor_edges_set())
             return edges
+
+        def path_ids_list(
+            self, target_node, directional=True, max_depth=20, max_paths=1
+        ):
+            """
+            Returns a list of paths from self to target node, in either direction.
+            The resulting lists are always sorted from top of graph, downward,
+            regardless of the relative position of starting and ending nodes.
+
+            By default, returns only one shortest path, but additional paths
+            can be included by setting the max_paths argument.
+            """
+            if self == target_node:
+                return [[self.id]]
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    DOWNWARD_PATH_QUERY.format(relationship_table=edge_model_table),
+                    {
+                        "starting_node": self.id,
+                        "ending_node": target_node.id,
+                        "max_depth": max_depth,
+                        "max_paths": max_paths,
+                    },
+                )
+                path = [row[0] + [target_node.id] for row in cursor.fetchall()]
+                if not path and not directional:
+                    with connection.cursor() as cursor:
+                        cursor.execute(
+                            UPWARD_PATH_QUERY.format(
+                                relationship_table=edge_model_table
+                            ),
+                            {
+                                "starting_node": self.id,
+                                "ending_node": target_node.id,
+                                "max_depth": max_depth,
+                                "max_paths": max_paths,
+                            },
+                        )
+                        path = [
+                            [target_node.id] + row[0][::-1] for row in cursor.fetchall()
+                        ]
+                if not path:
+                    raise NodeNotReachableException
+                return path
+
+        def shortest_path(self, target_node, directional=True):
+            """
+            Returns a queryset of the shortest path
+            """
+            return self.filter_order_ids(
+                self.path_ids_list(target_node, directional=directional)[0]
+            )
+
+        def distance(self, target_node, directional=True):
+            """
+            Returns the shortest hops count to the target node
+            """
+            return len(self.path_ids_list(target_node, directional=directional)[0]) - 1
+
+        def is_root(self):
+            """
+            Check if has children and not ancestors
+            """
+            return bool(self.children.exists() and not self.parents.exists())
+
+        def is_leaf(self):
+            """
+            Check if has ancestors and not children
+            """
+            return bool(self.parents.exists() and not self.children.exists())
+
+        def is_island(self):
+            """
+            Check if has no ancestors nor children
+            """
+            return bool(not self.children.exists() and not self.parents.exists())
 
         def descendants_tree(self):
             """
@@ -240,70 +364,6 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             for parent in self.parents.all():
                 tree[parent] = parent.ancestors_tree()
             return tree
-
-        def distance(self, target_node):
-            """
-            Returns the shortest hops count to the target node
-            Only works from root-side toward leaf-side, so if
-            we don't know their relative position, this is a
-            problem.
-            """
-            return len(self.path(target_node))
-
-        def path(self, target_node):
-            """
-            Returns the shortest path
-            Only works from root-side toward leaf-side, so if
-            we don't know their relative position, this is a
-            problem.
-            """
-            return self.filter_order_ids(self.path_ids(target_node))
-
-        def path_ids(self, target_node):
-            """
-            Returns ids of the shortest path
-            Only works from root-side toward leaf-side, so if
-            we don't know their relative position, this is a
-            problem.
-            # ToDo: Modify to use CTE
-            # ToDo: modify to account for the target node being
-            lower OR higher in the graph
-            """
-            if self == target_node:
-                return [self.id]
-            if target_node in self.children.all():
-                return [self.id, target_node.id]
-            if target_node in self.descendants():
-                path = None
-                for child in self.children.all():
-                    try:
-                        desc_path = child.path_ids(target_node)
-                        if not path or len(desc_path) < len(path):
-                            path = [child.id] + desc_path
-                    except NodeNotReachableException:
-                        pass
-                path = [self.id] + path
-            else:
-                raise NodeNotReachableException
-            return path
-
-        def is_root(self):
-            """
-            Check if has children and not ancestors
-            """
-            return bool(self.children.exists() and not self.parents.exists())
-
-        def is_leaf(self):
-            """
-            Check if has ancestors and not children
-            """
-            return bool(self.parents.exists() and not self.children.exists())
-
-        def is_island(self):
-            """
-            Check if has no ancestors nor children
-            """
-            return bool(not self.children.exists() and not self.parents.exists())
 
         def _get_roots(self, ancestors_tree):
             """
@@ -382,12 +442,14 @@ class EdgeManager(models.Manager):
             self.model.objects, ["parent_id", "child_id"], node.clan_ids()
         )
 
-    def path(self, start_node, end_node):
+    def shortest_path(self, start_node, end_node):
         """
-        Returns a queryset of all edges for the path from start_node to end_node
+        Returns a queryset of all edges for the shortest path from start_node to end_node
         """
         return _filter_order(
-            self.model.objects, ["parent_id", "child_id"], start_node.path_ids(end_node)
+            self.model.objects,
+            ["parent_id", "child_id"],
+            start_node.path_ids_list(end_node)[0],
         )
 
     def validate_route(self, edges):
@@ -403,6 +465,7 @@ class EdgeManager(models.Manager):
         """
         # ToDo: Implement
         pass
+
 
 def edge_factory(
     node_model,
@@ -441,6 +504,6 @@ def edge_factory(
         def save(self, *args, **kwargs):
             if not kwargs.pop("disable_circular_check", False):
                 self.parent.__class__.circular_checker(self.parent, self.child)
-            super(Edge, self).save(*args, **kwargs)  # Call the 'real' save() method.
+            super(Edge, self).save(*args, **kwargs)
 
     return Edge
