@@ -176,6 +176,51 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             """
             return self.filter_order_ids(self.clan_ids())
 
+        def descendant_edges_set(self, cached_results=None):
+            """
+            Returns a set of descendant edges
+            # ToDo: Modify to use CTE
+            """
+            if cached_results is None:
+                cached_results = dict()
+            if self.id in cached_results.keys():
+                return cached_results[self.id]
+            else:
+                res = set()
+                for f in self.children.all():
+                    # ToDo: Add try...except block
+                    res.add(edge_model.objects.get(parent=self.id, child=f.id))
+                    res.update(f.descendant_edges_set(cached_results=cached_results))
+                cached_results[self.id] = res
+                return res
+
+        def ancestor_edges_set(self, cached_results=None):
+            """
+            Returns a set of ancestor edges
+            # ToDo: Modify to use CTE
+            """
+            if cached_results is None:
+                cached_results = dict()
+            if self in cached_results.keys():
+                return cached_results[self.id]
+            else:
+                res = set()
+                for f in self.parents.all():
+                    # ToDo: Add try...except block
+                    res.add(edge_model.objects.get(child=self.id, parent=f.id))
+                    res.update(f.ancestor_edges_set(cached_results=cached_results))
+                cached_results[self.id] = res
+                return res
+
+        def clan_edges_set(self):
+            """
+            Returns a set of all edges associated with a given node
+            """
+            edges = set()
+            edges.update(self.descendant_edges_set())
+            edges.update(self.ancestor_edges_set())
+            return edges
+
         def descendants_tree(self):
             """
             Returns a tree-like structure with descendants
@@ -369,13 +414,13 @@ def edge_factory(
     class Edge(base_model):
         parent = models.ForeignKey(
             node_model,
-            related_name="%s_child" % node_model_name,
+            related_name=f"{node_model_name}_child",
             to_field=parent_to_field,
             on_delete=models.CASCADE,
         )
         child = models.ForeignKey(
             node_model,
-            related_name="%s_parent" % node_model_name,
+            related_name=f"{node_model_name}_parent",
             to_field=child_to_field,
             on_delete=models.CASCADE,
         )
