@@ -244,22 +244,30 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
         def distance(self, target_node):
             """
             Returns the shortest hops count to the target node
+            Only works from root-side toward leaf-side, so if
+            we don't know their relative position, this is a
+            problem.
             """
             return len(self.path(target_node))
 
         def path(self, target_node):
             """
             Returns the shortest path
-            Only works from root-side toward leaf-side
+            Only works from root-side toward leaf-side, so if
+            we don't know their relative position, this is a
+            problem.
             """
             return self.filter_order_ids(self.path_ids(target_node))
-
 
         def path_ids(self, target_node):
             """
             Returns ids of the shortest path
-            Only works from root-side toward leaf-side
+            Only works from root-side toward leaf-side, so if
+            we don't know their relative position, this is a
+            problem.
             # ToDo: Modify to use CTE
+            # ToDo: modify to account for the target node being
+            lower OR higher in the graph
             """
             if self == target_node:
                 return [self.id]
