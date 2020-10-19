@@ -313,19 +313,19 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                     raise NodeNotReachableException
                 return path
 
-        def shortest_path(self, target_node, directional=True):
+        def shortest_path(self, target_node, directional=True, max_depth=20):
             """
             Returns a queryset of the shortest path
             """
             return self.filter_order_ids(
-                self.path_ids_list(target_node, directional=directional)[0]
+                self.path_ids_list(target_node, directional=directional, max_depth=max_depth)[0]
             )
 
-        def distance(self, target_node, directional=True):
+        def distance(self, target_node, directional=True, max_depth=20):
             """
             Returns the shortest hops count to the target node
             """
-            return len(self.path_ids_list(target_node, directional=directional)[0]) - 1
+            return len(self.path_ids_list(target_node, directional=directional, max_depth=max_depth)[0]) - 1
 
         def is_root(self):
             """
