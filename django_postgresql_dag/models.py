@@ -226,9 +226,9 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             """
             return self.filter_order_ids(self.clan_ids())
 
-        def descendants_edges_set(self, cached_results=None):
+        def descendants_edges(self, cached_results=None):
             """
-            Returns a set of descendants edges
+            Returns a queryset of descendants edges
             # ToDo: Modify to use CTE
             """
             if cached_results is None:
@@ -236,16 +236,17 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             if self.id in cached_results.keys():
                 return cached_results[self.id]
             else:
-                res = set()
+                edge_set = set()
                 for f in self.children.all():
-                    res.add(edge_model.objects.get(parent=self.id, child=f.id))
-                    res.update(f.descendants_edges_set(cached_results=cached_results))
-                cached_results[self.id] = res
-                return res
+                    edge_set.add(edge_model.objects.get(parent=self.id, child=f.id))
+                    edge_set.update(f.descendants_edges(cached_results=cached_results))
+                cached_results[self.id] = edge_set
+            out = [x.id for x in edge_set]
+            return _filter_order(edge_model.objects, "pk", out)
 
-        def ancestors_edges_set(self, cached_results=None):
+        def ancestors_edges(self, cached_results=None):
             """
-            Returns a set of ancestors edges
+            Returns a queryset of ancestors edges
             # ToDo: Modify to use CTE
             """
             if cached_results is None:
@@ -253,29 +254,30 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             if self in cached_results.keys():
                 return cached_results[self.id]
             else:
-                res = set()
+                edge_set = set()
                 for f in self.parents.all():
-                    res.add(edge_model.objects.get(child=self.id, parent=f.id))
-                    res.update(f.ancestors_edges_set(cached_results=cached_results))
-                cached_results[self.id] = res
-                return res
+                    edge_set.add(edge_model.objects.get(child=self.id, parent=f.id))
+                    edge_set.update(f.ancestors_edges(cached_results=cached_results))
+                cached_results[self.id] = edge_set
+            out = [x.id for x in edge_set]
+            return _filter_order(edge_model.objects, "pk", out)
 
-        def clan_edges_set(self):
+        def clan_edges(self):
             """
-            Returns a set of all edges associated with a given node
+            Returns a queryset of all edges associated with a given node
             """
             edges = set()
-            edges.update(self.descendants_edges_set())
-            edges.update(self.ancestors_edges_set())
+            edges.update(self.descendants_edges())
+            edges.update(self.ancestors_edges())
             return edges
 
         def path_ids_list(
             self, target_node, directional=True, max_depth=20, max_paths=1
         ):
             """
-            Returns a list of paths from self to target node, in either direction.
-            The resulting lists are always sorted from top of graph, downward,
-            regardless of the relative position of starting and ending nodes.
+            Returns a list of paths from self to target node, optionally in either 
+            direction. The resulting lists are always sorted from root-side, toward
+            leaf-side, regardless of the relative position of starting and ending nodes.
 
             By default, returns only one shortest path, but additional paths
             can be included by setting the max_paths argument.
