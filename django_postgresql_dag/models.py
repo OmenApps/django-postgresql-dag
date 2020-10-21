@@ -168,7 +168,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             """
             return _filter_order(self.__class__.objects, "pk", ids)
 
-        def ancestor_ids(self):
+        def ancestors_ids(self):
             with connection.cursor() as cursor:
                 cursor.execute(
                     ANCESTOR_QUERY.format(relationship_table=edge_model_table),
@@ -176,22 +176,22 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                 )
                 return [row[0] for row in cursor.fetchall()]
 
-        def ancestor_and_self_ids(self):
-            return self.ancestor_ids() + [self.id]
+        def ancestors_and_self_ids(self):
+            return self.ancestors_ids() + [self.id]
 
-        def self_and_ancestor_ids(self):
-            return self.ancestor_and_self_ids()[::-1]
+        def self_and_ancestors_ids(self):
+            return self.ancestors_and_self_ids()[::-1]
 
         def ancestors(self):
-            return self.filter_order_ids(self.ancestor_ids())
+            return self.filter_order_ids(self.ancestors_ids())
 
         def ancestors_and_self(self):
-            return self.filter_order_ids(self.ancestor_and_self_ids())
+            return self.filter_order_ids(self.ancestors_and_self_ids())
 
         def self_and_ancestors(self):
             return self.ancestors_and_self()[::-1]
 
-        def descendant_ids(self):
+        def descendants_ids(self):
             with connection.cursor() as cursor:
                 cursor.execute(
                     DESCENDANT_QUERY.format(relationship_table=edge_model_table),
@@ -199,17 +199,17 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                 )
                 return [row[0] for row in cursor.fetchall()]
 
-        def self_and_descendant_ids(self):
-            return [self.id] + self.descendant_ids()
+        def self_and_descendants_ids(self):
+            return [self.id] + self.descendants_ids()
 
         def descendants_and_self_ids(self):
-            return self.self_and_descendant_ids()[::-1]
+            return self.self_and_descendants_ids()[::-1]
 
         def descendants(self):
-            return self.filter_order_ids(self.descendant_ids())
+            return self.filter_order_ids(self.descendants_ids())
 
         def self_and_descendants(self):
-            return self.filter_order_ids(self.self_and_descendant_ids())
+            return self.filter_order_ids(self.self_and_descendants_ids())
 
         def descendants_and_self(self):
             return self.self_and_descendants()[::-1]
@@ -218,7 +218,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             """
             Returns a list of ids with all ancestors, self, and all descendants
             """
-            return self.ancestor_ids() + self.self_and_descendant_ids()
+            return self.ancestors_ids() + self.self_and_descendants_ids()
 
         def clan(self):
             """
@@ -226,7 +226,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             """
             return self.filter_order_ids(self.clan_ids())
 
-        def descendant_edges_set(self, cached_results=None):
+        def descendants_edges_set(self, cached_results=None):
             """
             Returns a set of descendants edges
             # ToDo: Modify to use CTE
@@ -239,11 +239,11 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                 res = set()
                 for f in self.children.all():
                     res.add(edge_model.objects.get(parent=self.id, child=f.id))
-                    res.update(f.descendant_edges_set(cached_results=cached_results))
+                    res.update(f.descendants_edges_set(cached_results=cached_results))
                 cached_results[self.id] = res
                 return res
 
-        def ancestor_edges_set(self, cached_results=None):
+        def ancestors_edges_set(self, cached_results=None):
             """
             Returns a set of ancestors edges
             # ToDo: Modify to use CTE
@@ -256,7 +256,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                 res = set()
                 for f in self.parents.all():
                     res.add(edge_model.objects.get(child=self.id, parent=f.id))
-                    res.update(f.ancestor_edges_set(cached_results=cached_results))
+                    res.update(f.ancestors_edges_set(cached_results=cached_results))
                 cached_results[self.id] = res
                 return res
 
@@ -265,8 +265,8 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             Returns a set of all edges associated with a given node
             """
             edges = set()
-            edges.update(self.descendant_edges_set())
-            edges.update(self.ancestor_edges_set())
+            edges.update(self.descendants_edges_set())
+            edges.update(self.ancestors_edges_set())
             return edges
 
         def path_ids_list(
@@ -411,7 +411,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         @staticmethod
         def circular_checker(parent, child):
-            if child.id in parent.self_and_ancestor_ids():
+            if child.id in parent.self_and_ancestors_ids():
                 raise ValidationError("The object is an ancestor.")
 
     return Node
@@ -423,7 +423,7 @@ class EdgeManager(models.Manager):
         Returns a queryset of all edges descended from the given node
         """
         return _filter_order(
-            self.model.objects, "parent_id", node.self_and_descendant_ids()
+            self.model.objects, "parent_id", node.self_and_descendants_ids()
         )
 
     def ancestors(self, node):
@@ -431,7 +431,7 @@ class EdgeManager(models.Manager):
         Returns a queryset of all edges which are ancestors of the given node
         """
         return _filter_order(
-            self.model.objects, "child_id", node.self_and_ancestor_ids()
+            self.model.objects, "child_id", node.self_and_ancestors_ids()
         )
 
     def clan(self, node):
