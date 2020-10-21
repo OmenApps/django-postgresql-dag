@@ -16,21 +16,21 @@ NOTE: This project is a work in progress. While functional, it is not optimized.
 
     from django.db import models
     from django_postgresql_dag.models import node_factory, edge_factory
-    
+
     class NetworkEdge(edge_factory("NetworkNode", concrete=False)):
         name = models.CharField(max_length=100)
-    
+
         def __str__(self):
             return self.name
-    
+
         def save(self, *args, **kwargs):
             self.name = f"{self.parent.name} {self.child.name}"
             super().save(*args, **kwargs)
-    
-    
+
+
     class NetworkNode(node_factory(NetworkEdge)):
         name = models.CharField(max_length=100)
-    
+
         def __str__(self):
             return self.name
 
@@ -111,9 +111,9 @@ NOTE: This project is a work in progress. While functional, it is not optimized.
     
     # Descendant methods which return ids
     
-    >>> root.descendant_ids()
+    >>> root.descendants_ids()
     [2, 3, 4, 5, 6, 7, 8, 9, 10]
-    >>> root.self_and_descendant_ids()
+    >>> root.self_and_descendants_ids()
     [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     >>> root.descendants_and_self_ids()
     [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
@@ -129,11 +129,11 @@ NOTE: This project is a work in progress. While functional, it is not optimized.
     
     # Ancestor methods which return ids
     
-    >>> c1.ancestor_ids()
+    >>> c1.ancestors_ids()
     [1, 4, 7, 8]
-    >>> c1.ancestor_and_self_ids()
+    >>> c1.ancestors_and_self_ids()
     [1, 4, 7, 8, 9]
-    >>> c1.self_and_ancestor_ids()
+    >>> c1.self_and_ancestors_ids()
     [9, 8, 7, 4, 1]
     
     # Ancestor methods which return a queryset
@@ -187,6 +187,15 @@ NOTE: This project is a work in progress. While functional, it is not optimized.
     pg.models.NodeNotReachableException
     >>> c1.shortest_path(root, directional=False)
     <QuerySet [<NetworkNode: root>, <NetworkNode: a3>, <NetworkNode: b4>, <NetworkNode: c1>]>
+
+    # Get a queryset of edges relatd to a particular node
+
+    >>> a1.ancestors_edges()
+    <QuerySet [<NetworkEdge: root a1>]>
+    >>> b4.descendants_edges()
+    <QuerySet [<NetworkEdge: b4 c1>]>
+    >>> b4.clan_edges()
+    {<NetworkEdge: b4 c1>, <NetworkEdge: root a3>, <NetworkEdge: a3 b4>}
     
     # Get the nodes at the start or end of an edge
     

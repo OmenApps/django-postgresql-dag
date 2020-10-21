@@ -5,6 +5,7 @@ import time
 from django.test import TestCase
 from django.core.exceptions import ValidationError
 from django_postgresql_dag.models import NodeNotReachableException
+
 # from .dag_output import expected_dag_output
 from .models import NetworkNode, NetworkEdge
 
@@ -14,12 +15,11 @@ logging.basicConfig(level=logging.DEBUG)
 node_name_list = ["root", "a1", "a2", "a3", "b1", "b2", "b3", "b4", "c1", "c2"]
 
 
-class DagTestCase(TestCase):    
-
+class DagTestCase(TestCase):
     def setUp(self):
         for node in node_name_list:
             NetworkNode.objects.create(name=node)
-        
+
     def test_01_objects_were_created(self):
         for node in node_name_list:
             self.assertEqual(NetworkNode.objects.get(name=f"{node}").name, f"{node}")
@@ -61,19 +61,19 @@ class DagTestCase(TestCase):
         try:
             b3.add_parent(c1)
         except ValidationError as e:
-            self.assertEqual(e.message, 'The object is an ancestor.')
+            self.assertEqual(e.message, "The object is an ancestor.")
 
         # Try to add a node that is already an ancestor (alternate method)
         try:
             c1.add_child(b3)
         except ValidationError as e:
-            self.assertEqual(e.message, 'The object is an ancestor.')
+            self.assertEqual(e.message, "The object is an ancestor.")
 
         # Try to add a node as it's own child
         try:
             b3.add_child(b3)
         except ValidationError as e:
-            self.assertEqual(e.message, 'The object is an ancestor.')
+            self.assertEqual(e.message, "The object is an ancestor.")
 
         # Verify that the tree methods work
         tree_from_root = root.descendants_tree()
@@ -116,31 +116,44 @@ class DagTestCase(TestCase):
 
         # Check other descendant methods
         self.assertEqual(b4.descendants_ids(), [c1.id])
-        self.assertEqual(b4.descendants_and_self_ids(), [b4.id, c1.id])
-        self.assertEqual(b4.self_and_descendants_ids(), [c1.id, b4.id])
-        self.assertEqual(b4.descendants_and_self()[0], b4)
-        self.assertEqual(b4.descendants_and_self()[1], c1)
-        self.assertEqual(b4.self_and_descendants()[0], c1)
-        self.assertEqual(b4.self_and_descendants()[1], b4)
+        self.assertEqual(b4.descendants_and_self_ids(), [c1.id, b4.id])
+        self.assertEqual(b4.self_and_descendants_ids(), [b4.id, c1.id])
+        self.assertEqual(b4.descendants_and_self()[0], c1)
+        self.assertEqual(b4.descendants_and_self()[1], b4)
+        self.assertEqual(b4.self_and_descendants()[0], b4)
+        self.assertEqual(b4.self_and_descendants()[1], c1)
 
+        # Check clan methods
+        self.assertEqual(a1.clan_ids(), [root.id, a1.id, b1.id, b2.id])
+        self.assertEqual(a1.clan()[0], root)
+        self.assertEqual(a1.clan()[3], b2)
 
         # Check distance between nodes
         self.assertEqual(root.distance(c1), 3)
 
         # Test additional fields for edge
-        self.assertEqual(b3.children.through.objects.filter(child=c1)[0].name, 'b3 c1')
+        self.assertEqual(b3.children.through.objects.filter(child=c1)[0].name, "b3 c1")
 
-        self.assertTrue([p.name for p in root.shortest_path(c1)] == ['root', 'a3', 'b3', 'c1'] or [p.name for p in c1.shortest_path(root, directional=False)] == ['root', 'a3', 'b4', 'c1'])
+        self.assertTrue(
+            [p.name for p in root.shortest_path(c1)] == ["root", "a3", "b3", "c1"]
+            or [p.name for p in c1.shortest_path(root, directional=False)]
+            == ["root", "a3", "b4", "c1"]
+        )
 
         try:
             [p.name for p in c1.shortest_path(root)]
         except Exception as e:
             self.assertRaises(NodeNotReachableException)
 
-        self.assertTrue([p.name for p in c1.shortest_path(root, directional=False)] == ['root', 'a3', 'b3', 'c1'] or [p.name for p in c1.shortest_path(root, directional=False)] == ['root', 'a3', 'b4', 'c1'])
+        self.assertTrue(
+            [p.name for p in c1.shortest_path(root, directional=False)]
+            == ["root", "a3", "b3", "c1"]
+            or [p.name for p in c1.shortest_path(root, directional=False)]
+            == ["root", "a3", "b4", "c1"]
+        )
 
-        self.assertEqual([p.name for p in root.get_leaves()], ['b2', 'c1', 'c2', 'b1'])
-        self.assertEqual([p.name for p in c2.get_roots()], ['root'])
+        self.assertEqual([p.name for p in root.get_leaves()], ["b2", "c1", "c2", "b1"])
+        self.assertEqual([p.name for p in c2.get_roots()], ["root"])
 
         self.assertTrue(root.is_root())
         self.assertTrue(c1.is_leaf())
@@ -151,7 +164,7 @@ class DagTestCase(TestCase):
 
         # Remove a node and test island
         self.assertTrue(c2 in b3.descendants())
-        self.assertEqual([p.name for p in c2.ancestors()], ['root', 'a3', 'b3'])
+        self.assertEqual([p.name for p in c2.ancestors()], ["root", "a3", "b3"])
         c2.remove_parent(b3)
         self.assertFalse(c2 in b3.descendants())
         self.assertEqual([p.name for p in c2.ancestors()], [])
@@ -159,18 +172,18 @@ class DagTestCase(TestCase):
 
         # Remove a node and test that it is still connected elsewhere
         self.assertTrue(c1 in b3.descendants())
-        self.assertEqual([p.name for p in c1.ancestors()], ['root', 'a3', 'b3', 'b4'])
+        self.assertEqual([p.name for p in c1.ancestors()], ["root", "a3", "b3", "b4"])
         b3.remove_child(c1)
         self.assertFalse(c1 in b3.descendants())
-        self.assertEqual([p.name for p in c1.ancestors()], ['root', 'a3', 'b4'])
+        self.assertEqual([p.name for p in c1.ancestors()], ["root", "a3", "b4"])
         self.assertFalse(c1.is_island())
 
         """
         Simulate a basic irrigation canal network
         """
-        log = logging.getLogger('test_2_canal')
+        log = logging.getLogger("test_2_canal")
 
-        node_name_list2 = [x for x in range(0,201)]
+        node_name_list2 = [x for x in range(0, 201)]
         adjacency_list = [
             ["0", "1"],
             ["1", "2"],
@@ -374,7 +387,7 @@ class DagTestCase(TestCase):
             ["199", "200"],
         ]
 
-        for n in range(1,200):
+        for n in range(1, 200):
             if n % 5 != 0:
                 node_name_list2.append(f"SA{n}")
                 node_name_list2.append(f"SB{n}")
@@ -395,26 +408,34 @@ class DagTestCase(TestCase):
         canal_root = NetworkNode.objects.get(name="0")
         start_time = time.time()
         log.debug("Descendants: %s" % str(len(canal_root.descendants())))
-        execution_time = (time.time() - start_time)
+        execution_time = time.time() - start_time
         log.debug("Execution time in seconds: %s" % str(execution_time))
 
         # Compute descendants of a leaf node
         canal_leaf = NetworkNode.objects.get(name="200")
         start_time = time.time()
         log.debug("Ancestors: %s" % str(len(canal_leaf.ancestors())))
-        execution_time = (time.time() - start_time)
+        execution_time = time.time() - start_time
         log.debug("Execution time in seconds: %s" % str(execution_time))
 
         # Count number of paths from start to end of graph
         start_time = time.time()
-        log.debug("Paths through graph: : %s" % str(len(canal_root.path_ids_list(canal_leaf, max_depth=n + 1, max_paths=500000000))))
-        execution_time = (time.time() - start_time)
+        log.debug(
+            "Paths through graph: : %s"
+            % str(
+                len(
+                    canal_root.path_ids_list(
+                        canal_leaf, max_depth=n + 1, max_paths=500000000
+                    )
+                )
+            )
+        )
+        execution_time = time.time() - start_time
         log.debug("Execution time in seconds: %s" % str(execution_time))
 
         # Find distance from root to leaf
         log.debug("Distance: %s" % str(canal_root.distance(canal_leaf, max_depth=100)))
         self.assertEqual(canal_root.distance(canal_leaf, max_depth=100), 60)
-
 
         log.debug("Node count: %s" % str(NetworkNode.objects.count()))
         log.debug("Edge count: %s" % str(NetworkEdge.objects.count()))
@@ -425,6 +446,7 @@ class DagTestCase(TestCase):
         reasonable amount of time (linear in size of graph, not
         exponential).
         """
+
         def run_test():
             # Using the graph generation algorithm below, the number of potential
             # paths from node 0 doubles for each increase in n.
@@ -432,19 +454,19 @@ class DagTestCase(TestCase):
             # When n=22, there are on the order of 1 million paths through the graph
             # from node 0, so results for intermediate nodes need to be cached
 
-            log = logging.getLogger('test_3')
+            log = logging.getLogger("test_3")
 
             n = 22  # Keep it an even number
 
-            for i in range(2*n):
+            for i in range(2 * n):
                 NetworkNode(pk=i, name=str(i)).save()
 
             # Create edges
-            for i in range(0, 2*n - 2, 2):
+            for i in range(0, 2 * n - 2, 2):
                 p1 = NetworkNode.objects.get(pk=i)
-                p2 = NetworkNode.objects.get(pk=i+1)
-                p3 = NetworkNode.objects.get(pk=i+2)
-                p4 = NetworkNode.objects.get(pk=i+3)
+                p2 = NetworkNode.objects.get(pk=i + 1)
+                p3 = NetworkNode.objects.get(pk=i + 2)
+                p4 = NetworkNode.objects.get(pk=i + 3)
 
                 p1.add_child(p3)
                 p1.add_child(p4)
@@ -455,23 +477,28 @@ class DagTestCase(TestCase):
             root_node = NetworkNode.objects.get(pk=0)
             start_time = time.time()
             log.debug("Descendants: %s" % str(len(root_node.ancestors())))
-            execution_time = (time.time() - start_time)
+            execution_time = time.time() - start_time
             log.debug("Execution time in seconds: %s" % str(execution_time))
 
             # Compute ancestors of a leaf node
-            leaf_node = NetworkNode.objects.get(pk=2*n - 1)
+            leaf_node = NetworkNode.objects.get(pk=2 * n - 1)
             start_time = time.time()
             log.debug("Ancestors: %s" % str(len(leaf_node.ancestors())))
-            execution_time = (time.time() - start_time)
+            execution_time = time.time() - start_time
             log.debug("Execution time in seconds: %s" % str(execution_time))
 
             first = NetworkNode.objects.get(name="0")
-            last = NetworkNode.objects.get(pk=2*n - 1)
+            last = NetworkNode.objects.get(pk=2 * n - 1)
 
             # Count number of paths from start to end of graph
             start_time = time.time()
-            log.debug("Paths through graph: %s" % str(len(first.path_ids_list(last, max_depth=n + 1, max_paths=500000000))))
-            execution_time = (time.time() - start_time)
+            log.debug(
+                "Paths through graph: %s"
+                % str(
+                    len(first.path_ids_list(last, max_depth=n + 1, max_paths=500000000))
+                )
+            )
+            execution_time = time.time() - start_time
             log.debug("Execution time in seconds: %s" % str(execution_time))
 
             self.assertEqual(first.distance(last, max_depth=n), n - 1)
@@ -480,10 +507,12 @@ class DagTestCase(TestCase):
             log.debug("Edge count: %s" % str(NetworkEdge.objects.count()))
 
             # Connect the first-created node to the last-created node
-            NetworkNode.objects.get(pk=0).add_child(NetworkNode.objects.get(pk=2*n - 1))
+            NetworkNode.objects.get(pk=0).add_child(
+                NetworkNode.objects.get(pk=2 * n - 1)
+            )
 
             middle = NetworkNode.objects.get(pk=n - 1)
-            self.assertEqual(first.distance(middle, max_depth=n), n/2 - 1)
+            self.assertEqual(first.distance(middle, max_depth=n), n / 2 - 1)
 
         # Run the test, raising an error if the code times out
         p = multiprocessing.Process(target=run_test)
@@ -492,4 +521,4 @@ class DagTestCase(TestCase):
         if p.is_alive():
             p.terminate()
             p.join()
-            raise RuntimeError('Graph operations take too long!')
+            raise RuntimeError("Graph operations take too long!")
