@@ -112,7 +112,7 @@ class NodeNotReachableException(Exception):
     pass
 
 
-def _filter_order(queryset, field_names, values):
+def _filter_order(queryset, field_names, values, extra_filters=None):
     """
     Filters the provided queryset for 'field_name__in values' for each given field_name in [field_names]
     orders results in the same order as provided values
@@ -120,6 +120,10 @@ def _filter_order(queryset, field_names, values):
         For instance
             _filter_order(self.__class__.objects, "pk", ids)
         returns a queryset of the current class, with instances where the 'pk' field matches an id in ids
+        
+    Extra filters can be added via a dictionary of lookups.
+    For instance, assuming the target model has a "name" field:
+        _filter_order(self.__class__.objects, "pk", ids, extra_filters={"name__icontains", "Jack"})
     """
     if not isinstance(field_names, list):
         field_names = [field_names]
@@ -129,6 +133,8 @@ def _filter_order(queryset, field_names, values):
         case.append(When(**when_condition))
     order_by = Case(*case)
     filter_condition = {field_name + "__in": values for field_name in field_names}
+    if extra_filters is not None:
+        filter_condition.update(extra_filters)
     return queryset.filter(**filter_condition).order_by(order_by)
 
 
