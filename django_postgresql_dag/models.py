@@ -112,7 +112,7 @@ class NodeNotReachableException(Exception):
     pass
 
 
-def _filter_order(queryset, field_names, values, extra_filters=None):
+def _filter_order(queryset, field_names, values):
     """
     Filters the provided queryset for 'field_name__in values' for each given field_name in [field_names]
     orders results in the same order as provided values
@@ -121,9 +121,6 @@ def _filter_order(queryset, field_names, values, extra_filters=None):
             _filter_order(self.__class__.objects, "pk", ids)
         returns a queryset of the current class, with instances where the 'pk' field matches an id in ids
         
-    Extra filters can be added via a dictionary of lookups.
-    For instance, assuming the target model has a "name" field:
-        _filter_order(self.__class__.objects, "pk", ids, extra_filters={"name__icontains", "Jack"})
     """
     if not isinstance(field_names, list):
         field_names = [field_names]
@@ -133,8 +130,6 @@ def _filter_order(queryset, field_names, values, extra_filters=None):
         case.append(When(**when_condition))
     order_by = Case(*case)
     filter_condition = {field_name + "__in": values for field_name in field_names}
-    if extra_filters is not None:
-        filter_condition.update(extra_filters)
     return queryset.filter(**filter_condition).order_by(order_by)
 
 
@@ -232,9 +227,9 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             """
             return self.filter_order_ids(self.clan_ids())
 
-        def descendants_edges(self, cached_results=None):
+        def descendants_edges_ids(self, cached_results=None):
             """
-            Returns a queryset of descendants edges
+            Returns a set of descendants edges
             # ToDo: Modify to use CTE
             """
             if cached_results is None:
@@ -244,15 +239,20 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             else:
                 edge_set = set()
                 for f in self.children.all():
-                    edge_set.add(edge_model.objects.get(parent=self.id, child=f.id))
-                    edge_set.update(f.descendants_edges(cached_results=cached_results))
+                    edge_set.add(edge_model.objects.get(parent=self.id, child=f.id).id)
+                    edge_set.update(f.descendants_edges_ids(cached_results=cached_results))
                 cached_results[self.id] = edge_set
-            out = [x.id for x in edge_set]
-            return _filter_order(edge_model.objects, "pk", out)
+            return edge_set
 
-        def ancestors_edges(self, cached_results=None):
+        def descendants_edges(self):
             """
-            Returns a queryset of ancestors edges
+            Returns a queryset of descendants edges
+            """
+            return self.filter_order_ids(self.descendants_edges_ids())
+
+        def ancestors_edges_ids(self, cached_results=None):
+            """
+            Returns a set of ancestors edges
             # ToDo: Modify to use CTE
             """
             if cached_results is None:
@@ -262,20 +262,31 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             else:
                 edge_set = set()
                 for f in self.parents.all():
-                    edge_set.add(edge_model.objects.get(child=self.id, parent=f.id))
-                    edge_set.update(f.ancestors_edges(cached_results=cached_results))
+                    edge_set.add(edge_model.objects.get(child=self.id, parent=f.id).id)
+                    edge_set.update(f.ancestors_edges_ids(cached_results=cached_results))
                 cached_results[self.id] = edge_set
-            out = [x.id for x in edge_set]
-            return _filter_order(edge_model.objects, "pk", out)
+            return edge_set
+
+        def ancestors_edges(self):
+            """
+            Returns a queryset of ancestors edges
+            """
+            return self.filter_order_ids(self.ancestors_edges_ids())
+
+        def clan_edges_ids(self):
+            """
+            Returns a set of all edges associated with a given node
+            """
+            edges = set()
+            edges.update(self.descendants_edges_ids())
+            edges.update(self.ancestors_edges_ids())
+            return edges
 
         def clan_edges(self):
             """
             Returns a queryset of all edges associated with a given node
             """
-            edges = set()
-            edges.update(self.descendants_edges())
-            edges.update(self.ancestors_edges())
-            return edges
+            return self.filter_order_ids(self.clan_edges_ids())
 
         def path_ids_list(
             self, target_node, directional=True, max_depth=20, max_paths=1

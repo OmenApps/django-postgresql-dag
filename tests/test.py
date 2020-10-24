@@ -21,19 +21,26 @@ class DagTestCase(TestCase):
             NetworkNode.objects.create(name=node)
 
     def test_01_objects_were_created(self):
+        log = logging.getLogger("test_01")
+        log.debug("Creating objects")
         for node in node_name_list:
             self.assertEqual(NetworkNode.objects.get(name=f"{node}").name, f"{node}")
+        log.debug("Done creating objects")
 
     def test_02_dag(self):
+        log = logging.getLogger("test_02_dag")
 
         # Get nodes
+        log.debug("Getting nodes")
         for node in node_name_list:
             globals()[f"{node}"] = NetworkNode.objects.get(name=node)
+        log.debug("Done getting nodes")
 
         # Creates a DAG
         root.add_child(a1)
         b1.add_parent(a1)
 
+        log.debug("descendants_tree")
         tree = root.descendants_tree()
         # {<ConcreteNode: # 5>: {<ConcreteNode: # 7>: {}}}
         self.assertIn(a1, tree)
@@ -41,6 +48,7 @@ class DagTestCase(TestCase):
         self.assertIn(b1, tree[a1])
         self.assertEqual(tree[a1][b1], {})
 
+        log.debug("descendants_ids")
         l = root.descendants_ids()
         self.assertEqual(l, [12, 15])
 
@@ -49,6 +57,7 @@ class DagTestCase(TestCase):
         a3.add_child(b3)
         a3.add_child(b4)
         b3.add_child(c1)
+        log.debug("descendants_ids")
         l = root.descendants_ids()
         self.assertEqual(l, [12, 13, 14, 15, 17, 18, 19])
 
@@ -76,6 +85,7 @@ class DagTestCase(TestCase):
             self.assertEqual(e.message, "The object is an ancestor.")
 
         # Verify that the tree methods work
+        log.debug("descendants_tree")
         tree_from_root = root.descendants_tree()
         self.assertIn(a1, tree_from_root)
         self.assertIn(a2, tree_from_root)
@@ -93,6 +103,7 @@ class DagTestCase(TestCase):
         self.assertEqual(len(tree_from_root[a3]), 2)
         self.assertEqual(len(tree_from_root[a3][b4]), 1)
 
+        log.debug("ancestors_tree")
         tree_from_leaf = c1.ancestors_tree()
         self.assertIn(b3, tree_from_leaf)
         self.assertIn(a3, tree_from_leaf[b3])
@@ -106,45 +117,66 @@ class DagTestCase(TestCase):
         self.assertEqual(len(tree_from_leaf[b4][a3]), 1)
 
         # Check other ancestor methods
+        log.debug("ancestors_ids")
         self.assertEqual(a1.ancestors_ids(), [root.id])
+        log.debug("ancestors_and_self_ids")
         self.assertEqual(a1.ancestors_and_self_ids(), [root.id, a1.id])
+        log.debug("self_and_ancestors_ids")
         self.assertEqual(a1.self_and_ancestors_ids(), [a1.id, root.id])
+        log.debug("ancestors_and_self")
         self.assertEqual(a1.ancestors_and_self()[0], root)
+        log.debug("ancestors_and_self")
         self.assertEqual(a1.ancestors_and_self()[1], a1)
+        log.debug("self_and_ancestors")
         self.assertEqual(a1.self_and_ancestors()[0], a1)
+        log.debug("self_and_ancestors")
         self.assertEqual(a1.self_and_ancestors()[1], root)
 
         # Check other descendant methods
+        log.debug("descendants_ids")
         self.assertEqual(b4.descendants_ids(), [c1.id])
+        log.debug("descendants_and_self_ids")
         self.assertEqual(b4.descendants_and_self_ids(), [c1.id, b4.id])
+        log.debug("self_and_descendants_ids")
         self.assertEqual(b4.self_and_descendants_ids(), [b4.id, c1.id])
+        log.debug("descendants_and_self")
         self.assertEqual(b4.descendants_and_self()[0], c1)
+        log.debug("descendants_and_self")
         self.assertEqual(b4.descendants_and_self()[1], b4)
+        log.debug("self_and_descendants")
         self.assertEqual(b4.self_and_descendants()[0], b4)
+        log.debug("self_and_descendants")
         self.assertEqual(b4.self_and_descendants()[1], c1)
 
         # Check clan methods
+        log.debug("clan_ids")
         self.assertEqual(a1.clan_ids(), [root.id, a1.id, b1.id, b2.id])
+        log.debug("clan")
         self.assertEqual(a1.clan()[0], root)
+        log.debug("clan")
         self.assertEqual(a1.clan()[3], b2)
 
         # Check distance between nodes
+        log.debug("distance")
         self.assertEqual(root.distance(c1), 3)
 
         # Test additional fields for edge
         self.assertEqual(b3.children.through.objects.filter(child=c1)[0].name, "b3 c1")
 
+        log.debug("shortest_path x2")
         self.assertTrue(
             [p.name for p in root.shortest_path(c1)] == ["root", "a3", "b3", "c1"]
             or [p.name for p in c1.shortest_path(root, directional=False)]
             == ["root", "a3", "b4", "c1"]
         )
 
+        log.debug("shortest_path")
         try:
             [p.name for p in c1.shortest_path(root)]
         except Exception as e:
             self.assertRaises(NodeNotReachableException)
 
+        log.debug("shortest_path x2")
         self.assertTrue(
             [p.name for p in c1.shortest_path(root, directional=False)]
             == ["root", "a3", "b3", "c1"]
@@ -152,7 +184,9 @@ class DagTestCase(TestCase):
             == ["root", "a3", "b4", "c1"]
         )
 
+        log.debug("get_leaves")
         self.assertEqual([p.name for p in root.get_leaves()], ["b2", "c1", "c2", "b1"])
+        log.debug("get_roots")
         self.assertEqual([p.name for p in c2.get_roots()], ["root"])
 
         self.assertTrue(root.is_root())
@@ -163,25 +197,33 @@ class DagTestCase(TestCase):
         self.assertFalse(a1.is_root())
 
         # Remove a node and test island
+        log.debug("descendants")
         self.assertTrue(c2 in b3.descendants())
+        log.debug("ancestors")
         self.assertEqual([p.name for p in c2.ancestors()], ["root", "a3", "b3"])
         c2.remove_parent(b3)
+        log.debug("descendants")
         self.assertFalse(c2 in b3.descendants())
+        log.debug("ancestors")
         self.assertEqual([p.name for p in c2.ancestors()], [])
         self.assertTrue(c2.is_island())
 
         # Remove a node and test that it is still connected elsewhere
+        log.debug("descendants")
         self.assertTrue(c1 in b3.descendants())
+        log.debug("ancestors")
         self.assertEqual([p.name for p in c1.ancestors()], ["root", "a3", "b3", "b4"])
         b3.remove_child(c1)
+        log.debug("descendants")
         self.assertFalse(c1 in b3.descendants())
+        log.debug("ancestors")
         self.assertEqual([p.name for p in c1.ancestors()], ["root", "a3", "b4"])
         self.assertFalse(c1.is_island())
 
         """
         Simulate a basic irrigation canal network
         """
-        log = logging.getLogger("test_2_canal")
+        log = logging.getLogger("test_02_canal")
 
         node_name_list2 = [x for x in range(0, 201)]
         adjacency_list = [
@@ -398,9 +440,13 @@ class DagTestCase(TestCase):
                 adjacency_list.append([f"SA{n}", f"SC{n}"])
 
         # Create and assign nodes to variables
+        log.debug("Start creating nodes")
         for node in node_name_list2:
             globals()[f"{node}"] = NetworkNode.objects.create(name=node)
+        log.debug("Done creating nodes")
 
+
+        log.debug("Connect nodes")
         for connection in adjacency_list:
             globals()[f"{connection[0]}"].add_child(globals()[f"{connection[1]}"])
 
@@ -458,10 +504,14 @@ class DagTestCase(TestCase):
 
             n = 22  # Keep it an even number
 
+
+            log.debug("Start creating nodes")
             for i in range(2 * n):
                 NetworkNode(pk=i, name=str(i)).save()
+            log.debug("Done creating nodes")
 
             # Create edges
+            log.debug("Connect nodes")
             for i in range(0, 2 * n - 2, 2):
                 p1 = NetworkNode.objects.get(pk=i)
                 p2 = NetworkNode.objects.get(pk=i + 1)
@@ -501,6 +551,7 @@ class DagTestCase(TestCase):
             execution_time = time.time() - start_time
             log.debug("Execution time in seconds: %s" % str(execution_time))
 
+            log.debug("Distance")
             self.assertEqual(first.distance(last, max_depth=n), n - 1)
 
             log.debug("Node count: %s" % str(NetworkNode.objects.count()))
@@ -512,6 +563,7 @@ class DagTestCase(TestCase):
             )
 
             middle = NetworkNode.objects.get(pk=n - 1)
+            log.debug("Distance")
             self.assertEqual(first.distance(middle, max_depth=n), n / 2 - 1)
 
         # Run the test, raising an error if the code times out
