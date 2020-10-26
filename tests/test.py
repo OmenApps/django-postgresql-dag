@@ -162,7 +162,13 @@ class DagTestCase(TestCase):
 
         # Test additional fields for edge
         self.assertEqual(b3.children.through.objects.filter(child=c1)[0].name, "b3 c1")
+        self.assertEqual(b3.descendants_edges().first(), NetworkEdge.objects.get(parent=b3, child=c2))
+        self.assertEqual(a1.ancestors_edges().first(), NetworkEdge.objects.get(parent=root, child=a1))
+        self.assertTrue(NetworkEdge.objects.get(parent=a1, child=b2) in a1.clan_edges())
+        self.assertTrue(NetworkEdge.objects.get(parent=a1, child=b1) in a1.clan_edges())
+        self.assertTrue(NetworkEdge.objects.get(parent=root, child=a1) in a1.clan_edges())
 
+        # Test shortest_path
         log.debug("shortest_path x2")
         self.assertTrue(
             [p.name for p in root.shortest_path(c1)] == ["root", "a3", "b3", "c1"]
@@ -500,7 +506,7 @@ class DagTestCase(TestCase):
             # When n=22, there are on the order of 1 million paths through the graph
             # from node 0, so results for intermediate nodes need to be cached
 
-            log = logging.getLogger("test_3")
+            log = logging.getLogger("test_03")
 
             n = 22  # Keep it an even number
 
