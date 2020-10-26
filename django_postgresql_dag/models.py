@@ -248,7 +248,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             """
             Returns a queryset of descendants edges
             """
-            return self.filter_order_ids(self.descendants_edges_ids())
+            return _filter_order(edge_model.objects, "pk", self.descendants_edges_ids())
 
         def ancestors_edges_ids(self, cached_results=None):
             """
@@ -271,7 +271,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             """
             Returns a queryset of ancestors edges
             """
-            return self.filter_order_ids(self.ancestors_edges_ids())
+            return _filter_order(edge_model.objects, "pk", self.ancestors_edges_ids())
 
         def clan_edges_ids(self):
             """
@@ -286,7 +286,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             """
             Returns a queryset of all edges associated with a given node
             """
-            return self.filter_order_ids(self.clan_edges_ids())
+            return _filter_order(edge_model.objects, "pk", self.clan_edges_ids())
 
         def path_ids_list(
             self, target_node, directional=True, max_depth=20, max_paths=1
