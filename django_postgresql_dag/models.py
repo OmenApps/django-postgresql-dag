@@ -12,10 +12,13 @@ https://github.com/worsht/django-dag-postgresql
 https://github.com/stdbrouw/django-treebeard-dag
 """
 
+from django.apps import apps
 from django.db import models, connection
 from django.db.models import Case, When
 from django.core.exceptions import ValidationError
 
+LIMITING_CLAUSE_1 = """AND second.{fk_field_name}_id = {fk_id}"""
+LIMITING_CLAUSE_2 = """WHERE {relationship_table}.{fk_field_name}_id = {fk_id}"""
 
 ANCESTOR_QUERY = """
 WITH RECURSIVE traverse(id, depth) AS (
@@ -24,11 +27,13 @@ WITH RECURSIVE traverse(id, depth) AS (
         LEFT OUTER JOIN {relationship_table} AS second
         ON first.parent_id = second.child_id
     WHERE first.child_id = %(id)s
+    {limiting_clause_1}
 UNION
     SELECT DISTINCT parent_id, traverse.depth + 1
         FROM traverse
         INNER JOIN {relationship_table}
         ON {relationship_table}.child_id = traverse.id
+        {limiting_clause_2}
 )
 SELECT id FROM traverse
 GROUP BY id
@@ -42,11 +47,13 @@ WITH RECURSIVE traverse(id, depth) AS (
         LEFT OUTER JOIN {relationship_table} AS second
         ON first.child_id = second.parent_id
     WHERE first.parent_id = %(id)s
+    {limiting_clause_1}
 UNION
     SELECT DISTINCT child_id, traverse.depth + 1
         FROM traverse
         INNER JOIN {relationship_table}
         ON {relationship_table}.parent_id = traverse.id
+        {limiting_clause_2}
 )
 SELECT id FROM traverse
 GROUP BY id
@@ -120,7 +127,7 @@ def _filter_order(queryset, field_names, values):
         For instance
             _filter_order(self.__class__.objects, "pk", ids)
         returns a queryset of the current class, with instances where the 'pk' field matches an id in ids
-        
+
     """
     if not isinstance(field_names, list):
         field_names = [field_names]
@@ -135,6 +142,17 @@ def _filter_order(queryset, field_names, values):
 
 def node_factory(edge_model, children_null=True, base_model=models.Model):
     edge_model_table = edge_model._meta.db_table
+
+    def get_foreign_key_field(instance=None):
+        """
+        Provided a model instance, checks if the edge model has a ForeignKey field to the model for that instance, and then returns the field name and instance id
+        """
+        if instance is not None:
+            for field in edge_model._meta.get_fields():
+                if field.related_model is instance._meta.model:
+                    # Return the first field that matches
+                    return (field.name, instance.id)
+        return (None, None)
 
     class Node(base_model):
         children = models.ManyToManyField(
@@ -169,68 +187,118 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             """
             return _filter_order(self.__class__.objects, "pk", ids)
 
-        def ancestors_ids(self):
+        def ancestors_ids(self, limiting_instance=None):
+            fk_field_name, fk_value = get_foreign_key_field(limiting_instance)
+            if fk_field_name is not None and fk_value is not None:
+                limiting_clause_1 = LIMITING_CLAUSE_1.format(
+                    fk_field_name=fk_field_name, fk_value=fk_value
+                )
+                limiting_clause_2 = LIMITING_CLAUSE_2.format(
+                    relationship_table=edge_model_table,
+                    fk_field_name=fk_field_name,
+                    fk_value=fk_value,
+                )
+            else:
+                limiting_clause_1, limiting_clause_2 = ("", "")
+
             with connection.cursor() as cursor:
                 cursor.execute(
-                    ANCESTOR_QUERY.format(relationship_table=edge_model_table),
+                    ANCESTOR_QUERY.format(
+                        relationship_table=edge_model_table,
+                        limiting_clause_1=limiting_clause_1,
+                        limiting_clause_2=limiting_clause_2,
+                    ),
                     {"id": self.id},
                 )
                 return [row[0] for row in cursor.fetchall()]
 
-        def ancestors_and_self_ids(self):
-            return self.ancestors_ids() + [self.id]
+        def ancestors_and_self_ids(self, limiting_instance=None):
+            return self.ancestors_ids(limiting_instance=limiting_instance) + [self.id]
 
-        def self_and_ancestors_ids(self):
-            return self.ancestors_and_self_ids()[::-1]
+        def self_and_ancestors_ids(self, limiting_instance=None):
+            return self.ancestors_and_self_ids(limiting_instance=limiting_instance)[
+                ::-1
+            ]
 
-        def ancestors(self):
-            return self.filter_order_ids(self.ancestors_ids())
+        def ancestors(self, limiting_instance=None):
+            return self.filter_order_ids(
+                self.ancestors_ids(limiting_instance=limiting_instance)
+            )
 
-        def ancestors_and_self(self):
-            return self.filter_order_ids(self.ancestors_and_self_ids())
+        def ancestors_and_self(self, limiting_instance=None):
+            return self.filter_order_ids(
+                self.ancestors_and_self_ids(limiting_instance=limiting_instance)
+            )
 
-        def self_and_ancestors(self):
-            return self.ancestors_and_self()[::-1]
+        def self_and_ancestors(self, limiting_instance=None):
+            return self.ancestors_and_self(limiting_instance=limiting_instance)[::-1]
 
-        def descendants_ids(self):
+        def descendants_ids(self, limiting_instance=None):
+            fk_field_name, fk_value = get_foreign_key_field(limiting_instance)
+            if fk_field_name is not None and fk_value is not None:
+                limiting_clause_1 = LIMITING_CLAUSE_1.format(
+                    fk_field_name=fk_field_name, fk_value=fk_value
+                )
+                limiting_clause_2 = LIMITING_CLAUSE_2.format(
+                    relationship_table=edge_model_table,
+                    fk_field_name=fk_field_name,
+                    fk_value=fk_value,
+                )
+            else:
+                limiting_clause_1, limiting_clause_2 = ("", "")
+
             with connection.cursor() as cursor:
                 cursor.execute(
-                    DESCENDANT_QUERY.format(relationship_table=edge_model_table),
+                    DESCENDANT_QUERY.format(
+                        relationship_table=edge_model_table,
+                        limiting_clause_1=limiting_clause_1,
+                        limiting_clause_2=limiting_clause_2,
+                    ),
                     {"id": self.id},
                 )
                 return [row[0] for row in cursor.fetchall()]
 
-        def self_and_descendants_ids(self):
-            return [self.id] + self.descendants_ids()
+        def self_and_descendants_ids(self, limiting_instance=None):
+            return [self.id] + self.descendants_ids(limiting_instance=limiting_instance)
 
-        def descendants_and_self_ids(self):
-            return self.self_and_descendants_ids()[::-1]
+        def descendants_and_self_ids(self, limiting_instance=None):
+            return self.self_and_descendants_ids(limiting_instance=limiting_instance)[
+                ::-1
+            ]
 
-        def descendants(self):
-            return self.filter_order_ids(self.descendants_ids())
+        def descendants(self, limiting_instance=None):
+            return self.filter_order_ids(
+                self.descendants_ids(limiting_instance=limiting_instance)
+            )
 
-        def self_and_descendants(self):
-            return self.filter_order_ids(self.self_and_descendants_ids())
+        def self_and_descendants(self, limiting_instance=None):
+            return self.filter_order_ids(
+                self.self_and_descendants_ids(limiting_instance=limiting_instance)
+            )
 
-        def descendants_and_self(self):
-            return self.self_and_descendants()[::-1]
+        def descendants_and_self(self, limiting_instance=None):
+            return self.self_and_descendants(limiting_instance=limiting_instance)[::-1]
 
-        def clan_ids(self):
+        def clan_ids(self, limiting_instance=None):
             """
             Returns a list of ids with all ancestors, self, and all descendants
             """
-            return self.ancestors_ids() + self.self_and_descendants_ids()
+            return self.ancestors_ids(
+                limiting_instance=limiting_instance
+            ) + self.self_and_descendants_ids(limiting_instance=limiting_instance)
 
-        def clan(self):
+        def clan(self, limiting_instance=None):
             """
             Returns a queryset with all ancestors, self, and all descendants
             """
-            return self.filter_order_ids(self.clan_ids())
+            return self.filter_order_ids(
+                self.clan_ids(limiting_instance=limiting_instance)
+            )
 
         def descendants_edges_ids(self, cached_results=None):
             """
             Returns a set of descendants edges
-            # ToDo: Modify to use CTE
+            # ToDo: Modify to use CTE and sort topologically
             """
             if cached_results is None:
                 cached_results = dict()
@@ -240,7 +308,9 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                 edge_set = set()
                 for f in self.children.all():
                     edge_set.add(edge_model.objects.get(parent=self.id, child=f.id).id)
-                    edge_set.update(f.descendants_edges_ids(cached_results=cached_results))
+                    edge_set.update(
+                        f.descendants_edges_ids(cached_results=cached_results)
+                    )
                 cached_results[self.id] = edge_set
             return edge_set
 
@@ -253,7 +323,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
         def ancestors_edges_ids(self, cached_results=None):
             """
             Returns a set of ancestors edges
-            # ToDo: Modify to use CTE
+            # ToDo: Modify to use CTE and sort topologically
             """
             if cached_results is None:
                 cached_results = dict()
@@ -263,7 +333,9 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                 edge_set = set()
                 for f in self.parents.all():
                     edge_set.add(edge_model.objects.get(child=self.id, parent=f.id).id)
-                    edge_set.update(f.ancestors_edges_ids(cached_results=cached_results))
+                    edge_set.update(
+                        f.ancestors_edges_ids(cached_results=cached_results)
+                    )
                 cached_results[self.id] = edge_set
             return edge_set
 
@@ -292,7 +364,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             self, target_node, directional=True, max_depth=20, max_paths=1
         ):
             """
-            Returns a list of paths from self to target node, optionally in either 
+            Returns a list of paths from self to target node, optionally in either
             direction. The resulting lists are always sorted from root-side, toward
             leaf-side, regardless of the relative position of starting and ending nodes.
 
@@ -337,14 +409,23 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             Returns a queryset of the shortest path
             """
             return self.filter_order_ids(
-                self.path_ids_list(target_node, directional=directional, max_depth=max_depth)[0]
+                self.path_ids_list(
+                    target_node, directional=directional, max_depth=max_depth
+                )[0]
             )
 
         def distance(self, target_node, directional=True, max_depth=20):
             """
             Returns the shortest hops count to the target node
             """
-            return len(self.path_ids_list(target_node, directional=directional, max_depth=max_depth)[0]) - 1
+            return (
+                len(
+                    self.path_ids_list(
+                        target_node, directional=directional, max_depth=max_depth
+                    )[0]
+                )
+                - 1
+            )
 
         def is_root(self):
             """
