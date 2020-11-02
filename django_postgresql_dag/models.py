@@ -506,18 +506,48 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             if self == target_node:
                 return [[self.id]]
 
+            
+            downward_clauses, upward_clauses = ("", "")
+            query_parameters = {
+                "starting_node": self.id,
+                "ending_node": target_node.id,
+                "max_depth": max_depth,
+                "max_paths": max_paths,
+            }
+
+            limiting_fk_nodes_instance = kwargs.get("limiting_fk_nodes_instance", None)
+            limiting_fk_edges_instance = kwargs.get("limiting_fk_edges_instance", None)
+            excluded_nodes_queryset = kwargs.get("excluded_nodes_queryset", None)
+            excluded_edges_queryset = kwargs.get("excluded_edges_queryset", None)
+            required_nodes_queryset = kwargs.get("required_nodes_queryset", None)
+            required_edges_queryset = kwargs.get("required_edges_queryset", None)
+
+            if limiting_fk_nodes_instance is not None:
+                pass  # Not implemented yet
+
+            if limiting_fk_edges_instance is not None:
+                pass  # Not implemented yet
+
+            if excluded_nodes_queryset is not None:
+                pass  # Not implemented yet
+
+            if excluded_edges_queryset is not None:
+                pass  # Not implemented yet
+
+            if required_nodes_queryset is not None:
+                pass  # Not implemented yet
+
+            if required_edges_queryset is not None:
+                pass  # Not implemented yet
+                
+
             with connection.cursor() as cursor:
                 cursor.execute(
                     DOWNWARD_PATH_QUERY.format(
                         relationship_table=edge_model_table,
-                        # downward_clauses=downward_clauses
+                        downward_clauses=downward_clauses
                     ),
-                    {
-                        "starting_node": self.id,
-                        "ending_node": target_node.id,
-                        "max_depth": max_depth,
-                        "max_paths": max_paths,
-                    },
+                    query_parameters
                 )
                 path = [row[0] + [target_node.id] for row in cursor.fetchall()]
                 if not path and not directional:
@@ -525,14 +555,9 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                         cursor.execute(
                             UPWARD_PATH_QUERY.format(
                                 relationship_table=edge_model_table,
-                                # upward_clauses=upward_clauses
+                                upward_clauses=upward_clauses
                             ),
-                            {
-                                "starting_node": self.id,
-                                "ending_node": target_node.id,
-                                "max_depth": max_depth,
-                                "max_paths": max_paths,
-                            },
+                            query_parameters
                         )
                         path = [
                             [target_node.id] + row[0][::-1] for row in cursor.fetchall()
