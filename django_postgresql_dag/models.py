@@ -17,47 +17,130 @@ from django.db import models, connection
 from django.db.models import Case, When
 from django.core.exceptions import ValidationError
 
-LIMITING_CLAUSE_1 = """AND second.{fk_field_name}_id = {fk_id}"""
-LIMITING_CLAUSE_2 = """WHERE {relationship_table}.{fk_field_name}_id = {fk_id}"""
+LIMITING_FK_EDGES_CLAUSE_1 = (
+    """AND second.{fk_field_name}_id = %(limiting_fk_edges_instance_id)s"""
+)
+LIMITING_FK_EDGES_CLAUSE_2 = """AND {relationship_table}.{fk_field_name}_id = %(limiting_fk_edges_instance_id)s"""
+LIMITING_FK_NODES_CLAUSE_1 = """"""
+LIMITING_FK_NODES_CLAUSE_2 = """"""
 
-ANCESTOR_QUERY = """
+EXCLUDED_UPWARD_NODES_CLAUSE_1 = """AND second.child_id <> ALL(%(node_ids)s::int[])"""  # Used for ancestors and upward path
+EXCLUDED_UPWARD_NODES_CLAUSE_2 = (
+    """AND {relationship_table}.child_id <> ALL(%(node_ids)s::int[])"""
+)
+EXCLUDED_DOWNWARD_NODES_CLAUSE_1 = """AND second.parent_id <> ALL(%(node_ids)s::int[])"""  # Used for descendants and downward path
+EXCLUDED_DOWNWARD_NODES_CLAUSE_2 = (
+    """AND {relationship_table}.parent_id <> ALL(%(node_ids)s::int[])"""
+)
+REQUIRED_UPWARD_NODES_CLAUSE_1 = """AND second.child_id = ALL(%(node_ids)s::int[])"""  # Used for ancestors and upward path
+REQUIRED_UPWARD_NODES_CLAUSE_2 = (
+    """AND {relationship_table}.child_id = ALL(%(node_ids)s::int[])"""
+)
+REQUIRED_DOWNWARD_NODES_CLAUSE_1 = """AND second.parent_id = ALL(%(node_ids)s::int[])"""  # Used for descendants and downward path
+REQUIRED_DOWNWARD_NODES_CLAUSE_2 = (
+    """AND {relationship_table}.parent_id = ALL(%(node_ids)s::int[])"""
+)
+
+ANCESTORS_QUERY = """
 WITH RECURSIVE traverse(id, depth) AS (
     SELECT first.parent_id, 1
         FROM {relationship_table} AS first
         LEFT OUTER JOIN {relationship_table} AS second
         ON first.parent_id = second.child_id
     WHERE first.child_id = %(id)s
-    {limiting_clause_1}
+    -- LIMITING_FK_EDGES_CLAUSE_1
+    -- EXCLUDED_UPWARD_NODES_CLAUSE_1
+    -- REQUIRED_UPWARD_NODES_CLAUSE_1
+    {ancestors_clauses_1}
 UNION
     SELECT DISTINCT parent_id, traverse.depth + 1
         FROM traverse
         INNER JOIN {relationship_table}
         ON {relationship_table}.child_id = traverse.id
-        {limiting_clause_2}
+    WHERE 1 = 1
+    -- LIMITING_FK_EDGES_CLAUSE_2
+    -- EXCLUDED_UPWARD_NODES_CLAUSE_2
+    -- REQUIRED_UPWARD_NODES_CLAUSE_2
+    {ancestors_clauses_2}
 )
 SELECT id FROM traverse
 GROUP BY id
 ORDER BY MAX(depth) DESC, id ASC
 """
 
-DESCENDANT_QUERY = """
+DESCENDANTS_QUERY = """
 WITH RECURSIVE traverse(id, depth) AS (
     SELECT first.child_id, 1
         FROM {relationship_table} AS first
         LEFT OUTER JOIN {relationship_table} AS second
         ON first.child_id = second.parent_id
     WHERE first.parent_id = %(id)s
-    {limiting_clause_1}
+    -- LIMITING_FK_EDGES_CLAUSE_1
+    -- EXCLUDED_DOWNWARD_NODES_CLAUSE_1
+    -- REQUIRED_DOWNWARD_NODES_CLAUSE_1
+    {descendants_clauses_1}
 UNION
     SELECT DISTINCT child_id, traverse.depth + 1
         FROM traverse
         INNER JOIN {relationship_table}
         ON {relationship_table}.parent_id = traverse.id
-        {limiting_clause_2}
+    WHERE 1=1
+    -- LIMITING_FK_EDGES_CLAUSE_2
+    -- EXCLUDED_DOWNWARD_NODES_CLAUSE_2
+    -- REQUIRED_DOWNWARD_NODES_CLAUSE_2
+    {descendants_clauses_1}
 )
 SELECT id FROM traverse
 GROUP BY id
 ORDER BY MAX(depth), id ASC
+"""
+
+PATH_LIMITING_FK_EDGES_CLAUSE = (
+    """AND first.{fk_field_name}_id = {limiting_fk_edges_instance_id}"""
+)
+PATH_LIMITING_FK_NODES_CLAUSE = """"""
+
+EXCLUDED_UPWARD_PATH_NODES_CLAUSE = (
+    """AND second.parent_id <> ALL('{node_ids}'::int[])"""
+)
+EXCLUDED_DOWNWARD_PATH_NODES_CLAUSE = (
+    """AND second.child_id <> ALL('{node_ids}'::int[])"""
+)
+REQUIRED_UPWARD_PATH_NODES_CLAUSE = (
+    """AND second.parent_id = ALL('{node_ids}'::int[])"""
+)
+REQUIRED_DOWNWARD_PATH_NODES_CLAUSE = (
+    """AND second.child_id = ALL('{node_ids}'::int[])"""
+)
+
+UPWARD_PATH_QUERY = """
+WITH RECURSIVE traverse(child_id, parent_id, depth, path) AS (
+    SELECT
+        first.child_id,
+        first.parent_id,
+        1 AS depth,
+        ARRAY[first.child_id] AS path
+        FROM {relationship_table} AS first
+    WHERE child_id = %(starting_node)s
+UNION ALL
+    SELECT
+        first.child_id,
+        first.parent_id,
+        second.depth + 1 AS depth,
+        path || first.child_id AS path
+        FROM {relationship_table} AS first, traverse AS second
+    WHERE first.child_id = second.parent_id
+    AND (first.child_id <> ALL(second.path))
+    -- PATH_LIMITING_FK_EDGES_CLAUSE
+    -- EXCLUDED_UPWARD_PATH_NODES_CLAUSE
+    -- REQUIRED_UPWARD_PATH_NODES_CLAUSE
+    -- LIMITING_UPWARD_NODES_CLAUSE_1  -- CORRECT?
+    {upward_clauses}
+    AND second.depth <= %(max_depth)s
+)      
+SELECT path FROM traverse
+    WHERE parent_id = %(ending_node)s
+    LIMIT %(max_paths)s;
 """
 
 DOWNWARD_PATH_QUERY = """
@@ -78,35 +161,15 @@ UNION ALL
         FROM {relationship_table} AS first, traverse AS second
     WHERE first.parent_id = second.child_id
     AND (first.parent_id <> ALL(second.path))
+    -- PATH_LIMITING_FK_EDGES_CLAUSE
+    -- EXCLUDED_DOWNWARD_PATH_NODES_CLAUSE
+    -- REQUIRED_DOWNWARD_PATH_NODES_CLAUSE
+    -- LIMITING_DOWNWARD_NODES_CLAUSE_1  -- CORRECT?
+    {downward_clauses}
     AND second.depth <= %(max_depth)s
 )      
 SELECT path FROM traverse
     WHERE child_id = %(ending_node)s
-    LIMIT %(max_paths)s;
-"""
-
-UPWARD_PATH_QUERY = """
-WITH RECURSIVE traverse(child_id, parent_id, depth, path) AS (
-    SELECT
-        first.child_id,
-        first.parent_id,
-        1 AS depth,
-        ARRAY[first.child_id] AS path
-        FROM {relationship_table} AS first
-    WHERE child_id = %(starting_node)s
-UNION ALL
-    SELECT
-        first.child_id,
-        first.parent_id,
-        second.depth + 1 AS depth,
-        path || first.child_id AS path
-        FROM {relationship_table} AS first, traverse AS second
-    WHERE first.child_id = second.parent_id
-    AND (first.child_id <> ALL(second.path))
-    AND second.depth <= %(max_depth)s
-)      
-SELECT path FROM traverse
-    WHERE parent_id = %(ending_node)s
     LIMIT %(max_paths)s;
 """
 
@@ -145,14 +208,15 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
     def get_foreign_key_field(instance=None):
         """
-        Provided a model instance, checks if the edge model has a ForeignKey field to the model for that instance, and then returns the field name and instance id
+        Provided a model instance and model class, checks if the edge model has a ForeignKey
+        field to the model for that instance, and then returns the field name and instance id.
         """
         if instance is not None:
             for field in edge_model._meta.get_fields():
                 if field.related_model is instance._meta.model:
                     # Return the first field that matches
-                    return (field.name, instance.id)
-        return (None, None)
+                    return field.name
+        return None
 
     class Node(base_model):
         children = models.ManyToManyField(
@@ -187,163 +251,228 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             """
             return _filter_order(self.__class__.objects, "pk", ids)
 
-        def ancestors_ids(self, limiting_instance=None):
-            fk_field_name, fk_value = get_foreign_key_field(limiting_instance)
-            if fk_field_name is not None and fk_value is not None:
-                limiting_clause_1 = LIMITING_CLAUSE_1.format(
-                    fk_field_name=fk_field_name, fk_value=fk_value
-                )
-                limiting_clause_2 = LIMITING_CLAUSE_2.format(
+        def ancestors_ids(self, **kwargs):
+            ancestors_clauses_1, ancestors_clauses_2 = ("", "")
+            query_parameters = {"id": self.id}
+
+            limiting_fk_nodes_instance = kwargs.get("limiting_fk_nodes_instance", None)
+            limiting_fk_edges_instance = kwargs.get("limiting_fk_edges_instance", None)
+            excluded_nodes_queryset = kwargs.get("excluded_nodes_queryset", None)
+            excluded_edges_queryset = kwargs.get("excluded_edges_queryset", None)
+            required_nodes_queryset = kwargs.get("required_nodes_queryset", None)
+            required_edges_queryset = kwargs.get("required_edges_queryset", None)
+
+            if limiting_fk_nodes_instance is not None:
+                pass  # Not implemented yet
+
+            # Limits the search to nodes that connect to edges defined in a ForeignKey
+            # ToDo: Currently fails in the case that the starting node is not in the
+            #   set of nodes related by the ForeignKey, but is adjacend to one that is
+            if limiting_fk_edges_instance is not None:
+                fk_field_name = get_foreign_key_field(limiting_fk_edges_instance)
+                if fk_field_name is not None:
+                    ancestors_clauses_1 += "\n" + LIMITING_FK_EDGES_CLAUSE_1.format(
+                        relationship_table=edge_model_table,
+                        fk_field_name=fk_field_name,
+                    )
+                    ancestors_clauses_2 += "\n" + LIMITING_FK_EDGES_CLAUSE_2.format(
+                        relationship_table=edge_model_table,
+                        fk_field_name=fk_field_name,
+                    )
+                    query_parameters[
+                        "limiting_fk_edges_instance_id"
+                    ] = limiting_fk_edges_instance.id
+
+            if excluded_nodes_queryset is not None:
+                ancestors_clauses_1 += "\n" + EXCLUDED_UPWARD_NODES_CLAUSE_1.format(
                     relationship_table=edge_model_table,
-                    fk_field_name=fk_field_name,
-                    fk_value=fk_value,
                 )
-            else:
-                limiting_clause_1, limiting_clause_2 = ("", "")
+                ancestors_clauses_2 += "\n" + EXCLUDED_UPWARD_NODES_CLAUSE_2.format(
+                    relationship_table=edge_model_table,
+                )
+                query_parameters["node_ids"] = str(
+                    set(excluded_nodes_queryset.values_list("id", flat=True))
+                )
+
+            if excluded_edges_queryset is not None:
+                pass  # Not implemented yet
+
+            if required_nodes_queryset is not None:
+                pass  # Not implemented yet
+
+            if required_edges_queryset is not None:
+                pass  # Not implemented yet
 
             with connection.cursor() as cursor:
                 cursor.execute(
-                    ANCESTOR_QUERY.format(
+                    ANCESTORS_QUERY.format(
                         relationship_table=edge_model_table,
-                        limiting_clause_1=limiting_clause_1,
-                        limiting_clause_2=limiting_clause_2,
+                        ancestors_clauses_1=ancestors_clauses_1,
+                        ancestors_clauses_2=ancestors_clauses_2,
                     ),
-                    {"id": self.id},
+                    query_parameters,
                 )
+                # print(
+                #     cursor.mogrify(
+                #         ANCESTORS_QUERY.format(
+                #             relationship_table=edge_model_table,
+                #             ancestors_clauses_1=ancestors_clauses_1,
+                #             ancestors_clauses_2=ancestors_clauses_2,
+                #         ),
+                #         query_parameters,
+                #     ).decode('utf8')
+                # )
                 return [row[0] for row in cursor.fetchall()]
 
-        def ancestors_and_self_ids(self, limiting_instance=None):
-            return self.ancestors_ids(limiting_instance=limiting_instance) + [self.id]
+        def ancestors_and_self_ids(self, **kwargs):
+            return self.ancestors_ids(**kwargs) + [self.id]
 
-        def self_and_ancestors_ids(self, limiting_instance=None):
-            return self.ancestors_and_self_ids(limiting_instance=limiting_instance)[
-                ::-1
-            ]
+        def self_and_ancestors_ids(self, **kwargs):
+            return self.ancestors_and_self_ids(**kwargs)[::-1]
 
-        def ancestors(self, limiting_instance=None):
-            return self.filter_order_ids(
-                self.ancestors_ids(limiting_instance=limiting_instance)
-            )
+        def ancestors(self, **kwargs):
+            return self.filter_order_ids(self.ancestors_ids(**kwargs))
 
-        def ancestors_and_self(self, limiting_instance=None):
-            return self.filter_order_ids(
-                self.ancestors_and_self_ids(limiting_instance=limiting_instance)
-            )
+        def ancestors_and_self(self, **kwargs):
+            return self.filter_order_ids(self.ancestors_and_self_ids(**kwargs))
 
-        def self_and_ancestors(self, limiting_instance=None):
-            return self.ancestors_and_self(limiting_instance=limiting_instance)[::-1]
+        def self_and_ancestors(self, **kwargs):
+            return self.ancestors_and_self(**kwargs)[::-1]
 
-        def descendants_ids(self, limiting_instance=None):
-            fk_field_name, fk_value = get_foreign_key_field(limiting_instance)
-            if fk_field_name is not None and fk_value is not None:
-                limiting_clause_1 = LIMITING_CLAUSE_1.format(
-                    fk_field_name=fk_field_name, fk_value=fk_value
-                )
-                limiting_clause_2 = LIMITING_CLAUSE_2.format(
+        def descendants_ids(self, **kwargs):
+            descendants_clauses_1, descendants_clauses_2 = ("", "")
+            query_parameters = {"id": self.id}
+
+            limiting_fk_nodes_instance = kwargs.get("limiting_fk_nodes_instance", None)
+            limiting_fk_edges_instance = kwargs.get("limiting_fk_edges_instance", None)
+            excluded_nodes_queryset = kwargs.get("excluded_nodes_queryset", None)
+            excluded_edges_queryset = kwargs.get("excluded_edges_queryset", None)
+            required_nodes_queryset = kwargs.get("required_nodes_queryset", None)
+            required_edges_queryset = kwargs.get("required_edges_queryset", None)
+
+            if limiting_fk_nodes_instance is not None:
+                pass  # Not implemented yet
+
+            # Limits the search to nodes that connect to edges defined in a ForeignKey
+            # ToDo: Currently fails in the case that the starting node is not in the
+            #   set of nodes related by the ForeignKey, but is adjacend to one that is
+            if limiting_fk_edges_instance is not None:
+                fk_field_name = get_foreign_key_field(limiting_fk_edges_instance)
+                if fk_field_name is not None:
+                    descendants_clauses_1 += "\n" + LIMITING_FK_EDGES_CLAUSE_1.format(
+                        relationship_table=edge_model_table,
+                        fk_field_name=fk_field_name,
+                    )
+                    descendants_clauses_2 += "\n" + LIMITING_FK_EDGES_CLAUSE_2.format(
+                        relationship_table=edge_model_table,
+                        fk_field_name=fk_field_name,
+                    )
+                    query_parameters[
+                        "limiting_fk_edges_instance_id"
+                    ] = limiting_fk_edges_instance.id
+
+            if excluded_nodes_queryset is not None:
+                descendants_clauses_1 += "\n" + EXCLUDED_DOWNWARD_NODES_CLAUSE_1.format(
                     relationship_table=edge_model_table,
-                    fk_field_name=fk_field_name,
-                    fk_value=fk_value,
                 )
-            else:
-                limiting_clause_1, limiting_clause_2 = ("", "")
+                descendants_clauses_2 += "\n" + EXCLUDED_DOWNWARD_NODES_CLAUSE_2.format(
+                    relationship_table=edge_model_table,
+                )
+                query_parameters["node_ids"] = str(
+                    set(excluded_nodes_queryset.values_list("id", flat=True))
+                )
+
+            if excluded_edges_queryset is not None:
+                pass  # Not implemented yet
+
+            if required_nodes_queryset is not None:
+                pass  # Not implemented yet
+
+            if required_edges_queryset is not None:
+                pass  # Not implemented yet
 
             with connection.cursor() as cursor:
                 cursor.execute(
-                    DESCENDANT_QUERY.format(
+                    DESCENDANTS_QUERY.format(
                         relationship_table=edge_model_table,
-                        limiting_clause_1=limiting_clause_1,
-                        limiting_clause_2=limiting_clause_2,
+                        descendants_clauses_1=descendants_clauses_1,
+                        descendants_clauses_2=descendants_clauses_2,
                     ),
-                    {"id": self.id},
+                    query_parameters,
                 )
+                # print(
+                #     cursor.mogrify(
+                #         DESCENDANTS_QUERY.format(
+                #             relationship_table=edge_model_table,
+                #             descendants_clauses_1=descendants_clauses_1,
+                #             descendants_clauses_2=descendants_clauses_2,
+                #         ),
+                #         query_parameters,
+                #     ).decode('utf8')
+                # )
                 return [row[0] for row in cursor.fetchall()]
 
-        def self_and_descendants_ids(self, limiting_instance=None):
-            return [self.id] + self.descendants_ids(limiting_instance=limiting_instance)
+        def self_and_descendants_ids(self, **kwargs):
+            return [self.id] + self.descendants_ids(**kwargs)
 
-        def descendants_and_self_ids(self, limiting_instance=None):
-            return self.self_and_descendants_ids(limiting_instance=limiting_instance)[
-                ::-1
-            ]
+        def descendants_and_self_ids(self, **kwargs):
+            return self.self_and_descendants_ids(**kwargs)[::-1]
 
-        def descendants(self, limiting_instance=None):
-            return self.filter_order_ids(
-                self.descendants_ids(limiting_instance=limiting_instance)
-            )
+        def descendants(self, **kwargs):
+            return self.filter_order_ids(self.descendants_ids(**kwargs))
 
-        def self_and_descendants(self, limiting_instance=None):
-            return self.filter_order_ids(
-                self.self_and_descendants_ids(limiting_instance=limiting_instance)
-            )
+        def self_and_descendants(self, **kwargs):
+            return self.filter_order_ids(self.self_and_descendants_ids(**kwargs))
 
-        def descendants_and_self(self, limiting_instance=None):
-            return self.self_and_descendants(limiting_instance=limiting_instance)[::-1]
+        def descendants_and_self(self, **kwargs):
+            return self.self_and_descendants(**kwargs)[::-1]
 
-        def clan_ids(self, limiting_instance=None):
+        def clan_ids(self, **kwargs):
             """
             Returns a list of ids with all ancestors, self, and all descendants
             """
-            return self.ancestors_ids(
-                limiting_instance=limiting_instance
-            ) + self.self_and_descendants_ids(limiting_instance=limiting_instance)
+            return self.ancestors_ids(**kwargs) + self.self_and_descendants_ids(
+                **kwargs
+            )
 
-        def clan(self, limiting_instance=None):
+        def clan(self, **kwargs):
             """
             Returns a queryset with all ancestors, self, and all descendants
             """
-            return self.filter_order_ids(
-                self.clan_ids(limiting_instance=limiting_instance)
-            )
-
-        def descendants_edges_ids(self, cached_results=None):
-            """
-            Returns a set of descendants edges
-            # ToDo: Modify to use CTE and sort topologically
-            """
-            if cached_results is None:
-                cached_results = dict()
-            if self.id in cached_results.keys():
-                return cached_results[self.id]
-            else:
-                edge_set = set()
-                for f in self.children.all():
-                    edge_set.add(edge_model.objects.get(parent=self.id, child=f.id).id)
-                    edge_set.update(
-                        f.descendants_edges_ids(cached_results=cached_results)
-                    )
-                cached_results[self.id] = edge_set
-            return edge_set
+            return self.filter_order_ids(self.clan_ids(**kwargs))
 
         def descendants_edges(self):
             """
             Returns a queryset of descendants edges
             """
-            return _filter_order(edge_model.objects, "pk", self.descendants_edges_ids())
+            return edge_model.objects.filter(
+                parent__id__in=self.self_and_descendants_ids(),
+                child__id__in=self.self_and_descendants_ids(),
+            )
 
-        def ancestors_edges_ids(self, cached_results=None):
+        def descendants_edges_ids(self, cached_results=None):
             """
-            Returns a set of ancestors edges
-            # ToDo: Modify to use CTE and sort topologically
+            Returns a set of descendants edges
+            # ToDo: Modify to sort topologically
             """
-            if cached_results is None:
-                cached_results = dict()
-            if self in cached_results.keys():
-                return cached_results[self.id]
-            else:
-                edge_set = set()
-                for f in self.parents.all():
-                    edge_set.add(edge_model.objects.get(child=self.id, parent=f.id).id)
-                    edge_set.update(
-                        f.ancestors_edges_ids(cached_results=cached_results)
-                    )
-                cached_results[self.id] = edge_set
-            return edge_set
+            return list(self.descendants_edges().values_list("id", flat=True))
 
         def ancestors_edges(self):
             """
             Returns a queryset of ancestors edges
             """
-            return _filter_order(edge_model.objects, "pk", self.ancestors_edges_ids())
+            return edge_model.objects.filter(
+                parent__id__in=self.self_and_ancestors_ids(),
+                child__id__in=self.self_and_ancestors_ids(),
+            )
+
+        def ancestors_edges_ids(self, cached_results=None):
+            """
+            Returns a set of ancestors edges
+            # ToDo: Modify to sort topologically
+            """
+
+            return list(self.ancestors_edges().values_list("id", flat=True))
 
         def clan_edges_ids(self):
             """
@@ -371,11 +500,18 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             By default, returns only one shortest path, but additional paths
             can be included by setting the max_paths argument.
             """
+
+            # ToDo: Implement filters
+
             if self == target_node:
                 return [[self.id]]
+
             with connection.cursor() as cursor:
                 cursor.execute(
-                    DOWNWARD_PATH_QUERY.format(relationship_table=edge_model_table),
+                    DOWNWARD_PATH_QUERY.format(
+                        relationship_table=edge_model_table,
+                        # downward_clauses=downward_clauses
+                    ),
                     {
                         "starting_node": self.id,
                         "ending_node": target_node.id,
@@ -388,7 +524,8 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                     with connection.cursor() as cursor:
                         cursor.execute(
                             UPWARD_PATH_QUERY.format(
-                                relationship_table=edge_model_table
+                                relationship_table=edge_model_table,
+                                # upward_clauses=upward_clauses
                             ),
                             {
                                 "starting_node": self.id,
@@ -607,3 +744,4 @@ def edge_factory(
             super(Edge, self).save(*args, **kwargs)
 
     return Edge
+
