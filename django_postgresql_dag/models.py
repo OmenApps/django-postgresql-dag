@@ -20,26 +20,28 @@ from django.core.exceptions import ValidationError
 LIMITING_FK_EDGES_CLAUSE_1 = (
     """AND second.{fk_field_name}_id = %(limiting_fk_edges_instance_id)s"""
 )
-LIMITING_FK_EDGES_CLAUSE_2 = """AND {relationship_table}.{fk_field_name}_id = %(limiting_fk_edges_instance_id)s"""
+LIMITING_FK_EDGES_CLAUSE_2 = (
+    """AND {relationship_table}.{fk_field_name}_id = %(limiting_fk_edges_instance_id)s"""
+)
+
 LIMITING_FK_NODES_CLAUSE_1 = """"""
 LIMITING_FK_NODES_CLAUSE_2 = """"""
 
-EXCLUDED_UPWARD_NODES_CLAUSE_1 = """AND second.child_id <> ALL(%(node_ids)s::int[])"""  # Used for ancestors and upward path
+EXCLUDED_UPWARD_NODES_CLAUSE_1 = """AND second.child_id <> ALL(%(excluded_upward_node_ids)s::int[])"""  # Used for ancestors and upward path
 EXCLUDED_UPWARD_NODES_CLAUSE_2 = (
-    """AND {relationship_table}.child_id <> ALL(%(node_ids)s::int[])"""
+    """AND {relationship_table}.child_id <> ALL(%(excluded_upward_node_ids)s::int[])"""
 )
-EXCLUDED_DOWNWARD_NODES_CLAUSE_1 = """AND second.parent_id <> ALL(%(node_ids)s::int[])"""  # Used for descendants and downward path
+
+EXCLUDED_DOWNWARD_NODES_CLAUSE_1 = """AND second.parent_id <> ALL(%(excluded_downward_node_ids)s::int[])"""  # Used for descendants and downward path
 EXCLUDED_DOWNWARD_NODES_CLAUSE_2 = (
-    """AND {relationship_table}.parent_id <> ALL(%(node_ids)s::int[])"""
+    """AND {relationship_table}.parent_id <> ALL(%(excluded_downward_node_ids)s::int[])"""
 )
-REQUIRED_UPWARD_NODES_CLAUSE_1 = """AND second.child_id = ALL(%(node_ids)s::int[])"""  # Used for ancestors and upward path
-REQUIRED_UPWARD_NODES_CLAUSE_2 = (
-    """AND {relationship_table}.child_id = ALL(%(node_ids)s::int[])"""
-)
-REQUIRED_DOWNWARD_NODES_CLAUSE_1 = """AND second.parent_id = ALL(%(node_ids)s::int[])"""  # Used for descendants and downward path
-REQUIRED_DOWNWARD_NODES_CLAUSE_2 = (
-    """AND {relationship_table}.parent_id = ALL(%(node_ids)s::int[])"""
-)
+
+REQUIRED_UPWARD_NODES_CLAUSE_1 = """"""  # Used for ancestors and upward path
+REQUIRED_UPWARD_NODES_CLAUSE_2 = """"""
+
+REQUIRED_DOWNWARD_NODES_CLAUSE_1 = """"""  # Used for descendants and downward path
+REQUIRED_DOWNWARD_NODES_CLAUSE_2 = """"""
 
 ANCESTORS_QUERY = """
 WITH RECURSIVE traverse(id, depth) AS (
@@ -96,21 +98,21 @@ ORDER BY MAX(depth), id ASC
 """
 
 PATH_LIMITING_FK_EDGES_CLAUSE = (
-    """AND first.{fk_field_name}_id = {limiting_fk_edges_instance_id}"""
+    """AND first.{fk_field_name}_id = %(limiting_fk_edges_instance_id)s"""
 )
 PATH_LIMITING_FK_NODES_CLAUSE = """"""
 
 EXCLUDED_UPWARD_PATH_NODES_CLAUSE = (
-    """AND second.parent_id <> ALL('{node_ids}'::int[])"""
+    """AND second.parent_id <> ALL('{excluded_path_node_ids}'::int[])"""
 )
 EXCLUDED_DOWNWARD_PATH_NODES_CLAUSE = (
-    """AND second.child_id <> ALL('{node_ids}'::int[])"""
+    """AND second.child_id <> ALL('{excluded_path_node_ids}'::int[])"""
 )
 REQUIRED_UPWARD_PATH_NODES_CLAUSE = (
-    """AND second.parent_id = ALL('{node_ids}'::int[])"""
+    """AND second.parent_id = ALL('{required_path_node_ids}'::int[])"""
 )
 REQUIRED_DOWNWARD_PATH_NODES_CLAUSE = (
-    """AND second.child_id = ALL('{node_ids}'::int[])"""
+    """AND second.child_id = ALL('{required_path_node_ids}'::int[])"""
 )
 
 UPWARD_PATH_QUERY = """
@@ -290,7 +292,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                 ancestors_clauses_2 += "\n" + EXCLUDED_UPWARD_NODES_CLAUSE_2.format(
                     relationship_table=edge_model_table,
                 )
-                query_parameters["node_ids"] = str(
+                query_parameters["excluded_upward_node_ids"] = str(
                     set(excluded_nodes_queryset.values_list("id", flat=True))
                 )
 
@@ -378,7 +380,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                 descendants_clauses_2 += "\n" + EXCLUDED_DOWNWARD_NODES_CLAUSE_2.format(
                     relationship_table=edge_model_table,
                 )
-                query_parameters["node_ids"] = str(
+                query_parameters["excluded_downward_node_ids"] = str(
                     set(excluded_nodes_queryset.values_list("id", flat=True))
                 )
 
@@ -526,10 +528,19 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                 pass  # Not implemented yet
 
             if limiting_fk_edges_instance is not None:
-                pass  # Not implemented yet
+                fk_field_name = get_foreign_key_field(limiting_fk_edges_instance)
+                if fk_field_name is not None:
+                    downward_clauses += "\n" + PATH_LIMITING_FK_EDGES_CLAUSE.format(
+                        relationship_table=edge_model_table,
+                        fk_field_name=fk_field_name,
+                    )
+                    query_parameters["limiting_fk_edges_instance_id"] = limiting_fk_edges_instance.id
 
             if excluded_nodes_queryset is not None:
-                pass  # Not implemented yet
+                downward_clauses += "\n" + EXCLUDED_DOWNWARD_PATH_NODES_CLAUSE
+                query_parameters["excluded_path_node_ids"] = str(
+                    set(excluded_nodes_queryset.values_list("id", flat=True))
+                )
 
             if excluded_edges_queryset is not None:
                 pass  # Not implemented yet
@@ -551,6 +562,36 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                 )
                 path = [row[0] + [target_node.id] for row in cursor.fetchall()]
                 if not path and not directional:
+
+                    if limiting_fk_nodes_instance is not None:
+                        pass  # Not implemented yet
+
+                    if limiting_fk_edges_instance is not None:
+                        pass  # Not implemented yet
+
+
+                    if limiting_fk_edges_instance is not None:
+                        if 'fk_field_name' in locals():
+                            upward_clauses += "\n" + PATH_LIMITING_FK_EDGES_CLAUSE.format(
+                                relationship_table=edge_model_table,
+                                fk_field_name=fk_field_name,
+                            )
+
+                    if excluded_nodes_queryset is not None:
+                        upward_clauses += "\n" + EXCLUDED_UPWARD_PATH_NODES_CLAUSE
+                        query_parameters["excluded_path_node_ids"] = str(
+                            set(excluded_nodes_queryset.values_list("id", flat=True))
+                        )
+
+                    if excluded_edges_queryset is not None:
+                        pass  # Not implemented yet
+
+                    if required_nodes_queryset is not None:
+                        pass  # Not implemented yet
+
+                    if required_edges_queryset is not None:
+                        pass  # Not implemented yet
+
                     with connection.cursor() as cursor:
                         cursor.execute(
                             UPWARD_PATH_QUERY.format(
@@ -769,4 +810,3 @@ def edge_factory(
             super(Edge, self).save(*args, **kwargs)
 
     return Edge
-
