@@ -1,14 +1,15 @@
 
 # Django & Postgresql-based Directed Acyclic Graphs
 
-The main distinguishing factor for this project is that it can retrieve entire
-sections of a graph in a single query. The trade off is portability: it uses
-Postgres Common Table Expressions (CTE) to achieve this and is therefore not
-compatible with other databases.
+The main distinguishing factor for this project is that it can retrieve entire sections of a graph with far
+fewer queries than most other packages. The trade off is portability: it uses Postgres' Common Table
+Expressions (CTE) to achieve this and is therefore not compatible with other databases.
 
 NOTE: Not all methods which would benefit from CTEs use them yet.
 
-NOTE: This project is a work in progress. While functional, it is not optimized. Currently, it provides numerous methods for retrieving nodes, and a few for retrieving edges within the graph.
+NOTE: This project is a work in progress. While functional, it is not optimized. Currently, it provides numerous
+methods for retrieving nodes, and a few for retrieving edges within the graph. In progress are filters within the
+in order to limit the area of the graph to be searched.
 
 ## Most Simple Example:
 
@@ -231,6 +232,9 @@ NOTE: This project is a work in progress. While functional, it is not optimized.
     >>> NetworkEdge.objects.shortest_path(c1, root, directional=False)
     <QuerySet [<NetworkEdge: root a3>, <NetworkEdge: a3 b4>, <NetworkEdge: b4 c1>]>
 
+## ToDo
+
+- Describe methods of filtering nodes and edges within the CTE.
 
 
 ## Credits:
