@@ -18,8 +18,30 @@ in order to limit the area of the graph to be searched.
     from django.db import models
     from django_postgresql_dag.models import node_factory, edge_factory
 
+    class EdgeSet(models.Model):
+        name = models.CharField(max_length=100, unique=True)
+
+        def __str__(self):
+            return self.name
+
+
+    class NodeSet(models.Model):
+        name = models.CharField(max_length=100, unique=True)
+
+        def __str__(self):
+            return self.name
+
+
     class NetworkEdge(edge_factory("NetworkNode", concrete=False)):
-        name = models.CharField(max_length=100)
+        name = models.CharField(max_length=100, unique=True)
+
+        edge_set = models.ForeignKey(
+            EdgeSet,
+            on_delete=models.CASCADE,
+            null=True,
+            blank=True,
+            related_name="edge_set_edges",
+        )
 
         def __str__(self):
             return self.name
@@ -31,6 +53,14 @@ in order to limit the area of the graph to be searched.
 
     class NetworkNode(node_factory(NetworkEdge)):
         name = models.CharField(max_length=100)
+
+        node_set = models.ForeignKey(
+            NodeSet,
+            on_delete=models.CASCADE,
+            null=True,
+            blank=True,
+            related_name="node_set_nodes",
+        )
 
         def __str__(self):
             return self.name
@@ -67,6 +97,28 @@ in order to limit the area of the graph to be searched.
     >>> b3.add_child(c2)
     >>> b3.add_child(c1)
     >>> b4.add_child(c1)
+
+### Add Edges and Nodes to EdgeSet and NodeSet models (FK)
+
+    >>> y = EdgeSet.objects.create()
+    >>> y.save()
+
+    >>> c1_ancestors = c1.ancestors_edges()
+
+    >>> for ancestor in c1_ancestors:
+    >>>     ancestor.edge_set = y
+    >>>     ancestor.save()
+
+    >>> x = NodeSet.objects.create()
+    >>> x.save()
+    >>> root.node_set = x
+    >>> root.save()
+    >>> a1.node_set = x
+    >>> a1.save()
+    >>> b1.node_set = x
+    >>> b1.save()
+    >>> b2.node_set = x
+    >>> b2.save()
 
 ### Resulting Database Tables
 
@@ -110,15 +162,6 @@ in order to limit the area of the graph to be searched.
     ~/myapp$ python manage.py shell
     >>> from myapp.models import NetworkNode, NetworkEdge
     
-    # Descendant methods which return ids
-    
-    >>> root.descendants_ids()
-    [2, 3, 4, 5, 6, 7, 8, 9, 10]
-    >>> root.self_and_descendants_ids()
-    [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-    >>> root.descendants_and_self_ids()
-    [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
-    
     # Descendant methods which return a queryset
     
     >>> root.descendants()
@@ -127,15 +170,6 @@ in order to limit the area of the graph to be searched.
     <QuerySet [<NetworkNode: root>, <NetworkNode: a1>, <NetworkNode: a2>, <NetworkNode: a3>, <NetworkNode: b1>, <NetworkNode: b2>, <NetworkNode: b3>, <NetworkNode: b4>, <NetworkNode: c1>, <NetworkNode: c2>]>
     >>> root.descendants_and_self()
     [<NetworkNode: c2>, <NetworkNode: c1>, <NetworkNode: b4>, <NetworkNode: b3>, <NetworkNode: b2>, <NetworkNode: b1>, <NetworkNode: a3>, <NetworkNode: a2>, <NetworkNode: a1>, <NetworkNode: root>]
-    
-    # Ancestor methods which return ids
-    
-    >>> c1.ancestors_ids()
-    [1, 4, 7, 8]
-    >>> c1.ancestors_and_self_ids()
-    [1, 4, 7, 8, 9]
-    >>> c1.self_and_ancestors_ids()
-    [9, 8, 7, 4, 1]
     
     # Ancestor methods which return a queryset
     
@@ -148,46 +182,61 @@ in order to limit the area of the graph to be searched.
     
     # Get the node's clan (all ancestors, self, and all descendants)
     
-    >>> b3.clan_ids()
-    [1, 4, 7, 9, 10]
     >>> b3.clan()
     <QuerySet [<NetworkNode: root>, <NetworkNode: a3>, <NetworkNode: b3>, <NetworkNode: c1>, <NetworkNode: c2>]>
-    
+
     # Get all roots or leaves associated with the node
     
-    >>> b3.get_roots()
+    >>> b3.roots()
     {<NetworkNode: root>}
-    >>> b3.get_leaves()
+    >>> b3.leaves()
     {<NetworkNode: c1>, <NetworkNode: c2>}
 
     # Perform path search
 
-    >>> root.path_ids_list(c1)
-    [[1, 4, 7, 9]]
-    >>> c1.path_ids_list(root)
-    Traceback (most recent call last):
-      File "<input>", line 1, in <module>
-        c1.path_ids_list(root)
-      File "/home/runner/pgdagtest/pg/models.py", line 313, in path_ids_list
-        raise NodeNotReachableException
-    pg.models.NodeNotReachableException
-    >>> c1.path_ids_list(root, directional=False)
-    [[1, 4, 7, 9]]
-    >>> root.path_ids_list(c1, max_paths=2)
-    [[1, 4, 7, 9], [1, 4, 8, 9]]
-    >>> root.shortest_path(c1)
+    >>> root.path(c1)
     <QuerySet [<NetworkNode: root>, <NetworkNode: a3>, <NetworkNode: b3>, <NetworkNode: c1>]>
-    >>> c1.shortest_path(root)
+    >>> c1.path(root)  # Path defaults to top-down search, unless `directional` is set to False
     Traceback (most recent call last):
       File "<input>", line 1, in <module>
-        c1.shortest_path(root)
-      File "/home/runner/pgdagtest/pg/models.py", line 323, in shortest_path
-        return self.filter_order_ids(self.path_ids_list(target_node, directional=directional)[0])
-      File "/home/runner/pgdagtest/pg/models.py", line 313, in path_ids_list
+        c1.path(root)
+      File "/home/runner/pgdagtest/pg/models.py", line 548, in path
+        ids = [item.id for item in self.path_raw(target_node, **kwargs)]
+      File "/home/runner/pgdagtest/pg/models.py", line 544, in path_raw
         raise NodeNotReachableException
     pg.models.NodeNotReachableException
-    >>> c1.shortest_path(root, directional=False)
-    <QuerySet [<NetworkNode: root>, <NetworkNode: a3>, <NetworkNode: b4>, <NetworkNode: c1>]>
+    >>> c1.path(root, directional=False)
+    <QuerySet [<NetworkNode: c1>, <NetworkNode: b3>, <NetworkNode: a3>, <NetworkNode: root>]>
+    >>> root.distance(c1)
+    3
+
+    # Check node properties
+
+    >>> root.is_root()
+    True
+    >>> root.is_leaf()
+    False
+    >>> root.is_island()
+    False
+    >>> c1.is_root()
+    False
+    >>> c1.is_leaf()
+    True
+    >>> c1.is_island()
+    False
+
+    # Get ancestors/descendants tree output
+
+    >>> a2.descendants_tree()
+    {<NetworkNode: b2>: {}}
+    >>> root.descendants_tree()
+    {<NetworkNode: a1>: {<NetworkNode: b1>: {}, <NetworkNode: b2>: {}}, <NetworkNode: a2>: {<NetworkNode: b2>: {}}, <NetworkNode: a3>: {<NetworkNode: b3>: {<NetworkNode: c2>: {}, <NetworkNode: c1>: {}}, <NetworkNode: b4>: <NetworkNode: c1>: {}}}}
+    >>> root.ancestors_tree()
+    {}
+    >>> c1.ancestors_tree()
+    {<NetworkNode: b3>: {<NetworkNode: a3>: {<NetworkNode: root>: {}}}, <NetworkNode: b4>: {<NetworkNode: a3>: {<NetworkNode: root>: {}}}}
+    >>> c2.ancestors_tree()
+    {<NetworkNode: b3>: {<NetworkNode: a3>: {<NetworkNode: root>: {}}}}
 
     # Get a queryset of edges relatd to a particular node
 
@@ -196,7 +245,7 @@ in order to limit the area of the graph to be searched.
     >>> b4.descendants_edges()
     <QuerySet [<NetworkEdge: b4 c1>]>
     >>> b4.clan_edges()
-    {<NetworkEdge: b4 c1>, <NetworkEdge: root a3>, <NetworkEdge: a3 b4>}
+    <QuerySet [<NetworkEdge: root a3>, <NetworkEdge: a3 b4>, <NetworkEdge: b4 c1>]>
     
     # Get the nodes at the start or end of an edge
     
@@ -215,22 +264,24 @@ in order to limit the area of the graph to be searched.
     >>> NetworkEdge.objects.descendants(b3)
     <QuerySet [<NetworkEdge: b3 c2>, <NetworkEdge: b3 c1>]>
     >>> NetworkEdge.objects.ancestors(b3)
-    <QuerySet [<NetworkEdge: a3 b3>, <NetworkEdge: root a3>]>
+    <QuerySet [<NetworkEdge: root a3>, <NetworkEdge: a3 b3>]>
     >>> NetworkEdge.objects.clan(b3)
     <QuerySet [<NetworkEdge: root a3>, <NetworkEdge: a3 b3>, <NetworkEdge: b3 c2>, <NetworkEdge: b3 c1>]>
-    >>> NetworkEdge.objects.shortest_path(root, c1)
+    >>> NetworkEdge.objects.path(root, c1)
     <QuerySet [<NetworkEdge: root a3>, <NetworkEdge: a3 b3>, <NetworkEdge: b3 c1>]>
-    >>> NetworkEdge.objects.shortest_path(c1, root)
+    >>> NetworkEdge.objects.path(c1, root)  # Path defaults to top-down search, unless `directional` is set to False
     Traceback (most recent call last):
       File "<input>", line 1, in <module>
-        NetworkEdge.objects.shortest_path(c1, root)
-      File "/home/runner/pgdagtest/pg/models.py", line 425, in shortest_path
-        self.model.objects, ["parent_id", "child_id"], start_node.path_ids_list(end_node)[0]
-      File "/home/runner/pgdagtest/pg/models.py", line 313, in path_ids_list
+        NetworkEdge.objects.path(c1, root)
+      File "/home/runner/pgdagtest/pg/models.py", line 677, in path
+        start_node.path(end_node),
+      File "/home/runner/pgdagtest/pg/models.py", line 548, in path
+        ids = [item.id for item in self.path_raw(target_node, **kwargs)]
+      File "/home/runner/pgdagtest/pg/models.py", line 544, in path_raw
         raise NodeNotReachableException
     pg.models.NodeNotReachableException
-    >>> NetworkEdge.objects.shortest_path(c1, root, directional=False)
-    <QuerySet [<NetworkEdge: root a3>, <NetworkEdge: a3 b4>, <NetworkEdge: b4 c1>]>
+    >>> NetworkEdge.objects.path(c1, root, directional=False)
+    <QuerySet [<NetworkEdge: b3 c1>, <NetworkEdge: a3 b3>, <NetworkEdge: root a3>]>
 
 ## ToDo
 

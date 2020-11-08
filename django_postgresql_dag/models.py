@@ -328,7 +328,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             return self.filter_order_ids(ids)
 
         def self_and_ancestors(self, **kwargs):
-            ids = [self.id] + [item.id for item in self.ancestors_raw(**kwargs)]
+            ids = [self.id] + [item.id for item in self.ancestors_raw(**kwargs)][::-1]
             return self.filter_order_ids(ids)
 
         def ancestors_and_self(self, **kwargs):
@@ -680,14 +680,14 @@ class EdgeManager(models.Manager):
         """
         return _filter_order(self.model.objects, ["parent", "child"], node.clan())
 
-    def path(self, start_node, end_node):
+    def path(self, start_node, end_node, **kwargs):
         """
         Returns a queryset of all edges for the shortest path from start_node to end_node
         """
         return _filter_order(
             self.model.objects,
             ["parent", "child"],
-            start_node.path(end_node),
+            start_node.path(end_node, **kwargs),
         )
 
     def validate_route(self, edges):
