@@ -20,9 +20,7 @@ from django.core.exceptions import ValidationError
 LIMITING_FK_EDGES_CLAUSE_1 = (
     """AND second.{fk_field_name}_id = %(limiting_fk_edges_instance_id)s"""
 )
-LIMITING_FK_EDGES_CLAUSE_2 = (
-    """AND {relationship_table}.{fk_field_name}_id = %(limiting_fk_edges_instance_id)s"""
-)
+LIMITING_FK_EDGES_CLAUSE_2 = """AND {relationship_table}.{fk_field_name}_id = %(limiting_fk_edges_instance_id)s"""
 
 LIMITING_FK_NODES_CLAUSE_1 = """"""
 LIMITING_FK_NODES_CLAUSE_2 = """"""
@@ -33,9 +31,7 @@ EXCLUDED_UPWARD_NODES_CLAUSE_2 = (
 )
 
 EXCLUDED_DOWNWARD_NODES_CLAUSE_1 = """AND second.parent_id <> ALL(%(excluded_downward_node_ids)s::int[])"""  # Used for descendants and downward path
-EXCLUDED_DOWNWARD_NODES_CLAUSE_2 = (
-    """AND {relationship_table}.parent_id <> ALL(%(excluded_downward_node_ids)s::int[])"""
-)
+EXCLUDED_DOWNWARD_NODES_CLAUSE_2 = """AND {relationship_table}.parent_id <> ALL(%(excluded_downward_node_ids)s::int[])"""
 
 REQUIRED_UPWARD_NODES_CLAUSE_1 = """"""  # Used for ancestors and upward path
 REQUIRED_UPWARD_NODES_CLAUSE_2 = """"""
@@ -139,10 +135,15 @@ UNION ALL
     -- LIMITING_UPWARD_NODES_CLAUSE_1  -- CORRECT?
     {upward_clauses}
     AND second.depth <= %(max_depth)s
-)      
-SELECT path FROM traverse
-    WHERE parent_id = %(ending_node)s
-    LIMIT %(max_paths)s;
+)
+SELECT 
+    UNNEST(ARRAY[id]) AS id
+FROM 
+    (
+    SELECT path || ARRAY[%(ending_node)s] FROM traverse
+        WHERE parent_id = %(ending_node)s
+        LIMIT 1
+) AS x(id);
 """
 
 DOWNWARD_PATH_QUERY = """
@@ -170,9 +171,14 @@ UNION ALL
     {downward_clauses}
     AND second.depth <= %(max_depth)s
 )      
-SELECT path FROM traverse
-    WHERE child_id = %(ending_node)s
-    LIMIT %(max_paths)s;
+SELECT 
+    UNNEST(ARRAY[id]) AS id
+FROM 
+    (
+    SELECT path || ARRAY[%(ending_node)s] FROM traverse
+        WHERE child_id = %(ending_node)s
+        LIMIT 1
+) AS x(id);
 """
 
 
@@ -253,7 +259,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             """
             return _filter_order(self.__class__.objects, "pk", ids)
 
-        def ancestors_ids(self, **kwargs):
+        def ancestors_raw(self, **kwargs):
             ancestors_clauses_1, ancestors_clauses_2 = ("", "")
             query_parameters = {"id": self.id}
 
@@ -305,43 +311,31 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             if required_edges_queryset is not None:
                 pass  # Not implemented yet
 
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    ANCESTORS_QUERY.format(
-                        relationship_table=edge_model_table,
-                        ancestors_clauses_1=ancestors_clauses_1,
-                        ancestors_clauses_2=ancestors_clauses_2,
-                    ),
-                    query_parameters,
-                )
-                # print(
-                #     cursor.mogrify(
-                #         ANCESTORS_QUERY.format(
-                #             relationship_table=edge_model_table,
-                #             ancestors_clauses_1=ancestors_clauses_1,
-                #             ancestors_clauses_2=ancestors_clauses_2,
-                #         ),
-                #         query_parameters,
-                #     ).decode('utf8')
-                # )
-                return [row[0] for row in cursor.fetchall()]
+            NodeModel = self._meta.model
 
-        def ancestors_and_self_ids(self, **kwargs):
-            return self.ancestors_ids(**kwargs) + [self.id]
-
-        def self_and_ancestors_ids(self, **kwargs):
-            return self.ancestors_and_self_ids(**kwargs)[::-1]
+            raw_qs = NodeModel.objects.raw(
+                ANCESTORS_QUERY.format(
+                    relationship_table=edge_model_table,
+                    ancestors_clauses_1=ancestors_clauses_1,
+                    ancestors_clauses_2=ancestors_clauses_2,
+                ),
+                query_parameters,
+            )
+            return raw_qs
 
         def ancestors(self, **kwargs):
-            return self.filter_order_ids(self.ancestors_ids(**kwargs))
-
-        def ancestors_and_self(self, **kwargs):
-            return self.filter_order_ids(self.ancestors_and_self_ids(**kwargs))
+            ids = [item.id for item in self.ancestors_raw(**kwargs)]
+            return self.filter_order_ids(ids)
 
         def self_and_ancestors(self, **kwargs):
-            return self.ancestors_and_self(**kwargs)[::-1]
+            ids = [self.id] + [item.id for item in self.ancestors_raw(**kwargs)]
+            return self.filter_order_ids(ids)
 
-        def descendants_ids(self, **kwargs):
+        def ancestors_and_self(self, **kwargs):
+            ids = [item.id for item in self.ancestors_raw(**kwargs)] + [self.id]
+            return self.filter_order_ids(ids)
+
+        def descendants_raw(self, **kwargs):
             descendants_clauses_1, descendants_clauses_2 = ("", "")
             query_parameters = {"id": self.id}
 
@@ -393,114 +387,74 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             if required_edges_queryset is not None:
                 pass  # Not implemented yet
 
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    DESCENDANTS_QUERY.format(
-                        relationship_table=edge_model_table,
-                        descendants_clauses_1=descendants_clauses_1,
-                        descendants_clauses_2=descendants_clauses_2,
-                    ),
-                    query_parameters,
-                )
-                # print(
-                #     cursor.mogrify(
-                #         DESCENDANTS_QUERY.format(
-                #             relationship_table=edge_model_table,
-                #             descendants_clauses_1=descendants_clauses_1,
-                #             descendants_clauses_2=descendants_clauses_2,
-                #         ),
-                #         query_parameters,
-                #     ).decode('utf8')
-                # )
-                return [row[0] for row in cursor.fetchall()]
+            NodeModel = self._meta.model
 
-        def self_and_descendants_ids(self, **kwargs):
-            return [self.id] + self.descendants_ids(**kwargs)
-
-        def descendants_and_self_ids(self, **kwargs):
-            return self.self_and_descendants_ids(**kwargs)[::-1]
+            raw_qs = NodeModel.objects.raw(
+                DESCENDANTS_QUERY.format(
+                    relationship_table=edge_model_table,
+                    descendants_clauses_1=descendants_clauses_1,
+                    descendants_clauses_2=descendants_clauses_2,
+                ),
+                query_parameters,
+            )
+            return raw_qs
 
         def descendants(self, **kwargs):
-            return self.filter_order_ids(self.descendants_ids(**kwargs))
+            ids = [item.id for item in self.descendants_raw(**kwargs)]
+            return self.filter_order_ids(ids)
 
         def self_and_descendants(self, **kwargs):
-            return self.filter_order_ids(self.self_and_descendants_ids(**kwargs))
+            ids = [self.id] + [item.id for item in self.descendants_raw(**kwargs)]
+            return self.filter_order_ids(ids)
 
         def descendants_and_self(self, **kwargs):
-            return self.self_and_descendants(**kwargs)[::-1]
-
-        def clan_ids(self, **kwargs):
-            """
-            Returns a list of ids with all ancestors, self, and all descendants
-            """
-            return self.ancestors_ids(**kwargs) + self.self_and_descendants_ids(
-                **kwargs
-            )
+            ids = [item.id for item in self.descendants_raw(**kwargs)] + [self.id]
+            return self.filter_order_ids(ids)
 
         def clan(self, **kwargs):
             """
             Returns a queryset with all ancestors, self, and all descendants
             """
-            return self.filter_order_ids(self.clan_ids(**kwargs))
+            ids = (
+                [item.id for item in self.ancestors_raw(**kwargs)]
+                + [self.id]
+                + [item.id for item in self.descendants_raw(**kwargs)]
+            )
+            return self.filter_order_ids(ids)
 
         def descendants_edges(self):
             """
             Returns a queryset of descendants edges
+
+            ToDo: Perform topological sort
             """
             return edge_model.objects.filter(
-                parent__id__in=self.self_and_descendants_ids(),
-                child__id__in=self.self_and_descendants_ids(),
+                parent__in=self.self_and_descendants(),
+                child__in=self.self_and_descendants(),
             )
-
-        def descendants_edges_ids(self, cached_results=None):
-            """
-            Returns a set of descendants edges
-            # ToDo: Modify to sort topologically
-            """
-            return list(self.descendants_edges().values_list("id", flat=True))
 
         def ancestors_edges(self):
             """
             Returns a queryset of ancestors edges
+
+            ToDo: Perform topological sort
             """
             return edge_model.objects.filter(
-                parent__id__in=self.self_and_ancestors_ids(),
-                child__id__in=self.self_and_ancestors_ids(),
+                parent__in=self.self_and_ancestors(),
+                child__in=self.self_and_ancestors(),
             )
-
-        def ancestors_edges_ids(self, cached_results=None):
-            """
-            Returns a set of ancestors edges
-            # ToDo: Modify to sort topologically
-            """
-
-            return list(self.ancestors_edges().values_list("id", flat=True))
-
-        def clan_edges_ids(self):
-            """
-            Returns a set of all edges associated with a given node
-            """
-            edges = set()
-            edges.update(self.descendants_edges_ids())
-            edges.update(self.ancestors_edges_ids())
-            return edges
 
         def clan_edges(self):
             """
             Returns a queryset of all edges associated with a given node
             """
-            return _filter_order(edge_model.objects, "pk", self.clan_edges_ids())
+            return self.ancestors_edges() | self.descendants_edges()
 
-        def path_ids_list(
-            self, target_node, directional=True, max_depth=20, max_paths=1
-        ):
+        def path_raw(self, target_node, directional=True, max_depth=20, **kwargs):
             """
             Returns a list of paths from self to target node, optionally in either
             direction. The resulting lists are always sorted from root-side, toward
             leaf-side, regardless of the relative position of starting and ending nodes.
-
-            By default, returns only one shortest path, but additional paths
-            can be included by setting the max_paths argument.
             """
 
             # ToDo: Implement filters
@@ -508,13 +462,11 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             if self == target_node:
                 return [[self.id]]
 
-            
             downward_clauses, upward_clauses = ("", "")
             query_parameters = {
                 "starting_node": self.id,
                 "ending_node": target_node.id,
                 "max_depth": max_depth,
-                "max_paths": max_paths,
             }
 
             limiting_fk_nodes_instance = kwargs.get("limiting_fk_nodes_instance", None)
@@ -534,7 +486,9 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                         relationship_table=edge_model_table,
                         fk_field_name=fk_field_name,
                     )
-                    query_parameters["limiting_fk_edges_instance_id"] = limiting_fk_edges_instance.id
+                    query_parameters[
+                        "limiting_fk_edges_instance_id"
+                    ] = limiting_fk_edges_instance.id
 
             if excluded_nodes_queryset is not None:
                 downward_clauses += "\n" + EXCLUDED_DOWNWARD_PATH_NODES_CLAUSE
@@ -550,85 +504,68 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
             if required_edges_queryset is not None:
                 pass  # Not implemented yet
-                
 
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    DOWNWARD_PATH_QUERY.format(
-                        relationship_table=edge_model_table,
-                        downward_clauses=downward_clauses
-                    ),
-                    query_parameters
-                )
-                path = [row[0] + [target_node.id] for row in cursor.fetchall()]
-                if not path and not directional:
+            NodeModel = self._meta.model
 
-                    if limiting_fk_nodes_instance is not None:
-                        pass  # Not implemented yet
-
-                    if limiting_fk_edges_instance is not None:
-                        pass  # Not implemented yet
-
-
-                    if limiting_fk_edges_instance is not None:
-                        if 'fk_field_name' in locals():
-                            upward_clauses += "\n" + PATH_LIMITING_FK_EDGES_CLAUSE.format(
-                                relationship_table=edge_model_table,
-                                fk_field_name=fk_field_name,
-                            )
-
-                    if excluded_nodes_queryset is not None:
-                        upward_clauses += "\n" + EXCLUDED_UPWARD_PATH_NODES_CLAUSE
-                        query_parameters["excluded_path_node_ids"] = str(
-                            set(excluded_nodes_queryset.values_list("id", flat=True))
-                        )
-
-                    if excluded_edges_queryset is not None:
-                        pass  # Not implemented yet
-
-                    if required_nodes_queryset is not None:
-                        pass  # Not implemented yet
-
-                    if required_edges_queryset is not None:
-                        pass  # Not implemented yet
-
-                    with connection.cursor() as cursor:
-                        cursor.execute(
-                            UPWARD_PATH_QUERY.format(
-                                relationship_table=edge_model_table,
-                                upward_clauses=upward_clauses
-                            ),
-                            query_parameters
-                        )
-                        path = [
-                            [target_node.id] + row[0][::-1] for row in cursor.fetchall()
-                        ]
-                if not path:
-                    raise NodeNotReachableException
-                return path
-
-        def shortest_path(self, target_node, directional=True, max_depth=20):
-            """
-            Returns a queryset of the shortest path
-            """
-            return self.filter_order_ids(
-                self.path_ids_list(
-                    target_node, directional=directional, max_depth=max_depth
-                )[0]
+            path = NodeModel.objects.raw(
+                DOWNWARD_PATH_QUERY.format(
+                    relationship_table=edge_model_table,
+                    downward_clauses=downward_clauses,
+                ),
+                query_parameters,
             )
 
-        def distance(self, target_node, directional=True, max_depth=20):
+            if len(list(path)) == 0 and not directional:
+
+                if limiting_fk_nodes_instance is not None:
+                    pass  # Not implemented yet
+
+                if limiting_fk_edges_instance is not None:
+                    pass  # Not implemented yet
+
+                if limiting_fk_edges_instance is not None:
+                    if "fk_field_name" in locals():
+                        upward_clauses += "\n" + PATH_LIMITING_FK_EDGES_CLAUSE.format(
+                            relationship_table=edge_model_table,
+                            fk_field_name=fk_field_name,
+                        )
+
+                if excluded_nodes_queryset is not None:
+                    upward_clauses += "\n" + EXCLUDED_UPWARD_PATH_NODES_CLAUSE
+                    query_parameters["excluded_path_node_ids"] = str(
+                        set(excluded_nodes_queryset.values_list("id", flat=True))
+                    )
+
+                if excluded_edges_queryset is not None:
+                    pass  # Not implemented yet
+
+                if required_nodes_queryset is not None:
+                    pass  # Not implemented yet
+
+                if required_edges_queryset is not None:
+                    pass  # Not implemented yet
+
+                path = NodeModel.objects.raw(
+                    UPWARD_PATH_QUERY.format(
+                        relationship_table=edge_model_table,
+                        upward_clauses=upward_clauses,
+                    ),
+                    query_parameters,
+                )
+
+            if len(list(path)) == 0:
+                raise NodeNotReachableException
+            return path
+
+        def path(self, target_node, **kwargs):
+            ids = [item.id for item in self.path_raw(target_node, **kwargs)]
+            return self.filter_order_ids(ids)
+
+        def distance(self, target_node, **kwargs):
             """
             Returns the shortest hops count to the target node
             """
-            return (
-                len(
-                    self.path_ids_list(
-                        target_node, directional=directional, max_depth=max_depth
-                    )[0]
-                )
-                - 1
-            )
+            return self.path(target_node, **kwargs).count() - 1
 
         def is_root(self):
             """
@@ -714,7 +651,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         @staticmethod
         def circular_checker(parent, child):
-            if child.id in parent.self_and_ancestors_ids():
+            if child in parent.self_and_ancestors():
                 raise ValidationError("The object is an ancestor.")
 
     return Node
@@ -725,34 +662,28 @@ class EdgeManager(models.Manager):
         """
         Returns a queryset of all edges descended from the given node
         """
-        return _filter_order(
-            self.model.objects, "parent_id", node.self_and_descendants_ids()
-        )
+        return _filter_order(self.model.objects, "parent", node.self_and_descendants())
 
     def ancestors(self, node):
         """
         Returns a queryset of all edges which are ancestors of the given node
         """
-        return _filter_order(
-            self.model.objects, "child_id", node.self_and_ancestors_ids()
-        )
+        return _filter_order(self.model.objects, "child", node.ancestors_and_self())
 
     def clan(self, node):
         """
         Returns a queryset of all edges for ancestors, self, and descendants
         """
-        return _filter_order(
-            self.model.objects, ["parent_id", "child_id"], node.clan_ids()
-        )
+        return _filter_order(self.model.objects, ["parent", "child"], node.clan())
 
-    def shortest_path(self, start_node, end_node):
+    def path(self, start_node, end_node):
         """
         Returns a queryset of all edges for the shortest path from start_node to end_node
         """
         return _filter_order(
             self.model.objects,
-            ["parent_id", "child_id"],
-            start_node.path_ids_list(end_node)[0],
+            ["parent", "child"],
+            start_node.path(end_node),
         )
 
     def validate_route(self, edges):
