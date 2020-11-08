@@ -605,7 +605,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                 tree[parent] = parent.ancestors_tree()
             return tree
 
-        def _get_roots(self, ancestors_tree):
+        def _roots(self, ancestors_tree):
             """
             Works on objects: no queries
             """
@@ -613,10 +613,10 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                 return set([self])
             roots = set()
             for ancestor in ancestors_tree:
-                roots.update(ancestor._get_roots(ancestors_tree[ancestor]))
+                roots.update(ancestor._roots(ancestors_tree[ancestor]))
             return roots
 
-        def get_roots(self):
+        def roots(self):
             """
             Returns roots nodes, if any
             # ToDo: Modify to use CTE
@@ -624,10 +624,12 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             ancestors_tree = self.ancestors_tree()
             roots = set()
             for ancestor in ancestors_tree:
-                roots.update(ancestor._get_roots(ancestors_tree[ancestor]))
+                roots.update(ancestor._roots(ancestors_tree[ancestor]))
+            if len(roots) < 1:
+                roots.add(self)
             return roots
 
-        def _get_leaves(self, descendants_tree):
+        def _leaves(self, descendants_tree):
             """
             Works on objects: no queries
             """
@@ -635,10 +637,10 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                 return set([self])
             leaves = set()
             for descendant in descendants_tree:
-                leaves.update(descendant._get_leaves(descendants_tree[descendant]))
+                leaves.update(descendant._leaves(descendants_tree[descendant]))
             return leaves
 
-        def get_leaves(self):
+        def leaves(self):
             """
             Returns leaves nodes, if any
             # ToDo: Modify to use CTE
@@ -646,7 +648,9 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             descendants_tree = self.descendants_tree()
             leaves = set()
             for descendant in descendants_tree:
-                leaves.update(descendant._get_leaves(descendants_tree[descendant]))
+                leaves.update(descendant._leaves(descendants_tree[descendant]))
+            if len(leaves) < 1:
+                leaves.add(self)
             return leaves
 
         @staticmethod
