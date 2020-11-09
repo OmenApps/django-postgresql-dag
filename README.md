@@ -166,6 +166,8 @@ in order to limit the area of the graph to be searched.
     
     >>> root.descendants()
     <QuerySet [<NetworkNode: a1>, <NetworkNode: a2>, <NetworkNode: a3>, <NetworkNode: b1>, <NetworkNode: b2>, <NetworkNode: b3>, <NetworkNode: b4>, <NetworkNode: c1>, <NetworkNode: c2>]>
+    >>> root.descendants(max_depth=1)
+    <QuerySet [<NetworkNode: a1>, <NetworkNode: a2>, <NetworkNode: a3>]>
     >>> root.self_and_descendants()
     <QuerySet [<NetworkNode: root>, <NetworkNode: a1>, <NetworkNode: a2>, <NetworkNode: a3>, <NetworkNode: b1>, <NetworkNode: b2>, <NetworkNode: b3>, <NetworkNode: b4>, <NetworkNode: c1>, <NetworkNode: c2>]>
     >>> root.descendants_and_self()
@@ -175,6 +177,8 @@ in order to limit the area of the graph to be searched.
     
     >>> c1.ancestors()
     <QuerySet [<NetworkNode: root>, <NetworkNode: a3>, <NetworkNode: b3>, <NetworkNode: b4>]>
+    >>> c1.ancestors(max_depth=2)
+    <QuerySet [<NetworkNode: a3>, <NetworkNode: b3>, <NetworkNode: b4>]>
     >>> c1.ancestors_and_self()
     <QuerySet [<NetworkNode: root>, <NetworkNode: a3>, <NetworkNode: b3>, <NetworkNode: b4>, <NetworkNode: c1>]>
     >>> c1.self_and_ancestors()
@@ -196,6 +200,20 @@ in order to limit the area of the graph to be searched.
 
     >>> root.path(c1)
     <QuerySet [<NetworkNode: root>, <NetworkNode: a3>, <NetworkNode: b3>, <NetworkNode: c1>]>
+    >>> root.path(c1, max_depth=2)  # c1 is 3 levels deep from root
+    Traceback (most recent call last):
+      File "<input>", line 1, in <module>
+        root.path(c1, max_depth=2)
+      File "/home/runner/pgdagtest/pg/models.py", line 550, in path
+        ids = [item.id for item in self.path_raw(target_node, **kwargs)]
+      File "/home/runner/pgdagtest/pg/models.py", line 546, in path_raw
+        raise NodeNotReachableException
+    pg.models.NodeNotReachableException
+    >>> root.path(c1, max_depth=3)
+    <QuerySet [<NetworkNode: root>, <NetworkNode: a3>, <NetworkNode: b3>, <NetworkNode: c1>]>
+
+    # Reverse (upward) path search
+
     >>> c1.path(root)  # Path defaults to top-down search, unless `directional` is set to False
     Traceback (most recent call last):
       File "<input>", line 1, in <module>
@@ -286,6 +304,7 @@ in order to limit the area of the graph to be searched.
 ## ToDo
 
 - Describe methods of filtering nodes and edges within the CTE.
+- Finish creating proper docs, since this is getting complex.
 
 
 ## Credits:

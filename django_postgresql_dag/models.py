@@ -62,6 +62,7 @@ UNION
     {ancestors_clauses_2}
 )
 SELECT id FROM traverse
+WHERE depth <= %(max_depth)s
 GROUP BY id
 ORDER BY MAX(depth) DESC, id ASC
 """
@@ -89,6 +90,7 @@ UNION
     {descendants_clauses_1}
 )
 SELECT id FROM traverse
+WHERE depth <= %(max_depth)s
 GROUP BY id
 ORDER BY MAX(depth), id ASC
 """
@@ -134,14 +136,14 @@ UNION ALL
     -- REQUIRED_UPWARD_PATH_NODES_CLAUSE
     -- LIMITING_UPWARD_NODES_CLAUSE_1  -- CORRECT?
     {upward_clauses}
-    AND second.depth <= %(max_depth)s
 )
 SELECT 
     UNNEST(ARRAY[id]) AS id
 FROM 
     (
-    SELECT path || ARRAY[%(ending_node)s] FROM traverse
+    SELECT path || ARRAY[%(ending_node)s], depth FROM traverse
         WHERE parent_id = %(ending_node)s
+        AND depth <= %(max_depth)s
         LIMIT 1
 ) AS x(id);
 """
@@ -169,14 +171,14 @@ UNION ALL
     -- REQUIRED_DOWNWARD_PATH_NODES_CLAUSE
     -- LIMITING_DOWNWARD_NODES_CLAUSE_1  -- CORRECT?
     {downward_clauses}
-    AND second.depth <= %(max_depth)s
 )      
 SELECT 
     UNNEST(ARRAY[id]) AS id
 FROM 
     (
-    SELECT path || ARRAY[%(ending_node)s] FROM traverse
+    SELECT path || ARRAY[%(ending_node)s], depth FROM traverse
         WHERE child_id = %(ending_node)s
+        AND depth <= %(max_depth)s
         LIMIT 1
 ) AS x(id);
 """
@@ -259,9 +261,9 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             """
             return _filter_order(self.__class__.objects, "pk", ids)
 
-        def ancestors_raw(self, **kwargs):
+        def ancestors_raw(self, max_depth=20, **kwargs):
             ancestors_clauses_1, ancestors_clauses_2 = ("", "")
-            query_parameters = {"id": self.id}
+            query_parameters = {"id": self.id, "max_depth": max_depth}
 
             limiting_fk_nodes_instance = kwargs.get("limiting_fk_nodes_instance", None)
             limiting_fk_edges_instance = kwargs.get("limiting_fk_edges_instance", None)
@@ -335,9 +337,9 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             ids = [item.id for item in self.ancestors_raw(**kwargs)] + [self.id]
             return self.filter_order_ids(ids)
 
-        def descendants_raw(self, **kwargs):
+        def descendants_raw(self, max_depth=20, **kwargs):
             descendants_clauses_1, descendants_clauses_2 = ("", "")
-            query_parameters = {"id": self.id}
+            query_parameters = {"id": self.id, "max_depth": max_depth}
 
             limiting_fk_nodes_instance = kwargs.get("limiting_fk_nodes_instance", None)
             limiting_fk_edges_instance = kwargs.get("limiting_fk_edges_instance", None)
