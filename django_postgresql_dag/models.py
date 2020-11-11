@@ -18,9 +18,9 @@ from django.db.models import Case, When
 from django.core.exceptions import ValidationError
 
 LIMITING_FK_EDGES_CLAUSE_1 = (
-    """AND second.{fk_field_name}_id = %(limiting_fk_edges_instance_id)s"""
+    """AND second.{fk_field_name}_{pk_name} = %(limiting_fk_edges_instance_id)s"""
 )
-LIMITING_FK_EDGES_CLAUSE_2 = """AND {relationship_table}.{fk_field_name}_id = %(limiting_fk_edges_instance_id)s"""
+LIMITING_FK_EDGES_CLAUSE_2 = """AND {relationship_table}.{fk_field_name}_{pk_name} = %(limiting_fk_edges_instance_id)s"""
 
 LIMITING_FK_NODES_CLAUSE_1 = """"""
 LIMITING_FK_NODES_CLAUSE_2 = """"""
@@ -31,18 +31,18 @@ LIMITING_FK_NODES_CLAUSE_2 = """"""
 # DISALLOWED_DESCENDANTS_NODES_CLAUSE_1 = """AND second.parent_id <> ALL(%(disallowed_descendants_node_ids)s::int[])"""  # Used for descendants and downward path
 # DISALLOWED_DESCENDANTS_NODES_CLAUSE_2 = """AND {relationship_table}.parent_id <> ALL(%(disallowed_descendants_node_ids)s::int[])"""
 
-DISALLOWED_ANCESTORS_NODES_CLAUSE_1 = """AND first.parent_id <> ALL(%(disallowed_ancestors_node_ids)s::int[])"""  # Used for ancestors and upward path
-DISALLOWED_ANCESTORS_NODES_CLAUSE_2 = """AND {relationship_table}.parent_id <> ALL(%(disallowed_ancestors_node_ids)s::int[])"""
+DISALLOWED_ANCESTORS_NODES_CLAUSE_1 = """AND first.parent_{pk_name} <> ALL(%(disallowed_ancestors_node_ids)s::int[])"""  # Used for ancestors and upward path
+DISALLOWED_ANCESTORS_NODES_CLAUSE_2 = """AND {relationship_table}.parent_{pk_name} <> ALL(%(disallowed_ancestors_node_ids)s::int[])"""
 
-DISALLOWED_DESCENDANTS_NODES_CLAUSE_1 = """AND first.child_id <> ALL(%(disallowed_descendants_node_ids)s::int[])"""  # Used for descendants and downward path
-DISALLOWED_DESCENDANTS_NODES_CLAUSE_2 = """AND {relationship_table}.child_id <> ALL(%(disallowed_descendants_node_ids)s::int[])"""
+DISALLOWED_DESCENDANTS_NODES_CLAUSE_1 = """AND first.child_{pk_name} <> ALL(%(disallowed_descendants_node_ids)s::int[])"""  # Used for descendants and downward path
+DISALLOWED_DESCENDANTS_NODES_CLAUSE_2 = """AND {relationship_table}.child_{pk_name} <> ALL(%(disallowed_descendants_node_ids)s::int[])"""
 
 
 ALLOWED_ANCESTORS_NODES_CLAUSE_1 = """AND first.parent_id = ANY(%(allowed_ancestors_node_ids)s::int[])"""  # Used for ancestors and upward path
-ALLOWED_ANCESTORS_NODES_CLAUSE_2 = """AND {relationship_table}.parent_id = ANY(%(allowed_ancestors_node_ids)s::int[])"""
+ALLOWED_ANCESTORS_NODES_CLAUSE_2 = """AND {relationship_table}.parent_{pk_name} = ANY(%(allowed_ancestors_node_ids)s::int[])"""
 
-ALLOWED_DESCENDANTS_NODES_CLAUSE_1 = """AND first.child_id = ANY(%(allowed_descendants_node_ids)s::int[])"""  # Used for descendants and downward path
-ALLOWED_DESCENDANTS_NODES_CLAUSE_2 = """AND {relationship_table}.child_id = ANY(%(allowed_descendants_node_ids)s::int[])"""
+ALLOWED_DESCENDANTS_NODES_CLAUSE_1 = """AND first.child_{pk_name} = ANY(%(allowed_descendants_node_ids)s::int[])"""  # Used for descendants and downward path
+ALLOWED_DESCENDANTS_NODES_CLAUSE_2 = """AND {relationship_table}.child_{pk_name} = ANY(%(allowed_descendants_node_ids)s::int[])"""
 
 ANCESTORS_QUERY = """
 WITH RECURSIVE traverse({pk_name}, depth) AS (
@@ -101,21 +101,21 @@ ORDER BY MAX(depth), {pk_name} ASC
 """
 
 PATH_LIMITING_FK_EDGES_CLAUSE = (
-    """AND first.{fk_field_name}_id = %(limiting_fk_edges_instance_id)s"""
+    """AND first.{fk_field_name}_{pk_name} = %(limiting_fk_edges_instance_id)s"""
 )
 PATH_LIMITING_FK_NODES_CLAUSE = """"""
 
 DISALLOWED_UPWARD_PATH_NODES_CLAUSE = (
-    """AND second.parent_id <> ALL('{disallowed_path_node_ids}'::int[])"""
+    """AND second.parent_{pk_name} <> ALL('{disallowed_path_node_ids}'::int[])"""
 )
 DISALLOWED_DOWNWARD_PATH_NODES_CLAUSE = (
-    """AND second.child_id <> ALL('{disallowed_path_node_ids}'::int[])"""
+    """AND second.child_{pk_name} <> ALL('{disallowed_path_node_ids}'::int[])"""
 )
 ALLOWED_UPWARD_PATH_NODES_CLAUSE = (
-    """AND second.parent_id = ALL('{allowed_path_node_ids}'::int[])"""
+    """AND second.parent_{pk_name} = ALL('{allowed_path_node_ids}'::int[])"""
 )
 ALLOWED_DOWNWARD_PATH_NODES_CLAUSE = (
-    """AND second.child_id = ALL('{allowed_path_node_ids}'::int[])"""
+    """AND second.child_{pk_name} = ALL('{allowed_path_node_ids}'::int[])"""
 )
 
 UPWARD_PATH_QUERY = """
@@ -294,10 +294,12 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                 if fk_field_name is not None:
                     ancestors_clauses_1 += "\n" + LIMITING_FK_EDGES_CLAUSE_1.format(
                         relationship_table=edge_model_table,
+                    pk_name=self.get_pk_name(),
                         fk_field_name=fk_field_name,
                     )
                     ancestors_clauses_2 += "\n" + LIMITING_FK_EDGES_CLAUSE_2.format(
                         relationship_table=edge_model_table,
+                    pk_name=self.get_pk_name(),
                         fk_field_name=fk_field_name,
                     )
                     query_parameters[
@@ -308,9 +310,11 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             if disallowed_nodes_queryset is not None:
                 ancestors_clauses_1 += "\n" + DISALLOWED_ANCESTORS_NODES_CLAUSE_1.format(
                     relationship_table=edge_model_table,
+                    pk_name=self.get_pk_name(),
                 )
                 ancestors_clauses_2 += "\n" + DISALLOWED_ANCESTORS_NODES_CLAUSE_2.format(
                     relationship_table=edge_model_table,
+                    pk_name=self.get_pk_name(),
                 )
                 query_parameters["disallowed_ancestors_node_ids"] = str(
                     set(disallowed_nodes_queryset.values_list("id", flat=True))
@@ -323,9 +327,11 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             if allowed_nodes_queryset is not None:
                 ancestors_clauses_1 += "\n" + ALLOWED_ANCESTORS_NODES_CLAUSE_1.format(
                     relationship_table=edge_model_table,
+                    pk_name=self.get_pk_name(),
                 )
                 ancestors_clauses_2 += "\n" + ALLOWED_ANCESTORS_NODES_CLAUSE_2.format(
                     relationship_table=edge_model_table,
+                    pk_name=self.get_pk_name(),
                 )
                 query_parameters["allowed_ancestors_node_ids"] = str(
                     set(allowed_nodes_queryset.values_list("id", flat=True))
@@ -383,10 +389,12 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                 if fk_field_name is not None:
                     descendants_clauses_1 += "\n" + LIMITING_FK_EDGES_CLAUSE_1.format(
                         relationship_table=edge_model_table,
+                    pk_name=self.get_pk_name(),
                         fk_field_name=fk_field_name,
                     )
                     descendants_clauses_2 += "\n" + LIMITING_FK_EDGES_CLAUSE_2.format(
                         relationship_table=edge_model_table,
+                    pk_name=self.get_pk_name(),
                         fk_field_name=fk_field_name,
                     )
                     query_parameters[
@@ -397,9 +405,11 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             if disallowed_nodes_queryset is not None:
                 descendants_clauses_1 += "\n" + DISALLOWED_DESCENDANTS_NODES_CLAUSE_1.format(
                     relationship_table=edge_model_table,
+                    pk_name=self.get_pk_name(),
                 )
                 descendants_clauses_2 += "\n" + DISALLOWED_DESCENDANTS_NODES_CLAUSE_2.format(
                     relationship_table=edge_model_table,
+                    pk_name=self.get_pk_name(),
                 )
                 query_parameters["disallowed_downward_node_ids"] = str(
                     set(disallowed_nodes_queryset.values_list("id", flat=True))
@@ -412,9 +422,11 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             if allowed_nodes_queryset is not None:
                 descendants_clauses_1 += "\n" + ALLOWED_DESCENDANTS_NODES_CLAUSE_1.format(
                     relationship_table=edge_model_table,
+                    pk_name=self.get_pk_name(),
                 )
                 descendants_clauses_2 += "\n" + ALLOWED_DESCENDANTS_NODES_CLAUSE_2.format(
                     relationship_table=edge_model_table,
+                    pk_name=self.get_pk_name(),
                 )
                 query_parameters["allowed_descendants_node_ids"] = str(
                     set(allowed_nodes_queryset.values_list("id", flat=True))
@@ -521,6 +533,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                 if fk_field_name is not None:
                     downward_clauses += "\n" + PATH_LIMITING_FK_EDGES_CLAUSE.format(
                         relationship_table=edge_model_table,
+                    pk_name=self.get_pk_name(),
                         fk_field_name=fk_field_name,
                     )
                     query_parameters[
@@ -565,6 +578,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                     if "fk_field_name" in locals():
                         upward_clauses += "\n" + PATH_LIMITING_FK_EDGES_CLAUSE.format(
                             relationship_table=edge_model_table,
+                            pk_name=self.get_pk_name(),
                             fk_field_name=fk_field_name,
                         )
 
