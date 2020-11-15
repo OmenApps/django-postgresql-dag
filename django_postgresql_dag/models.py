@@ -18,31 +18,31 @@ from django.db.models import Case, When
 from django.core.exceptions import ValidationError
 
 LIMITING_FK_EDGES_CLAUSE_1 = (
-    """AND second.{fk_field_name}_{pk_name} = %(limiting_fk_edges_instance_id)s"""
+    """AND second.{fk_field_name}_{pk_name} = %(limiting_fk_edges_instance_pk)s"""
 )
-LIMITING_FK_EDGES_CLAUSE_2 = """AND {relationship_table}.{fk_field_name}_{pk_name} = %(limiting_fk_edges_instance_id)s"""
+LIMITING_FK_EDGES_CLAUSE_2 = """AND {relationship_table}.{fk_field_name}_{pk_name} = %(limiting_fk_edges_instance_pk)s"""
 
 LIMITING_FK_NODES_CLAUSE_1 = """"""
 LIMITING_FK_NODES_CLAUSE_2 = """"""
 
-# DISALLOWED_ANCESTORS_NODES_CLAUSE_1 = """AND second.child_id <> ALL(%(disallowed_ancestors_node_ids)s::int[])"""  # Used for ancestors and upward path
-# DISALLOWED_ANCESTORS_NODES_CLAUSE_2 = ("""AND {relationship_table}.child_id <> ALL(%(disallowed_ancestors_node_ids)s::int[])""")
+# DISALLOWED_ANCESTORS_NODES_CLAUSE_1 = """AND second.child_pk <> ALL(%(disallowed_ancestors_node_pks)s)"""  # Used for ancestors and upward path
+# DISALLOWED_ANCESTORS_NODES_CLAUSE_2 = ("""AND {relationship_table}.child_pk <> ALL(%(disallowed_ancestors_node_pks)s)""")
 
-# DISALLOWED_DESCENDANTS_NODES_CLAUSE_1 = """AND second.parent_id <> ALL(%(disallowed_descendants_node_ids)s::int[])"""  # Used for descendants and downward path
-# DISALLOWED_DESCENDANTS_NODES_CLAUSE_2 = """AND {relationship_table}.parent_id <> ALL(%(disallowed_descendants_node_ids)s::int[])"""
+# DISALLOWED_DESCENDANTS_NODES_CLAUSE_1 = """AND second.parent_pk <> ALL(%(disallowed_descendants_node_pks)s)"""  # Used for descendants and downward path
+# DISALLOWED_DESCENDANTS_NODES_CLAUSE_2 = """AND {relationship_table}.parent_pk <> ALL(%(disallowed_descendants_node_pks)s)"""
 
-DISALLOWED_ANCESTORS_NODES_CLAUSE_1 = """AND first.parent_{pk_name} <> ALL(%(disallowed_ancestors_node_ids)s::int[])"""  # Used for ancestors and upward path
-DISALLOWED_ANCESTORS_NODES_CLAUSE_2 = """AND {relationship_table}.parent_{pk_name} <> ALL(%(disallowed_ancestors_node_ids)s::int[])"""
+DISALLOWED_ANCESTORS_NODES_CLAUSE_1 = """AND first.parent_{pk_name} <> ALL(%(disallowed_ancestors_node_pks)s)"""  # Used for ancestors and upward path
+DISALLOWED_ANCESTORS_NODES_CLAUSE_2 = """AND {relationship_table}.parent_{pk_name} <> ALL(%(disallowed_ancestors_node_pks)s)"""
 
-DISALLOWED_DESCENDANTS_NODES_CLAUSE_1 = """AND first.child_{pk_name} <> ALL(%(disallowed_descendants_node_ids)s::int[])"""  # Used for descendants and downward path
-DISALLOWED_DESCENDANTS_NODES_CLAUSE_2 = """AND {relationship_table}.child_{pk_name} <> ALL(%(disallowed_descendants_node_ids)s::int[])"""
+DISALLOWED_DESCENDANTS_NODES_CLAUSE_1 = """AND first.child_{pk_name} <> ALL(%(disallowed_descendants_node_pks)s)"""  # Used for descendants and downward path
+DISALLOWED_DESCENDANTS_NODES_CLAUSE_2 = """AND {relationship_table}.child_{pk_name} <> ALL(%(disallowed_descendants_node_pks)s)"""
 
 
-ALLOWED_ANCESTORS_NODES_CLAUSE_1 = """AND first.parent_id = ANY(%(allowed_ancestors_node_ids)s::int[])"""  # Used for ancestors and upward path
-ALLOWED_ANCESTORS_NODES_CLAUSE_2 = """AND {relationship_table}.parent_{pk_name} = ANY(%(allowed_ancestors_node_ids)s::int[])"""
+ALLOWED_ANCESTORS_NODES_CLAUSE_1 = """AND first.parent_pk = ANY(%(allowed_ancestors_node_pks)s)"""  # Used for ancestors and upward path
+ALLOWED_ANCESTORS_NODES_CLAUSE_2 = """AND {relationship_table}.parent_{pk_name} = ANY(%(allowed_ancestors_node_pks)s)"""
 
-ALLOWED_DESCENDANTS_NODES_CLAUSE_1 = """AND first.child_{pk_name} = ANY(%(allowed_descendants_node_ids)s::int[])"""  # Used for descendants and downward path
-ALLOWED_DESCENDANTS_NODES_CLAUSE_2 = """AND {relationship_table}.child_{pk_name} = ANY(%(allowed_descendants_node_ids)s::int[])"""
+ALLOWED_DESCENDANTS_NODES_CLAUSE_1 = """AND first.child_{pk_name} = ANY(%(allowed_descendants_node_pks)s)"""  # Used for descendants and downward path
+ALLOWED_DESCENDANTS_NODES_CLAUSE_2 = """AND {relationship_table}.child_{pk_name} = ANY(%(allowed_descendants_node_pks)s)"""
 
 ANCESTORS_QUERY = """
 WITH RECURSIVE traverse({pk_name}, depth) AS (
@@ -101,21 +101,21 @@ ORDER BY MAX(depth), {pk_name} ASC
 """
 
 PATH_LIMITING_FK_EDGES_CLAUSE = (
-    """AND first.{fk_field_name}_{pk_name} = %(limiting_fk_edges_instance_id)s"""
+    """AND first.{fk_field_name}_{pk_name} = %(limiting_fk_edges_instance_pk)s"""
 )
 PATH_LIMITING_FK_NODES_CLAUSE = """"""
 
 DISALLOWED_UPWARD_PATH_NODES_CLAUSE = (
-    """AND second.parent_{pk_name} <> ALL('{disallowed_path_node_ids}'::int[])"""
+    """AND second.parent_{pk_name} <> ALL('{disallowed_path_node_pks}')"""
 )
 DISALLOWED_DOWNWARD_PATH_NODES_CLAUSE = (
-    """AND second.child_{pk_name} <> ALL('{disallowed_path_node_ids}'::int[])"""
+    """AND second.child_{pk_name} <> ALL('{disallowed_path_node_pks}')"""
 )
 ALLOWED_UPWARD_PATH_NODES_CLAUSE = (
-    """AND second.parent_{pk_name} = ALL('{allowed_path_node_ids}'::int[])"""
+    """AND second.parent_{pk_name} = ALL('{allowed_path_node_pks}')"""
 )
 ALLOWED_DOWNWARD_PATH_NODES_CLAUSE = (
-    """AND second.child_{pk_name} = ALL('{allowed_path_node_ids}'::int[])"""
+    """AND second.child_{pk_name} = ALL('{allowed_path_node_pks}')"""
 )
 
 UPWARD_PATH_QUERY = """
@@ -203,8 +203,8 @@ def _filter_order(queryset, field_names, values):
     orders results in the same order as provided values
 
         For instance
-            _filter_order(self.__class__.objects, "pk", ids)
-        returns a queryset of the current class, with instances where the 'pk' field matches an id in ids
+            _filter_order(self.__class__.objects, "pk", pks)
+        returns a queryset of the current class, with instances where the 'pk' field matches an pk in pks
 
     """
     if not isinstance(field_names, list):
@@ -224,7 +224,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
     def get_foreign_key_field(instance=None):
         """
         Provided a model instance and model class, checks if the edge model has a ForeignKey
-        field to the model for that instance, and then returns the field name and instance id.
+        field to the model for that instance, and then returns the field name and instance pk.
         """
         if instance is not None:
             for field in edge_model._meta.get_fields():
@@ -245,29 +245,45 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
         class Meta:
             abstract = True
 
-        def add_child(self, descendant, **kwargs):
-            kwargs.update({"parent": self, "child": descendant})
+        def add_child(self, child, **kwargs):
+            kwargs.update({"parent": self, "child": child})
             disable_check = kwargs.pop("disable_circular_check", False)
             cls = self.children.through(**kwargs)
             return cls.save(disable_circular_check=disable_check)
 
-        def remove_child(self, descendant):
-            self.children.through.objects.get(parent=self, child=descendant).delete()
+        def remove_child(self, child, delete_node=False):
+            """Removes the edge connecting this node to child, and optionally deletes the child node as well"""
+            if child in self.children.all():
+                self.children.through.objects.get(parent=self, child=child).delete()
+                if delete_node:
+                    # Note: Per django docs:
+                    # https://docs.djangoproject.com/en/dev/ref/models/instances/#deleting-objects
+                    # This only deletes the object in the database; the Python instance will still 
+                    # exist and will still have data in its fields.
+                    child.delete()
 
         def add_parent(self, parent, *args, **kwargs):
             return parent.add_child(self, **kwargs)
 
-        def remove_parent(self, parent):
-            parent.children.through.objects.get(parent=parent, child=self).delete()
+        def remove_parent(self, parent, delete_node=False):
+            """Removes the edge connecting this node to parent, and optionally deletes the parent node as well"""
+            if parent in self.parents.all():
+                parent.children.through.objects.get(parent=parent, child=self).delete()
+                if delete_node:
+                    # Note: Per django docs:
+                    # https://docs.djangoproject.com/en/dev/ref/models/instances/#deleting-objects
+                    # This only deletes the object in the database; the Python instance will still 
+                    # exist and will still have data in its fields.
+                    parent.delete()
 
-        def filter_order_ids(self, ids):
+        def filter_order_pks(self, pks):
             """
-            Generates a queryset, based on the current class and the provided ids
+            Generates a queryset, based on the current class and the provided pks
             """
-            return _filter_order(self.__class__.objects, "pk", ids)
+            return _filter_order(self.__class__.objects, "pk", pks)
         
         def get_pk_name(self):
-            """Sometimes we se a field other than 'id' for the primary key.
+            """Sometimes we set a field other than 'pk' for the primary key.
             This method is used to get the correct primary key field name for the
             model so that raw queries return the correct information."""
             return self._meta.pk.name
@@ -303,8 +319,8 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                         fk_field_name=fk_field_name,
                     )
                     query_parameters[
-                        "limiting_fk_edges_instance_id"
-                    ] = limiting_fk_edges_instance.id
+                        "limiting_fk_edges_instance_pk"
+                    ] = limiting_fk_edges_instance.pk
 
             # Nodes that MUST NOT be included in the results
             if disallowed_nodes_queryset is not None:
@@ -316,8 +332,8 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                     relationship_table=edge_model_table,
                     pk_name=self.get_pk_name(),
                 )
-                query_parameters["disallowed_ancestors_node_ids"] = str(
-                    set(disallowed_nodes_queryset.values_list("id", flat=True))
+                query_parameters["disallowed_ancestors_node_pks"] = str(
+                    set(disallowed_nodes_queryset.values_list("pk", flat=True))
                 )
 
             if disallowed_edges_queryset is not None:
@@ -333,16 +349,14 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                     relationship_table=edge_model_table,
                     pk_name=self.get_pk_name(),
                 )
-                query_parameters["allowed_ancestors_node_ids"] = str(
-                    set(allowed_nodes_queryset.values_list("id", flat=True))
+                query_parameters["allowed_ancestors_node_pks"] = str(
+                    set(allowed_nodes_queryset.values_list("pk", flat=True))
                 )
 
             if allowed_edges_queryset is not None:
                 pass  # Not implemented yet
 
             NodeModel = self._meta.model
-            print(ancestors_clauses_1)
-            print(ancestors_clauses_2)
             raw_qs = NodeModel.objects.raw(
                 ANCESTORS_QUERY.format(
                     relationship_table=edge_model_table,
@@ -352,20 +366,23 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                 ),
                 query_parameters,
             )
-            print(query_parameters)
             return raw_qs
 
         def ancestors(self, **kwargs):
-            ids = [item.id for item in self.ancestors_raw(**kwargs)]
-            return self.filter_order_ids(ids)
+            pks = [item.pk for item in self.ancestors_raw(**kwargs)]
+            return self.filter_order_pks(pks)
+
+        def ancestors_count(self):
+            # ToDo: Implement
+            pass
 
         def self_and_ancestors(self, **kwargs):
-            ids = [self.id] + [item.id for item in self.ancestors_raw(**kwargs)][::-1]
-            return self.filter_order_ids(ids)
+            pks = [self.pk] + [item.pk for item in self.ancestors_raw(**kwargs)][::-1]
+            return self.filter_order_pks(pks)
 
         def ancestors_and_self(self, **kwargs):
-            ids = [item.id for item in self.ancestors_raw(**kwargs)] + [self.id]
-            return self.filter_order_ids(ids)
+            pks = [item.pk for item in self.ancestors_raw(**kwargs)] + [self.pk]
+            return self.filter_order_pks(pks)
 
         def descendants_raw(self, max_depth=20, **kwargs):
             descendants_clauses_1, descendants_clauses_2 = ("", "")
@@ -398,8 +415,8 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                         fk_field_name=fk_field_name,
                     )
                     query_parameters[
-                        "limiting_fk_edges_instance_id"
-                    ] = limiting_fk_edges_instance.id
+                        "limiting_fk_edges_instance_pk"
+                    ] = limiting_fk_edges_instance.pk
 
             # Nodes that MUST NOT be included in the results
             if disallowed_nodes_queryset is not None:
@@ -411,8 +428,8 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                     relationship_table=edge_model_table,
                     pk_name=self.get_pk_name(),
                 )
-                query_parameters["disallowed_downward_node_ids"] = str(
-                    set(disallowed_nodes_queryset.values_list("id", flat=True))
+                query_parameters["disallowed_downward_node_pks"] = str(
+                    set(disallowed_nodes_queryset.values_list("pk", flat=True))
                 )
 
             if disallowed_edges_queryset is not None:
@@ -428,8 +445,8 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                     relationship_table=edge_model_table,
                     pk_name=self.get_pk_name(),
                 )
-                query_parameters["allowed_descendants_node_ids"] = str(
-                    set(allowed_nodes_queryset.values_list("id", flat=True))
+                query_parameters["allowed_descendants_node_pks"] = str(
+                    set(allowed_nodes_queryset.values_list("pk", flat=True))
                 )
 
             if allowed_edges_queryset is not None:
@@ -449,27 +466,51 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             return raw_qs
 
         def descendants(self, **kwargs):
-            ids = [item.id for item in self.descendants_raw(**kwargs)]
-            return self.filter_order_ids(ids)
+            pks = [item.pk for item in self.descendants_raw(**kwargs)]
+            return self.filter_order_pks(pks)
+
+        def descendants_count(self):
+            # ToDo: Implement
+            pass
 
         def self_and_descendants(self, **kwargs):
-            ids = [self.id] + [item.id for item in self.descendants_raw(**kwargs)]
-            return self.filter_order_ids(ids)
+            pks = [self.pk] + [item.pk for item in self.descendants_raw(**kwargs)]
+            return self.filter_order_pks(pks)
 
         def descendants_and_self(self, **kwargs):
-            ids = [item.id for item in self.descendants_raw(**kwargs)] + [self.id]
-            return self.filter_order_ids(ids)
+            pks = [item.pk for item in self.descendants_raw(**kwargs)] + [self.pk]
+            return self.filter_order_pks(pks)
 
         def clan(self, **kwargs):
             """
             Returns a queryset with all ancestors, self, and all descendants
             """
-            ids = (
-                [item.id for item in self.ancestors_raw(**kwargs)]
-                + [self.id]
-                + [item.id for item in self.descendants_raw(**kwargs)]
+            pks = (
+                [item.pk for item in self.ancestors_raw(**kwargs)]
+                + [self.pk]
+                + [item.pk for item in self.descendants_raw(**kwargs)]
             )
-            return self.filter_order_ids(ids)
+            return self.filter_order_pks(pks)
+
+        def clan_count(self):
+            # ToDo: Implement
+            pass
+
+        def siblings(self):
+            # ToDo: Implement
+            pass
+
+        def siblings_count(self):
+            # ToDo: Implement
+            pass
+
+        def self_and_siblings(self):
+            # ToDo: Implement
+            pass
+
+        def siblings_and_self(self):
+            # ToDo: Implement
+            pass
 
         def descendants_edges(self):
             """
@@ -509,7 +550,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             # ToDo: Implement filters
 
             if self == target_node:
-                return [[self.id]]
+                return [[self.pk]]
 
             downward_clauses, upward_clauses = ("", "")
             query_parameters = {
@@ -537,13 +578,13 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                         fk_field_name=fk_field_name,
                     )
                     query_parameters[
-                        "limiting_fk_edges_instance_id"
-                    ] = limiting_fk_edges_instance.id
+                        "limiting_fk_edges_instance_pk"
+                    ] = limiting_fk_edges_instance.pk
 
             if disallowed_nodes_queryset is not None:
                 downward_clauses += "\n" + DISALLOWED_DOWNWARD_PATH_NODES_CLAUSE
-                query_parameters["disallowed_path_node_ids"] = str(
-                    set(disallowed_nodes_queryset.values_list("id", flat=True))
+                query_parameters["disallowed_path_node_pks"] = str(
+                    set(disallowed_nodes_queryset.values_list("pk", flat=True))
                 )
 
             if disallowed_edges_queryset is not None:
@@ -584,8 +625,8 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
                 if disallowed_nodes_queryset is not None:
                     upward_clauses += "\n" + DISALLOWED_UPWARD_PATH_NODES_CLAUSE
-                    query_parameters["disallowed_path_node_ids"] = str(
-                        set(disallowed_nodes_queryset.values_list("id", flat=True))
+                    query_parameters["disallowed_path_node_pks"] = str(
+                        set(disallowed_nodes_queryset.values_list("pk", flat=True))
                     )
 
                 if disallowed_edges_queryset is not None:
@@ -611,8 +652,8 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             return path
 
         def path(self, target_node, **kwargs):
-            ids = [item.id for item in self.path_raw(target_node, **kwargs)]
-            return self.filter_order_ids(ids)
+            pks = [item.pk for item in self.path_raw(target_node, **kwargs)]
+            return self.filter_order_pks(pks)
 
         def distance(self, target_node, **kwargs):
             """
@@ -637,6 +678,23 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             Check if has no ancestors nor children
             """
             return bool(not self.children.exists() and not self.parents.exists())
+
+        def is_descendant_of(self, target):
+            # ToDo: Implement
+            pass
+
+        def is_ancestor_of(self, target):
+            # ToDo: Implement
+            pass
+
+        def is_sibling_of(self, target):
+            # ToDo: Implement
+            pass
+
+        def get_node_depth(self):
+            # Depth from furthest root
+            # ToDo: Implement
+            pass
 
         def descendants_tree(self):
             """
@@ -777,13 +835,11 @@ def edge_factory(
         parent = models.ForeignKey(
             node_model,
             related_name=f"{node_model_name}_child",
-            to_field=parent_to_field,
             on_delete=models.CASCADE,
         )
         child = models.ForeignKey(
             node_model,
             related_name=f"{node_model_name}_parent",
-            to_field=child_to_field,
             on_delete=models.CASCADE,
         )
 
@@ -795,6 +851,6 @@ def edge_factory(
         def save(self, *args, **kwargs):
             if not kwargs.pop("disable_circular_check", False):
                 self.parent.__class__.circular_checker(self.parent, self.child)
-            super(Edge, self).save(*args, **kwargs)
+            super().save(*args, **kwargs)
 
     return Edge

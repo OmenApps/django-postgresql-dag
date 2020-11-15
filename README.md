@@ -7,9 +7,9 @@ Expressions (CTE) to achieve this and is therefore not compatible with other dat
 
 NOTE: Not all methods which would benefit from CTEs use them yet.
 
-NOTE: This project is a work in progress. While functional, it is not optimized. Currently, it provides numerous
-methods for retrieving nodes, and a few for retrieving edges within the graph. In progress are filters within the
-in order to limit the area of the graph to be searched.
+NOTE: **This project is a work in progress. Again, this project is a work in progress.** While functional, it is not optimized and not yet stable. Lots of changes are happening weekly. Expect it to stabilize by the end of 2020.
+
+Currently, it provides numerous methods for retrieving nodes, and a few for retrieving edges within the graph. In progress are filters within the in order to limit the area of the graph to be searched, ability to easily export to NetworkX, and other improvements and utilities.
 
 ## Most Simple Example:
 
