@@ -760,15 +760,15 @@ class EdgeManager(models.Manager):
 
 def edge_factory(
     node_model,
-    child_to_field="id",
-    parent_to_field="id",
     concrete=True,
     base_model=models.Model,
 ):
+
     if isinstance(node_model, str):
         try:
             node_model_name = node_model.split(".")[1]
         except IndexError:
+            
             node_model_name = node_model
     else:
         node_model_name = node_model._meta.model_name
