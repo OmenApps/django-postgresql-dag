@@ -42,30 +42,43 @@ class DagTestCase(TestCase):
 
         log.debug("descendants_tree")
         tree = root.descendants_tree()
-        # {<ConcreteNode: # 5>: {<ConcreteNode: # 7>: {}}}
         self.assertIn(a1, tree)
         self.assertEqual(len(tree), 1)
         self.assertIn(b1, tree[a1])
         self.assertEqual(tree[a1][b1], {})
 
-        log.debug("descendants_ids")
-        l = root.descendants_ids()
-        self.assertEqual(l, [12, 15])
+        log.debug("descendants part 1")
+        root_descendants = root.descendants()
+        self.assertNotIn(root, root_descendants)
+        self.assertTrue(all(elem in root_descendants for elem in [a1, b1]))
 
         root.add_child(a2)
         a3.add_parent(root)
         a3.add_child(b3)
         a3.add_child(b4)
         b3.add_child(c1)
-        log.debug("descendants_ids")
-        l = root.descendants_ids()
-        self.assertEqual(l, [12, 13, 14, 15, 17, 18, 19])
+        
+        log.debug("descendants part 2")
+        root_descendants = root.descendants()
+        self.assertNotIn(root, root_descendants)
+        self.assertTrue(all(elem in root_descendants for elem in [a1, a2, a3, b1, b3, b4, c1]))
 
+        log.debug("ancestors part 1")
+        c1_ancestors = c1.ancestors()
+        self.assertNotIn(c1, c1_ancestors)
+        self.assertNotIn(b4, c1_ancestors)
+        self.assertTrue(all(elem in c1_ancestors for elem in [root, a3, b3]))
+        
         a1.add_child(b2)
         a2.add_child(b2)
         b3.add_child(c2)
         b4.add_child(c1)
-
+        
+        log.debug("ancestors part 2")
+        c1_ancestors = c1.ancestors()
+        self.assertNotIn(c1, c1_ancestors)
+        self.assertTrue(all(elem in c1_ancestors for elem in [root, a3, b3, b4]))
+        
         # Try to add a node that is already an ancestor
         try:
             b3.add_parent(c1)
@@ -117,12 +130,6 @@ class DagTestCase(TestCase):
         self.assertEqual(len(tree_from_leaf[b4][a3]), 1)
 
         # Check other ancestor methods
-        log.debug("ancestors_ids")
-        self.assertEqual(a1.ancestors_ids(), [root.id])
-        log.debug("ancestors_and_self_ids")
-        self.assertEqual(a1.ancestors_and_self_ids(), [root.id, a1.id])
-        log.debug("self_and_ancestors_ids")
-        self.assertEqual(a1.self_and_ancestors_ids(), [a1.id, root.id])
         log.debug("ancestors_and_self")
         self.assertEqual(a1.ancestors_and_self()[0], root)
         log.debug("ancestors_and_self")
@@ -133,12 +140,6 @@ class DagTestCase(TestCase):
         self.assertEqual(a1.self_and_ancestors()[1], root)
 
         # Check other descendant methods
-        log.debug("descendants_ids")
-        self.assertEqual(b4.descendants_ids(), [c1.id])
-        log.debug("descendants_and_self_ids")
-        self.assertEqual(b4.descendants_and_self_ids(), [c1.id, b4.id])
-        log.debug("self_and_descendants_ids")
-        self.assertEqual(b4.self_and_descendants_ids(), [b4.id, c1.id])
         log.debug("descendants_and_self")
         self.assertEqual(b4.descendants_and_self()[0], c1)
         log.debug("descendants_and_self")
@@ -150,7 +151,7 @@ class DagTestCase(TestCase):
 
         # Check clan methods
         log.debug("clan_ids")
-        self.assertEqual(a1.clan_ids(), [root.id, a1.id, b1.id, b2.id])
+        self.assertTrue(all(elem in a1.clan() for elem in [root, a1, b1, b2]))
         log.debug("clan")
         self.assertEqual(a1.clan()[0], root)
         log.debug("clan")
@@ -162,21 +163,21 @@ class DagTestCase(TestCase):
 
         # Test additional fields for edge
         self.assertEqual(b3.children.through.objects.filter(child=c1)[0].name, "b3 c1")
-        self.assertEqual(b3.descendants_edges().first(), NetworkEdge.objects.get(parent=b3, child=c2))
+        self.assertEqual(b3.descendants_edges().first(), NetworkEdge.objects.get(parent=b3, child=c1))
         self.assertEqual(a1.ancestors_edges().first(), NetworkEdge.objects.get(parent=root, child=a1))
         self.assertTrue(NetworkEdge.objects.get(parent=a1, child=b2) in a1.clan_edges())
         self.assertTrue(NetworkEdge.objects.get(parent=a1, child=b1) in a1.clan_edges())
         self.assertTrue(NetworkEdge.objects.get(parent=root, child=a1) in a1.clan_edges())
 
         # Test shortest_path
-        log.debug("shortest_path x2")
+        log.debug("path x2")
         self.assertTrue(
-            [p.name for p in root.shortest_path(c1)] == ["root", "a3", "b3", "c1"]
-            or [p.name for p in c1.shortest_path(root, directional=False)]
+            [p.name for p in root.path(c1)] == ["root", "a3", "b3", "c1"]
+            or [p.name for p in c1.path(root, directional=False)]
             == ["root", "a3", "b4", "c1"]
         )
 
-        log.debug("shortest_path")
+        log.debug("path")
         try:
             [p.name for p in c1.shortest_path(root)]
         except Exception as e:
@@ -184,16 +185,16 @@ class DagTestCase(TestCase):
 
         log.debug("shortest_path x2")
         self.assertTrue(
-            [p.name for p in c1.shortest_path(root, directional=False)]
-            == ["root", "a3", "b3", "c1"]
-            or [p.name for p in c1.shortest_path(root, directional=False)]
-            == ["root", "a3", "b4", "c1"]
+            [p.name for p in c1.path(root, directional=False)]
+            == ["c1", "b3", "a3", "root"]
+            or [p.name for p in c1.path(root, directional=False)]
+            == ["c1", "b4", "a3", "root"]
         )
 
         log.debug("get_leaves")
-        self.assertEqual([p.name for p in root.get_leaves()], ["b2", "c1", "c2", "b1"])
+        self.assertEqual([p.name for p in root.leaves()], ["b2", "c1", "c2", "b1"])
         log.debug("get_roots")
-        self.assertEqual([p.name for p in c2.get_roots()], ["root"])
+        self.assertEqual([p.name for p in c2.roots()], ["root"])
 
         self.assertTrue(root.is_root())
         self.assertTrue(c1.is_leaf())
@@ -471,19 +472,20 @@ class DagTestCase(TestCase):
         log.debug("Execution time in seconds: %s" % str(execution_time))
 
         # Count number of paths from start to end of graph
-        start_time = time.time()
-        log.debug(
-            "Paths through graph: : %s"
-            % str(
-                len(
-                    canal_root.path_ids_list(
-                        canal_leaf, max_depth=n + 1, max_paths=500000000
-                    )
-                )
-            )
-        )
-        execution_time = time.time() - start_time
-        log.debug("Execution time in seconds: %s" % str(execution_time))
+        # NOTE: Does not work with current method of returning only a single path
+        # start_time = time.time()
+        # log.debug(
+        #     "Paths through graph: : %s"
+        #     % str(
+        #         len(
+        #             canal_root.path_ids_list(
+        #                 canal_leaf, max_depth=n + 1, max_paths=500000000
+        #             )
+        #         )
+        #     )
+        # )
+        # execution_time = time.time() - start_time
+        # log.debug("Execution time in seconds: %s" % str(execution_time))
 
         # Find distance from root to leaf
         log.debug("Distance: %s" % str(canal_root.distance(canal_leaf, max_depth=100)))
@@ -546,16 +548,17 @@ class DagTestCase(TestCase):
             first = NetworkNode.objects.get(name="0")
             last = NetworkNode.objects.get(pk=2 * n - 1)
 
-            # Count number of paths from start to end of graph
-            start_time = time.time()
-            log.debug(
-                "Paths through graph: %s"
-                % str(
-                    len(first.path_ids_list(last, max_depth=n + 1, max_paths=500000000))
-                )
-            )
-            execution_time = time.time() - start_time
-            log.debug("Execution time in seconds: %s" % str(execution_time))
+            # # Count number of paths from start to end of graph
+            # # NOTE: Does not work with current method of returning only a single path
+            # start_time = time.time()
+            # log.debug(
+            #     "Paths through graph: %s"
+            #     % str(
+            #         len(first.path_ids_list(last, max_depth=n + 1, max_paths=500000000))
+            #     )
+            # )
+            # execution_time = time.time() - start_time
+            # log.debug("Execution time in seconds: %s" % str(execution_time))
 
             log.debug("Distance")
             self.assertEqual(first.distance(last, max_depth=n), n - 1)
