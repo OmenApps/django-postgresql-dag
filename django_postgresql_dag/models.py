@@ -17,6 +17,9 @@ from django.db import models, connection
 from django.db.models import Case, When
 from django.core.exceptions import ValidationError
 
+from .exceptions import NodeNotReachableException
+from .transformations import *
+
 LIMITING_FK_EDGES_CLAUSE_1 = (
     """AND second.{fk_field_name}_{pk_name} = %(limiting_fk_edges_instance_pk)s"""
 )
@@ -189,35 +192,6 @@ FROM
 """
 
 
-class NodeNotReachableException(Exception):
-    """
-    Exception for node distance and path
-    """
-
-    pass
-
-
-def _filter_order(queryset, field_names, values):
-    """
-    Filters the provided queryset for 'field_name__in values' for each given field_name in [field_names]
-    orders results in the same order as provided values
-
-        For instance
-            _filter_order(self.__class__.objects, "pk", pks)
-        returns a queryset of the current class, with instances where the 'pk' field matches an pk in pks
-
-    """
-    if not isinstance(field_names, list):
-        field_names = [field_names]
-    case = []
-    for pos, value in enumerate(values):
-        when_condition = {field_names[0]: value, "then": pos}
-        case.append(When(**when_condition))
-    order_by = Case(*case)
-    filter_condition = {field_name + "__in": values for field_name in field_names}
-    return queryset.filter(**filter_condition).order_by(order_by)
-
-
 def node_factory(edge_model, children_null=True, base_model=models.Model):
     edge_model_table = edge_model._meta.db_table
 
@@ -258,7 +232,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                 if delete_node:
                     # Note: Per django docs:
                     # https://docs.djangoproject.com/en/dev/ref/models/instances/#deleting-objects
-                    # This only deletes the object in the database; the Python instance will still 
+                    # This only deletes the object in the database; the Python instance will still
                     # exist and will still have data in its fields.
                     child.delete()
 
@@ -272,7 +246,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                 if delete_node:
                     # Note: Per django docs:
                     # https://docs.djangoproject.com/en/dev/ref/models/instances/#deleting-objects
-                    # This only deletes the object in the database; the Python instance will still 
+                    # This only deletes the object in the database; the Python instance will still
                     # exist and will still have data in its fields.
                     parent.delete()
 
@@ -281,7 +255,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             Generates a queryset, based on the current class and the provided pks
             """
             return _filter_order(self.__class__.objects, "pk", pks)
-        
+
         def get_pk_name(self):
             """Sometimes we set a field other than 'pk' for the primary key.
             This method is used to get the correct primary key field name for the
@@ -310,12 +284,12 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                 if fk_field_name is not None:
                     ancestors_clauses_1 += "\n" + LIMITING_FK_EDGES_CLAUSE_1.format(
                         relationship_table=edge_model_table,
-                    pk_name=self.get_pk_name(),
+                        pk_name=self.get_pk_name(),
                         fk_field_name=fk_field_name,
                     )
                     ancestors_clauses_2 += "\n" + LIMITING_FK_EDGES_CLAUSE_2.format(
                         relationship_table=edge_model_table,
-                    pk_name=self.get_pk_name(),
+                        pk_name=self.get_pk_name(),
                         fk_field_name=fk_field_name,
                     )
                     query_parameters[
@@ -324,13 +298,19 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
             # Nodes that MUST NOT be included in the results
             if disallowed_nodes_queryset is not None:
-                ancestors_clauses_1 += "\n" + DISALLOWED_ANCESTORS_NODES_CLAUSE_1.format(
-                    relationship_table=edge_model_table,
-                    pk_name=self.get_pk_name(),
+                ancestors_clauses_1 += (
+                    "\n"
+                    + DISALLOWED_ANCESTORS_NODES_CLAUSE_1.format(
+                        relationship_table=edge_model_table,
+                        pk_name=self.get_pk_name(),
+                    )
                 )
-                ancestors_clauses_2 += "\n" + DISALLOWED_ANCESTORS_NODES_CLAUSE_2.format(
-                    relationship_table=edge_model_table,
-                    pk_name=self.get_pk_name(),
+                ancestors_clauses_2 += (
+                    "\n"
+                    + DISALLOWED_ANCESTORS_NODES_CLAUSE_2.format(
+                        relationship_table=edge_model_table,
+                        pk_name=self.get_pk_name(),
+                    )
                 )
                 query_parameters["disallowed_ancestors_node_pks"] = str(
                     set(disallowed_nodes_queryset.values_list("pk", flat=True))
@@ -357,6 +337,8 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                 pass  # Not implemented yet
 
             NodeModel = self._meta.model
+            print(ancestors_clauses_1)
+            print(ancestors_clauses_2)
             raw_qs = NodeModel.objects.raw(
                 ANCESTORS_QUERY.format(
                     relationship_table=edge_model_table,
@@ -366,6 +348,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                 ),
                 query_parameters,
             )
+            print(query_parameters)
             return raw_qs
 
         def ancestors(self, **kwargs):
@@ -406,12 +389,12 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                 if fk_field_name is not None:
                     descendants_clauses_1 += "\n" + LIMITING_FK_EDGES_CLAUSE_1.format(
                         relationship_table=edge_model_table,
-                    pk_name=self.get_pk_name(),
+                        pk_name=self.get_pk_name(),
                         fk_field_name=fk_field_name,
                     )
                     descendants_clauses_2 += "\n" + LIMITING_FK_EDGES_CLAUSE_2.format(
                         relationship_table=edge_model_table,
-                    pk_name=self.get_pk_name(),
+                        pk_name=self.get_pk_name(),
                         fk_field_name=fk_field_name,
                     )
                     query_parameters[
@@ -420,13 +403,19 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
             # Nodes that MUST NOT be included in the results
             if disallowed_nodes_queryset is not None:
-                descendants_clauses_1 += "\n" + DISALLOWED_DESCENDANTS_NODES_CLAUSE_1.format(
-                    relationship_table=edge_model_table,
-                    pk_name=self.get_pk_name(),
+                descendants_clauses_1 += (
+                    "\n"
+                    + DISALLOWED_DESCENDANTS_NODES_CLAUSE_1.format(
+                        relationship_table=edge_model_table,
+                        pk_name=self.get_pk_name(),
+                    )
                 )
-                descendants_clauses_2 += "\n" + DISALLOWED_DESCENDANTS_NODES_CLAUSE_2.format(
-                    relationship_table=edge_model_table,
-                    pk_name=self.get_pk_name(),
+                descendants_clauses_2 += (
+                    "\n"
+                    + DISALLOWED_DESCENDANTS_NODES_CLAUSE_2.format(
+                        relationship_table=edge_model_table,
+                        pk_name=self.get_pk_name(),
+                    )
                 )
                 query_parameters["disallowed_downward_node_pks"] = str(
                     set(disallowed_nodes_queryset.values_list("pk", flat=True))
@@ -437,13 +426,19 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
             # Nodes that MAY be included in the results
             if allowed_nodes_queryset is not None:
-                descendants_clauses_1 += "\n" + ALLOWED_DESCENDANTS_NODES_CLAUSE_1.format(
-                    relationship_table=edge_model_table,
-                    pk_name=self.get_pk_name(),
+                descendants_clauses_1 += (
+                    "\n"
+                    + ALLOWED_DESCENDANTS_NODES_CLAUSE_1.format(
+                        relationship_table=edge_model_table,
+                        pk_name=self.get_pk_name(),
+                    )
                 )
-                descendants_clauses_2 += "\n" + ALLOWED_DESCENDANTS_NODES_CLAUSE_2.format(
-                    relationship_table=edge_model_table,
-                    pk_name=self.get_pk_name(),
+                descendants_clauses_2 += (
+                    "\n"
+                    + ALLOWED_DESCENDANTS_NODES_CLAUSE_2.format(
+                        relationship_table=edge_model_table,
+                        pk_name=self.get_pk_name(),
+                    )
                 )
                 query_parameters["allowed_descendants_node_pks"] = str(
                     set(allowed_nodes_queryset.values_list("pk", flat=True))
@@ -574,7 +569,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                 if fk_field_name is not None:
                     downward_clauses += "\n" + PATH_LIMITING_FK_EDGES_CLAUSE.format(
                         relationship_table=edge_model_table,
-                    pk_name=self.get_pk_name(),
+                        pk_name=self.get_pk_name(),
                         fk_field_name=fk_field_name,
                     )
                     query_parameters[
@@ -777,19 +772,25 @@ class EdgeManager(models.Manager):
         """
         Returns a queryset of all edges descended from the given node
         """
-        return _filter_order(self.model.objects, "parent", node.self_and_descendants(**kwargs))
+        return _filter_order(
+            self.model.objects, "parent", node.self_and_descendants(**kwargs)
+        )
 
     def ancestors(self, node, **kwargs):
         """
         Returns a queryset of all edges which are ancestors of the given node
         """
-        return _filter_order(self.model.objects, "child", node.ancestors_and_self(**kwargs))
+        return _filter_order(
+            self.model.objects, "child", node.ancestors_and_self(**kwargs)
+        )
 
     def clan(self, node, **kwargs):
         """
         Returns a queryset of all edges for ancestors, self, and descendants
         """
-        return _filter_order(self.model.objects, ["parent", "child"], node.clan(**kwargs))
+        return _filter_order(
+            self.model.objects, ["parent", "child"], node.clan(**kwargs)
+        )
 
     def path(self, start_node, end_node, **kwargs):
         """
@@ -826,7 +827,7 @@ def edge_factory(
         try:
             node_model_name = node_model.split(".")[1]
         except IndexError:
-            
+
             node_model_name = node_model
     else:
         node_model_name = node_model._meta.model_name
