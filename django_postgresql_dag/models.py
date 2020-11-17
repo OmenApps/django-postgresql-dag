@@ -18,7 +18,7 @@ from django.db.models import Case, When
 from django.core.exceptions import ValidationError
 
 from .exceptions import NodeNotReachableException
-from .transformations import *
+from .transformations import _filter_order
 
 LIMITING_FK_EDGES_CLAUSE_1 = (
     """AND second.{fk_field_name}_{pk_name} = %(limiting_fk_edges_instance_pk)s"""
