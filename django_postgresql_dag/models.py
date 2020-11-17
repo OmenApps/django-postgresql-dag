@@ -337,8 +337,6 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                 pass  # Not implemented yet
 
             NodeModel = self._meta.model
-            print(ancestors_clauses_1)
-            print(ancestors_clauses_2)
             raw_qs = NodeModel.objects.raw(
                 ANCESTORS_QUERY.format(
                     relationship_table=edge_model_table,
@@ -348,7 +346,6 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                 ),
                 query_parameters,
             )
-            print(query_parameters)
             return raw_qs
 
         def ancestors(self, **kwargs):
@@ -686,9 +683,14 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             # ToDo: Implement
             pass
 
-        def get_node_depth(self):
+        def node_depth(self):
             # Depth from furthest root
             # ToDo: Implement
+            pass
+
+        def entire_graph(self):
+            # Gets all nodes connected in any way to this node
+
             pass
 
         def descendants_tree(self):
@@ -768,6 +770,14 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
 
 class EdgeManager(models.Manager):
+
+    def from_nodes_queryset(self, nodes_queryset):
+        """Provided a queryset of nodes, returns all edges where a parent and child
+        node are within the queryset of nodes."""
+        return _filter_order(
+            self.model.objects, ["parent", "child"], nodes_queryset
+        )
+
     def descendants(self, node, **kwargs):
         """
         Returns a queryset of all edges descended from the given node
@@ -788,19 +798,13 @@ class EdgeManager(models.Manager):
         """
         Returns a queryset of all edges for ancestors, self, and descendants
         """
-        return _filter_order(
-            self.model.objects, ["parent", "child"], node.clan(**kwargs)
-        )
+        return self.from_nodes_queryset(node.clan(**kwargs))
 
     def path(self, start_node, end_node, **kwargs):
         """
         Returns a queryset of all edges for the shortest path from start_node to end_node
         """
-        return _filter_order(
-            self.model.objects,
-            ["parent", "child"],
-            start_node.path(end_node, **kwargs),
-        )
+        return self.from_nodes_queryset(start_node.path(end_node, **kwargs))
 
     def validate_route(self, edges, **kwargs):
         """
