@@ -4,7 +4,7 @@ import time
 
 from django.test import TestCase
 from django.core.exceptions import ValidationError
-from django_postgresql_dag.models import NodeNotReachableException, GraphModelsCannotBeParsedException, IncorrectUsageException
+from django_postgresql_dag.exceptions import NodeNotReachableException, GraphModelsCannotBeParsedException, IncorrectUsageException
 from django_postgresql_dag.transformations import _filter_order, edges_from_nodes_queryset, nodes_from_edges_queryset, nx_from_queryset, model_to_dict
 
 # from .dag_output import expected_dag_output
@@ -229,8 +229,13 @@ class DagTestCase(TestCase):
         self.assertFalse(c1.is_island())
         
         # Test is we can properly export to a NetworkX graph
+        log = logging.getLogger("test_02_networkx")
         nx_out = nx_from_queryset(c1.ancestors_and_self(), graph_attributes_dict={"test": "test"}, node_attribute_fields_list=["id", "name"], edge_attribute_fields_list=["id", "name"])
+        log.debug("Check attributes")
         self.assertEqual(nx_out.graph, {"test": "test"})
+        self.assertEqual(nx_out.nodes[11], {'id': 11, 'name': 'root'})
+        self.assertEqual(nx_out.edges[11, 14], {'id': 4, 'name': 'root a3'})
+        
 
         """
         Simulate a basic irrigation canal network
