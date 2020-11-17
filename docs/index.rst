@@ -13,6 +13,10 @@ Contents
    transformations
 
 
+View this project on `Github`_.
+
+.. _Github: https://github.com/OmenApps/django-postgresql-dag
+
 Indices and tables
 ^^^^^^^^^^^^^^^^^^
 
