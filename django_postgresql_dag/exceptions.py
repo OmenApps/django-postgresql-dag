@@ -8,3 +8,19 @@ class NodeNotReachableException(Exception):
 
     pass
 
+
+class GraphModelsCannotBeParsedException(Exception):
+    """
+    Exception for node distance and path
+    """
+
+    pass
+
+
+class IncorrectUsageException(Exception):
+    """
+    Exception for node distance and path
+    """
+
+    pass
+
