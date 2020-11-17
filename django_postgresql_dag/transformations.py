@@ -38,19 +38,19 @@ def rawqueryset_to_values_list(rawqueryset):
 
 
 def rawqueryset_to_dataframe(rawqueryset):
-    """Retruns a pandas dataframe"""
+    """Returns a pandas dataframe"""
     return pd.DataFrame(
         rawqueryset_to_values_list(rawqueryset), columns=list(rawqueryset.columns)
     )
 
 
 def edges_from_nodes_queryset(edge_model, nodes_queryset):
-    """Given a QuerySet or RawQuerySet of nodes, returns a queryset of the associated edges"""
+    """Given an Edge Model and a QuerySet or RawQuerySet of nodes, returns a queryset of the associated edges"""
     return _filter_order(edge_model.objects, ["parent", "child"], nodes_queryset)
 
 
 def nodes_from_edges_queryset(node_model, edges_queryset):
-    """Given a QuerySet or RawQuerySet of edges, returns a queryset of the associated nodes"""
+    """Given a Node Model and a QuerySet or RawQuerySet of edges, returns a queryset of the associated nodes"""
     nodes_list = (
         _filter_order(
             node_model.objects,
@@ -71,12 +71,13 @@ def nodes_from_edges_queryset(node_model, edges_queryset):
     return node_model.objects.filter(pk__in=nodes_list)
 
 
-def nx_from_edges(queryset, fields_array=None):
-    """Provided a queryset of edges, builds a NetworkX graph"""
-    # ToDo: Implement
-    graph = nx.Graph()
-
-
-def nx_from_nodes(queryset):
+def nx_from_nodes_queryset(nodes_queryset):
+    """Provided a queryset of nodes, returns a NetworkX graph"""
     # ToDo: Implement
     pass
+
+
+def nx_from_edges_queryset(edges_queryset, fields_array=None):
+    """Provided a queryset of edges, returns a NetworkX graph"""
+    # ToDo: Implement
+    graph = nx.Graph()
