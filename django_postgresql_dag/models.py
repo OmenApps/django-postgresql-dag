@@ -21,9 +21,9 @@ from .exceptions import NodeNotReachableException
 from .transformations import _filter_order
 
 LIMITING_FK_EDGES_CLAUSE_1 = (
-    """AND second.{fk_field_name}_{pk_name} = %(limiting_fk_edges_instance_pk)s"""
+    """AND second.{fk_field_name}_id = %(limiting_fk_edges_instance_pk)s"""
 )
-LIMITING_FK_EDGES_CLAUSE_2 = """AND {relationship_table}.{fk_field_name}_{pk_name} = %(limiting_fk_edges_instance_pk)s"""
+LIMITING_FK_EDGES_CLAUSE_2 = """AND {relationship_table}.{fk_field_name}_id = %(limiting_fk_edges_instance_pk)s"""
 
 LIMITING_FK_NODES_CLAUSE_1 = """"""
 LIMITING_FK_NODES_CLAUSE_2 = """"""
@@ -34,35 +34,35 @@ LIMITING_FK_NODES_CLAUSE_2 = """"""
 # DISALLOWED_DESCENDANTS_NODES_CLAUSE_1 = """AND second.parent_pk <> ALL(%(disallowed_descendants_node_pks)s)"""  # Used for descendants and downward path
 # DISALLOWED_DESCENDANTS_NODES_CLAUSE_2 = """AND {relationship_table}.parent_pk <> ALL(%(disallowed_descendants_node_pks)s)"""
 
-DISALLOWED_ANCESTORS_NODES_CLAUSE_1 = """AND first.parent_{pk_name} <> ALL(%(disallowed_ancestors_node_pks)s)"""  # Used for ancestors and upward path
-DISALLOWED_ANCESTORS_NODES_CLAUSE_2 = """AND {relationship_table}.parent_{pk_name} <> ALL(%(disallowed_ancestors_node_pks)s)"""
+DISALLOWED_ANCESTORS_NODES_CLAUSE_1 = """AND first.parent_id <> ALL(%(disallowed_ancestors_node_pks)s)"""  # Used for ancestors and upward path
+DISALLOWED_ANCESTORS_NODES_CLAUSE_2 = """AND {relationship_table}.parent_id <> ALL(%(disallowed_ancestors_node_pks)s)"""
 
-DISALLOWED_DESCENDANTS_NODES_CLAUSE_1 = """AND first.child_{pk_name} <> ALL(%(disallowed_descendants_node_pks)s)"""  # Used for descendants and downward path
-DISALLOWED_DESCENDANTS_NODES_CLAUSE_2 = """AND {relationship_table}.child_{pk_name} <> ALL(%(disallowed_descendants_node_pks)s)"""
+DISALLOWED_DESCENDANTS_NODES_CLAUSE_1 = """AND first.child_id <> ALL(%(disallowed_descendants_node_pks)s)"""  # Used for descendants and downward path
+DISALLOWED_DESCENDANTS_NODES_CLAUSE_2 = """AND {relationship_table}.child_id <> ALL(%(disallowed_descendants_node_pks)s)"""
 
 
 ALLOWED_ANCESTORS_NODES_CLAUSE_1 = """AND first.parent_pk = ANY(%(allowed_ancestors_node_pks)s)"""  # Used for ancestors and upward path
-ALLOWED_ANCESTORS_NODES_CLAUSE_2 = """AND {relationship_table}.parent_{pk_name} = ANY(%(allowed_ancestors_node_pks)s)"""
+ALLOWED_ANCESTORS_NODES_CLAUSE_2 = """AND {relationship_table}.parent_id = ANY(%(allowed_ancestors_node_pks)s)"""
 
-ALLOWED_DESCENDANTS_NODES_CLAUSE_1 = """AND first.child_{pk_name} = ANY(%(allowed_descendants_node_pks)s)"""  # Used for descendants and downward path
-ALLOWED_DESCENDANTS_NODES_CLAUSE_2 = """AND {relationship_table}.child_{pk_name} = ANY(%(allowed_descendants_node_pks)s)"""
+ALLOWED_DESCENDANTS_NODES_CLAUSE_1 = """AND first.child_id = ANY(%(allowed_descendants_node_pks)s)"""  # Used for descendants and downward path
+ALLOWED_DESCENDANTS_NODES_CLAUSE_2 = """AND {relationship_table}.child_id = ANY(%(allowed_descendants_node_pks)s)"""
 
 ANCESTORS_QUERY = """
 WITH RECURSIVE traverse({pk_name}, depth) AS (
-    SELECT first.parent_{pk_name}, 1
+    SELECT first.parent_id, 1
         FROM {relationship_table} AS first
         LEFT OUTER JOIN {relationship_table} AS second
-        ON first.parent_{pk_name} = second.child_{pk_name}
-    WHERE first.child_{pk_name} = %(pk)s
+        ON first.parent_id = second.child_id
+    WHERE first.child_id = %(pk)s
     -- LIMITING_FK_EDGES_CLAUSE_1
     -- DISALLOWED_ANCESTORS_NODES_CLAUSE_1
     -- ALLOWED_ANCESTORS_NODES_CLAUSE_1
     {ancestors_clauses_1}
 UNION
-    SELECT DISTINCT parent_{pk_name}, traverse.depth + 1
+    SELECT DISTINCT parent_id, traverse.depth + 1
         FROM traverse
         INNER JOIN {relationship_table}
-        ON {relationship_table}.child_{pk_name} = traverse.{pk_name}
+        ON {relationship_table}.child_id = traverse.{pk_name}
     WHERE 1 = 1
     -- LIMITING_FK_EDGES_CLAUSE_2
     -- DISALLOWED_ANCESTORS_NODES_CLAUSE_2
@@ -77,20 +77,20 @@ ORDER BY MAX(depth) DESC, {pk_name} ASC
 
 DESCENDANTS_QUERY = """
 WITH RECURSIVE traverse({pk_name}, depth) AS (
-    SELECT first.child_{pk_name}, 1
+    SELECT first.child_id, 1
         FROM {relationship_table} AS first
         LEFT OUTER JOIN {relationship_table} AS second
-        ON first.child_{pk_name} = second.parent_{pk_name}
-    WHERE first.parent_{pk_name} = %(pk)s
+        ON first.child_id = second.parent_id
+    WHERE first.parent_id = %(pk)s
     -- LIMITING_FK_EDGES_CLAUSE_1
     -- DISALLOWED_DESCENDANTS_NODES_CLAUSE_1
     -- ALLOWED_DESCENDANTS_NODES_CLAUSE_1
     {descendants_clauses_1}
 UNION
-    SELECT DISTINCT child_{pk_name}, traverse.depth + 1
+    SELECT DISTINCT child_id, traverse.depth + 1
         FROM traverse
         INNER JOIN {relationship_table}
-        ON {relationship_table}.parent_{pk_name} = traverse.{pk_name}
+        ON {relationship_table}.parent_id = traverse.{pk_name}
     WHERE 1=1
     -- LIMITING_FK_EDGES_CLAUSE_2
     -- DISALLOWED_DESCENDANTS_NODES_CLAUSE_2
@@ -104,41 +104,41 @@ ORDER BY MAX(depth), {pk_name} ASC
 """
 
 PATH_LIMITING_FK_EDGES_CLAUSE = (
-    """AND first.{fk_field_name}_{pk_name} = %(limiting_fk_edges_instance_pk)s"""
+    """AND first.{fk_field_name}_id = %(limiting_fk_edges_instance_pk)s"""
 )
 PATH_LIMITING_FK_NODES_CLAUSE = """"""
 
 DISALLOWED_UPWARD_PATH_NODES_CLAUSE = (
-    """AND second.parent_{pk_name} <> ALL('{disallowed_path_node_pks}')"""
+    """AND second.parent_id <> ALL('{disallowed_path_node_pks}')"""
 )
 DISALLOWED_DOWNWARD_PATH_NODES_CLAUSE = (
-    """AND second.child_{pk_name} <> ALL('{disallowed_path_node_pks}')"""
+    """AND second.child_id <> ALL('{disallowed_path_node_pks}')"""
 )
 ALLOWED_UPWARD_PATH_NODES_CLAUSE = (
-    """AND second.parent_{pk_name} = ALL('{allowed_path_node_pks}')"""
+    """AND second.parent_id = ALL('{allowed_path_node_pks}')"""
 )
 ALLOWED_DOWNWARD_PATH_NODES_CLAUSE = (
-    """AND second.child_{pk_name} = ALL('{allowed_path_node_pks}')"""
+    """AND second.child_id = ALL('{allowed_path_node_pks}')"""
 )
 
 UPWARD_PATH_QUERY = """
-WITH RECURSIVE traverse(child_{pk_name}, parent_{pk_name}, depth, path) AS (
+WITH RECURSIVE traverse(child_id, parent_id, depth, path) AS (
     SELECT
-        first.child_{pk_name},
-        first.parent_{pk_name},
+        first.child_id,
+        first.parent_id,
         1 AS depth,
-        ARRAY[first.child_{pk_name}] AS path
+        ARRAY[first.child_id] AS path
         FROM {relationship_table} AS first
-    WHERE child_{pk_name} = %(starting_node)s
+    WHERE child_id = %(starting_node)s
 UNION ALL
     SELECT
-        first.child_{pk_name},
-        first.parent_{pk_name},
+        first.child_id,
+        first.parent_id,
         second.depth + 1 AS depth,
-        path || first.child_{pk_name} AS path
+        path || first.child_id AS path
         FROM {relationship_table} AS first, traverse AS second
-    WHERE first.child_{pk_name} = second.parent_{pk_name}
-    AND (first.child_{pk_name} <> ALL(second.path))
+    WHERE first.child_id = second.parent_id
+    AND (first.child_id <> ALL(second.path))
     -- PATH_LIMITING_FK_EDGES_CLAUSE
     -- DISALLOWED_UPWARD_PATH_NODES_CLAUSE
     -- ALLOWED_UPWARD_PATH_NODES_CLAUSE
@@ -150,30 +150,30 @@ SELECT
 FROM 
     (
     SELECT path || ARRAY[%(ending_node)s], depth FROM traverse
-        WHERE parent_{pk_name} = %(ending_node)s
+        WHERE parent_id = %(ending_node)s
         AND depth <= %(max_depth)s
         LIMIT 1
 ) AS x({pk_name});
 """
 
 DOWNWARD_PATH_QUERY = """
-WITH RECURSIVE traverse(parent_{pk_name}, child_{pk_name}, depth, path) AS (
+WITH RECURSIVE traverse(parent_id, child_id, depth, path) AS (
     SELECT
-        first.parent_{pk_name},
-        first.child_{pk_name},
+        first.parent_id,
+        first.child_id,
         1 AS depth,
-        ARRAY[first.parent_{pk_name}] AS path
+        ARRAY[first.parent_id] AS path
         FROM {relationship_table} AS first
-    WHERE parent_{pk_name} = %(starting_node)s
+    WHERE parent_id = %(starting_node)s
 UNION ALL
     SELECT
-        first.parent_{pk_name},
-        first.child_{pk_name},
+        first.parent_id,
+        first.child_id,
         second.depth + 1 AS depth,
-        path || first.parent_{pk_name} AS path
+        path || first.parent_id AS path
         FROM {relationship_table} AS first, traverse AS second
-    WHERE first.parent_{pk_name} = second.child_{pk_name}
-    AND (first.parent_{pk_name} <> ALL(second.path))
+    WHERE first.parent_id = second.child_id
+    AND (first.parent_id <> ALL(second.path))
     -- PATH_LIMITING_FK_EDGES_CLAUSE
     -- DISALLOWED_DOWNWARD_PATH_NODES_CLAUSE
     -- ALLOWED_DOWNWARD_PATH_NODES_CLAUSE
@@ -185,7 +185,7 @@ SELECT
 FROM 
     (
     SELECT path || ARRAY[%(ending_node)s], depth FROM traverse
-        WHERE child_{pk_name} = %(ending_node)s
+        WHERE child_id = %(ending_node)s
         AND depth <= %(max_depth)s
         LIMIT 1
 ) AS x({pk_name});
