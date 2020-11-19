@@ -353,8 +353,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             return self.filter_order_pks(pks)
 
         def ancestors_count(self):
-            # ToDo: Implement
-            pass
+            return self.ancestors().count()
 
         def self_and_ancestors(self, **kwargs):
             pks = [self.pk] + [item.pk for item in self.ancestors_raw(**kwargs)][::-1]
@@ -462,8 +461,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             return self.filter_order_pks(pks)
 
         def descendants_count(self):
-            # ToDo: Implement
-            pass
+            return self.descendants().count()
 
         def self_and_descendants(self, **kwargs):
             pks = [self.pk] + [item.pk for item in self.descendants_raw(**kwargs)]
@@ -485,24 +483,31 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             return self.filter_order_pks(pks)
 
         def clan_count(self):
-            # ToDo: Implement
-            pass
+            return self.clan().count()
 
         def siblings(self):
-            # ToDo: Implement
-            pass
+            # Returns all nodes that share a parent with this node
+            return self.siblings_with_self().exclude(pk=self.pk)
 
         def siblings_count(self):
-            # ToDo: Implement
-            pass
+            # Returns count of all nodes that share a parent with this node
+            return self.siblings().count()
 
-        def self_and_siblings(self):
-            # ToDo: Implement
-            pass
+        def siblings_with_self(self):
+            # Returns all nodes that share a parent with this node and self
+            return self.__class__.objects.filter(parents__in=self.parents.all()).distinct()
 
-        def siblings_and_self(self):
-            # ToDo: Implement
-            pass
+        def partners(self):
+            # Returns all nodes that share a child with this node
+            return self.partners_with_self().exclude(pk=self.pk)
+
+        def partners_count(self):
+            # Returns count of all nodes that share a child with this node
+            return self.partners().count()
+
+        def partners_with_self(self):
+            # Returns all nodes that share a child with this node and self
+            return self.__class__.objects.filter(children__in=self.children.all()).distinct()
 
         def descendants_edges(self):
             """
@@ -690,7 +695,6 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         def entire_graph(self):
             # Gets all nodes connected in any way to this node
-
             pass
 
         def descendants_tree(self):
