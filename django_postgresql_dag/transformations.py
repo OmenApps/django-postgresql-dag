@@ -36,6 +36,27 @@ def _ordered_filter(queryset, field_names, values):
     return queryset.filter(**filter_condition).order_by(order_by)
 
 
+def get_instance_characteristics(instance):
+    """
+    Returns a tuple of the node & edge model classes and the instance_type
+    for the provided instance
+    """
+    try:
+        # Assume a queryset of nodes was provided
+        _NodeModel = instance._meta.model
+        _EdgeModel = instance._meta.model._meta.get_field("parents").through
+        instance_type = "node"
+    except FieldDoesNotExist:
+        try:
+            # Assume a queryset of edges was provided
+            _EdgeModel = instance._meta.model
+            _NodeModel = instance._meta.model._meta.get_field("parent").related_model
+            instance_type = "edge"
+        except FieldDoesNotExist:
+            raise GraphModelsCannotBeParsedException
+    return (_NodeModel, _EdgeModel, instance_type)
+
+
 def get_queryset_characteristics(queryset):
     """
     Returns a tuple of the node & edge model classes and the queryset type
