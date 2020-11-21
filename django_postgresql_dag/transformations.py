@@ -15,13 +15,13 @@ from itertools import chain
 import networkx as nx
 
 
-def _filter_order(queryset, field_names, values):
+def _ordered_filter(queryset, field_names, values):
     """
     Filters the provided queryset for 'field_name__in values' for each given field_name in [field_names]
     orders results in the same order as provided values
 
         For instance
-            _filter_order(self.__class__.objects, "pk", pks)
+            _ordered_filter(self.__class__.objects, "pk", pks)
         returns a queryset of the current class, with instances where the 'pk' field matches an pk in pks
 
     """
@@ -135,7 +135,7 @@ def edges_from_nodes_queryset(nodes_queryset):
     _NodeModel, _EdgeModel, queryset_type = get_queryset_characteristics(nodes_queryset)
 
     if queryset_type == "nodes_queryset":
-        return _filter_order(_EdgeModel.objects, ["parent", "child"], nodes_queryset)
+        return _ordered_filter(_EdgeModel.objects, ["parent", "child"], nodes_queryset)
     raise IncorrectQuerysetTypeException
 
 
@@ -147,14 +147,14 @@ def nodes_from_edges_queryset(edges_queryset):
     if queryset_type == "edges_queryset":
 
         nodes_list = (
-            _filter_order(
+            _ordered_filter(
                 _NodeModel.objects,
                 [
                     f"{_NodeModel.__name__}_child",
                 ],
                 edges_queryset,
             )
-            | _filter_order(
+            | _ordered_filter(
                 _NodeModel.objects,
                 [
                     f"{_NodeModel.__name__}_parent",

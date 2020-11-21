@@ -12,8 +12,22 @@ from django.db.models import Case, When
 from django.core.exceptions import ValidationError
 
 from .exceptions import NodeNotReachableException
-from .transformations import _filter_order
+from .transformations import _ordered_filter
 from .query_strings import *
+
+
+class NodeManager(models.Manager):
+    def roots(self, node=None):
+        """Returns a Queryset of all root Nodes, or optionally, the roots of a select node"""
+        if node is not None:
+            return node.roots()
+        return self.filter(parents__isnull=True)
+
+    def leaves(self, node=None):
+        """Returns a Queryset of all leaf Nodes, or optionally, the leaves of a select node"""
+        if node is not None:
+            return node.leaves()
+        return self.filter(children__isnull=True)
 
 
 def node_factory(edge_model, children_null=True, base_model=models.Model):
@@ -21,8 +35,8 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
     def get_foreign_key_field(instance=None):
         """
-        Provided a model instance and model class, checks if the edge model has a ForeignKey
-        field to the model for that instance, and then returns the field name and instance pk.
+        Provided a model instance and model class, checks if the edge model has a ForeignKey field
+        to the model class of that instance, and then returns the field name, else None.
         """
         if instance is not None:
             for field in edge_model._meta.get_fields():
@@ -40,8 +54,22 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             related_name="parents",
         )
 
+        objects = NodeManager()
+
         class Meta:
             abstract = True
+
+        def get_pk_name(self):
+            """Sometimes we set a field other than 'pk' for the primary key.
+            This method is used to get the correct primary key field name for the
+            model so that raw queries return the correct information."""
+            return self._meta.pk.name
+            
+        def ordered_queryset_from_pks(self, pks):
+            """
+            Generates a queryset, based on the current class and ordered by the provided pks
+            """
+            return _ordered_filter(self.__class__.objects, "pk", pks)
 
         def add_child(self, child, **kwargs):
             kwargs.update({"parent": self, "child": child})
@@ -73,18 +101,6 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                     # This only deletes the object in the database; the Python instance will still
                     # exist and will still have data in its fields.
                     parent.delete()
-
-        def filter_order_pks(self, pks):
-            """
-            Generates a queryset, based on the current class and the provided pks
-            """
-            return _filter_order(self.__class__.objects, "pk", pks)
-
-        def get_pk_name(self):
-            """Sometimes we set a field other than 'pk' for the primary key.
-            This method is used to get the correct primary key field name for the
-            model so that raw queries return the correct information."""
-            return self._meta.pk.name
 
         def ancestors_raw(self, max_depth=20, **kwargs):
             ancestors_clauses_1, ancestors_clauses_2 = ("", "")
@@ -174,18 +190,18 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         def ancestors(self, **kwargs):
             pks = [item.pk for item in self.ancestors_raw(**kwargs)]
-            return self.filter_order_pks(pks)
+            return self.ordered_queryset_from_pks(pks)
 
         def ancestors_count(self):
             return self.ancestors().count()
 
         def self_and_ancestors(self, **kwargs):
             pks = [self.pk] + [item.pk for item in self.ancestors_raw(**kwargs)][::-1]
-            return self.filter_order_pks(pks)
+            return self.ordered_queryset_from_pks(pks)
 
         def ancestors_and_self(self, **kwargs):
             pks = [item.pk for item in self.ancestors_raw(**kwargs)] + [self.pk]
-            return self.filter_order_pks(pks)
+            return self.ordered_queryset_from_pks(pks)
 
         def descendants_raw(self, max_depth=20, **kwargs):
             descendants_clauses_1, descendants_clauses_2 = ("", "")
@@ -282,18 +298,18 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         def descendants(self, **kwargs):
             pks = [item.pk for item in self.descendants_raw(**kwargs)]
-            return self.filter_order_pks(pks)
+            return self.ordered_queryset_from_pks(pks)
 
         def descendants_count(self):
             return self.descendants().count()
 
         def self_and_descendants(self, **kwargs):
             pks = [self.pk] + [item.pk for item in self.descendants_raw(**kwargs)]
-            return self.filter_order_pks(pks)
+            return self.ordered_queryset_from_pks(pks)
 
         def descendants_and_self(self, **kwargs):
             pks = [item.pk for item in self.descendants_raw(**kwargs)] + [self.pk]
-            return self.filter_order_pks(pks)
+            return self.ordered_queryset_from_pks(pks)
 
         def clan(self, **kwargs):
             """
@@ -304,7 +320,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                 + [self.pk]
                 + [item.pk for item in self.descendants_raw(**kwargs)]
             )
-            return self.filter_order_pks(pks)
+            return self.ordered_queryset_from_pks(pks)
 
         def clan_count(self):
             return self.clan().count()
@@ -319,7 +335,9 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         def siblings_with_self(self):
             # Returns all nodes that share a parent with this node and self
-            return self.__class__.objects.filter(parents__in=self.parents.all()).distinct()
+            return self.__class__.objects.filter(
+                parents__in=self.parents.all()
+            ).distinct()
 
         def partners(self):
             # Returns all nodes that share a child with this node
@@ -331,7 +349,9 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         def partners_with_self(self):
             # Returns all nodes that share a child with this node and self
-            return self.__class__.objects.filter(children__in=self.children.all()).distinct()
+            return self.__class__.objects.filter(
+                children__in=self.children.all()
+            ).distinct()
 
         def descendants_edges(self):
             """
@@ -474,7 +494,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         def path(self, target_node, **kwargs):
             pks = [item.pk for item in self.path_raw(target_node, **kwargs)]
-            return self.filter_order_pks(pks)
+            return self.ordered_queryset_from_pks(pks)
 
         def distance(self, target_node, **kwargs):
             """
@@ -598,19 +618,16 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
 
 class EdgeManager(models.Manager):
-
     def from_nodes_queryset(self, nodes_queryset):
         """Provided a queryset of nodes, returns all edges where a parent and child
         node are within the queryset of nodes."""
-        return _filter_order(
-            self.model.objects, ["parent", "child"], nodes_queryset
-        )
+        return _ordered_filter(self.model.objects, ["parent", "child"], nodes_queryset)
 
     def descendants(self, node, **kwargs):
         """
         Returns a queryset of all edges descended from the given node
         """
-        return _filter_order(
+        return _ordered_filter(
             self.model.objects, "parent", node.self_and_descendants(**kwargs)
         )
 
@@ -618,7 +635,7 @@ class EdgeManager(models.Manager):
         """
         Returns a queryset of all edges which are ancestors of the given node
         """
-        return _filter_order(
+        return _ordered_filter(
             self.model.objects, "child", node.ancestors_and_self(**kwargs)
         )
 
