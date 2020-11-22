@@ -328,6 +328,34 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                 leaves.add(self)
             return leaves
 
+        def descendants_edges(self):
+            """
+            Returns a queryset of descendants edges
+
+            ToDo: Perform topological sort
+            """
+            return edge_model.objects.filter(
+                parent__in=self.self_and_descendants(),
+                child__in=self.self_and_descendants(),
+            )
+
+        def ancestors_edges(self):
+            """
+            Returns a queryset of ancestors edges
+
+            ToDo: Perform topological sort
+            """
+            return edge_model.objects.filter(
+                parent__in=self.self_and_ancestors(),
+                child__in=self.self_and_ancestors(),
+            )
+
+        def clan_edges(self):
+            """
+            Returns a queryset of all edges associated with a given node
+            """
+            return self.ancestors_edges() | self.descendants_edges()
+
         @staticmethod
         def circular_checker(parent, child):
             if child in parent.self_and_ancestors():
