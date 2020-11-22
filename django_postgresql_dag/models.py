@@ -14,6 +14,7 @@ from django.core.exceptions import ValidationError
 from .exceptions import NodeNotReachableException
 from .transformations import _ordered_filter
 from .query_strings import *
+from .query_builders import AncestorQuery
 
 
 class NodeManager(models.Manager):
@@ -102,91 +103,8 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                     # exist and will still have data in its fields.
                     parent.delete()
 
-        def ancestors_raw(self, max_depth=20, **kwargs):
-            ancestors_clauses_1, ancestors_clauses_2 = ("", "")
-            query_parameters = {"pk": self.pk, "max_depth": max_depth}
-
-            limiting_fk_nodes_instance = kwargs.get("limiting_fk_nodes_instance", None)
-            limiting_fk_edges_instance = kwargs.get("limiting_fk_edges_instance", None)
-            disallowed_nodes_queryset = kwargs.get("disallowed_nodes_queryset", None)
-            disallowed_edges_queryset = kwargs.get("disallowed_edges_queryset", None)
-            allowed_nodes_queryset = kwargs.get("allowed_nodes_queryset", None)
-            allowed_edges_queryset = kwargs.get("allowed_edges_queryset", None)
-
-            if limiting_fk_nodes_instance is not None:
-                pass  # Not implemented yet
-
-            # Limits the search to nodes that connect to edges defined in a ForeignKey
-            # ToDo: Currently fails in the case that the starting node is not in the
-            #   set of nodes related by the ForeignKey, but is adjacend to one that is
-            if limiting_fk_edges_instance is not None:
-                fk_field_name = get_foreign_key_field(limiting_fk_edges_instance)
-                if fk_field_name is not None:
-                    ancestors_clauses_1 += "\n" + LIMITING_FK_EDGES_CLAUSE_1.format(
-                        relationship_table=edge_model_table,
-                        pk_name=self.get_pk_name(),
-                        fk_field_name=fk_field_name,
-                    )
-                    ancestors_clauses_2 += "\n" + LIMITING_FK_EDGES_CLAUSE_2.format(
-                        relationship_table=edge_model_table,
-                        pk_name=self.get_pk_name(),
-                        fk_field_name=fk_field_name,
-                    )
-                    query_parameters[
-                        "limiting_fk_edges_instance_pk"
-                    ] = limiting_fk_edges_instance.pk
-
-            # Nodes that MUST NOT be included in the results
-            if disallowed_nodes_queryset is not None:
-                ancestors_clauses_1 += (
-                    "\n"
-                    + DISALLOWED_ANCESTORS_NODES_CLAUSE_1.format(
-                        relationship_table=edge_model_table,
-                        pk_name=self.get_pk_name(),
-                    )
-                )
-                ancestors_clauses_2 += (
-                    "\n"
-                    + DISALLOWED_ANCESTORS_NODES_CLAUSE_2.format(
-                        relationship_table=edge_model_table,
-                        pk_name=self.get_pk_name(),
-                    )
-                )
-                query_parameters["disallowed_ancestors_node_pks"] = str(
-                    set(disallowed_nodes_queryset.values_list("pk", flat=True))
-                )
-
-            if disallowed_edges_queryset is not None:
-                pass  # Not implemented yet
-
-            # Nodes that MAY be included in the results
-            if allowed_nodes_queryset is not None:
-                ancestors_clauses_1 += "\n" + ALLOWED_ANCESTORS_NODES_CLAUSE_1.format(
-                    relationship_table=edge_model_table,
-                    pk_name=self.get_pk_name(),
-                )
-                ancestors_clauses_2 += "\n" + ALLOWED_ANCESTORS_NODES_CLAUSE_2.format(
-                    relationship_table=edge_model_table,
-                    pk_name=self.get_pk_name(),
-                )
-                query_parameters["allowed_ancestors_node_pks"] = str(
-                    set(allowed_nodes_queryset.values_list("pk", flat=True))
-                )
-
-            if allowed_edges_queryset is not None:
-                pass  # Not implemented yet
-
-            NodeModel = self._meta.model
-            raw_qs = NodeModel.objects.raw(
-                ANCESTORS_QUERY.format(
-                    relationship_table=edge_model_table,
-                    pk_name=self.get_pk_name(),
-                    ancestors_clauses_1=ancestors_clauses_1,
-                    ancestors_clauses_2=ancestors_clauses_2,
-                ),
-                query_parameters,
-            )
-            return raw_qs
+        def ancestors_raw(self, **kwargs):
+            return AncestorQuery(instance=self, **kwargs).raw_queryset()
 
         def ancestors(self, **kwargs):
             pks = [item.pk for item in self.ancestors_raw(**kwargs)]
