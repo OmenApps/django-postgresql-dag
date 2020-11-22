@@ -151,8 +151,9 @@ class BaseQuery(ABC):
 
     @abstractmethod
     def raw_queryset(self):
+        """Returns the RawQueryset for this query. Should be extended in child classes"""
 
-        # Set the clases here, rather than in init so that we don't keep adding to the
+        # Set the query clauses here, rather than in init so that we don't keep adding to the
         # clauses each time we check/utilize raw_queryset()
         self.where_clauses_part_1 = ""
         self.where_clauses_part_2 = ""
@@ -167,17 +168,22 @@ class BaseQuery(ABC):
         return
 
     def id_list(self):
+        """Returns a list of ids in the resulting query"""
         return [item.pk for item in self.raw_queryset()]
 
     def __str__(self):
+        """Returns a string representation of the RawQueryset"""
         return str(self.raw_queryset())
 
     def __repr__(self):
+        """Returns a string representation of the RawQueryset"""
         return str(self.raw_queryset())
 
 
 class AncestorQuery(BaseQuery):
-    """Ancestor Query Class"""
+    """
+    Ancestor Query Class
+    """
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -303,7 +309,9 @@ class AncestorQuery(BaseQuery):
 
 
 class DescendantQuery(BaseQuery):
-    """Descendant Query Class"""
+    """
+    Descendant Query Class
+    """
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -423,7 +431,9 @@ class DescendantQuery(BaseQuery):
 
 
 class ConnectedGraphQuery(BaseQuery):
-    """Queries for the entire graph of nodes connected to the provided instance node"""
+    """
+    Queries for the entire graph of nodes connected to the provided instance node
+    """
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -477,7 +487,9 @@ class ConnectedGraphQuery(BaseQuery):
 
 
 class UpwardPathQuery(BaseQuery):
-    """Upward Path Query Class"""
+    """
+    Upward Path Query Class
+    """
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -586,7 +598,9 @@ class UpwardPathQuery(BaseQuery):
 
 
 class DownwardPathQuery(BaseQuery):
-    """Downward Path Query Class"""
+    """
+    Downward Path Query Class
+    """
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
