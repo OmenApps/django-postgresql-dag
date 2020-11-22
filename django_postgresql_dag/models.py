@@ -207,35 +207,35 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             descendants_clauses_1, descendants_clauses_2 = ("", "")
             query_parameters = {"pk": self.pk, "max_depth": max_depth}
 
-            limiting_fk_nodes_instance = kwargs.get("limiting_fk_nodes_instance", None)
-            limiting_fk_edges_instance = kwargs.get("limiting_fk_edges_instance", None)
+            limiting_nodes_set_fk = kwargs.get("limiting_nodes_set_fk", None)
+            limiting_edges_set_fk = kwargs.get("limiting_edges_set_fk", None)
             disallowed_nodes_queryset = kwargs.get("disallowed_nodes_queryset", None)
             disallowed_edges_queryset = kwargs.get("disallowed_edges_queryset", None)
             allowed_nodes_queryset = kwargs.get("allowed_nodes_queryset", None)
             allowed_edges_queryset = kwargs.get("allowed_edges_queryset", None)
 
-            if limiting_fk_nodes_instance is not None:
+            if limiting_nodes_set_fk is not None:
                 pass  # Not implemented yet
 
             # Limits the search to nodes that connect to edges defined in a ForeignKey
             # ToDo: Currently fails in the case that the starting node is not in the
             #   set of nodes related by the ForeignKey, but is adjacend to one that is
-            if limiting_fk_edges_instance is not None:
-                fk_field_name = get_foreign_key_field(limiting_fk_edges_instance)
+            if limiting_edges_set_fk is not None:
+                fk_field_name = get_foreign_key_field(limiting_edges_set_fk)
                 if fk_field_name is not None:
-                    descendants_clauses_1 += "\n" + LIMITING_FK_EDGES_CLAUSE_1.format(
+                    descendants_clauses_1 += "\n" + LIMITING_EDGES_SET_FK_CLAUSE_1.format(
                         relationship_table=edge_model_table,
                         pk_name=self.get_pk_name(),
                         fk_field_name=fk_field_name,
                     )
-                    descendants_clauses_2 += "\n" + LIMITING_FK_EDGES_CLAUSE_2.format(
+                    descendants_clauses_2 += "\n" + LIMITING_EDGES_SET_FK_CLAUSE_2.format(
                         relationship_table=edge_model_table,
                         pk_name=self.get_pk_name(),
                         fk_field_name=fk_field_name,
                     )
                     query_parameters[
-                        "limiting_fk_edges_instance_pk"
-                    ] = limiting_fk_edges_instance.pk
+                        "limiting_edges_set_fk_pk"
+                    ] = limiting_edges_set_fk.pk
 
             # Nodes that MUST NOT be included in the results
             if disallowed_nodes_queryset is not None:
@@ -400,27 +400,27 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                 "max_depth": max_depth,
             }
 
-            limiting_fk_nodes_instance = kwargs.get("limiting_fk_nodes_instance", None)
-            limiting_fk_edges_instance = kwargs.get("limiting_fk_edges_instance", None)
+            limiting_nodes_set_fk = kwargs.get("limiting_nodes_set_fk", None)
+            limiting_edges_set_fk = kwargs.get("limiting_edges_set_fk", None)
             disallowed_nodes_queryset = kwargs.get("disallowed_nodes_queryset", None)
             disallowed_edges_queryset = kwargs.get("disallowed_edges_queryset", None)
             allowed_nodes_queryset = kwargs.get("allowed_nodes_queryset", None)
             allowed_edges_queryset = kwargs.get("allowed_edges_queryset", None)
 
-            if limiting_fk_nodes_instance is not None:
+            if limiting_nodes_set_fk is not None:
                 pass  # Not implemented yet
 
-            if limiting_fk_edges_instance is not None:
-                fk_field_name = get_foreign_key_field(limiting_fk_edges_instance)
+            if limiting_edges_set_fk is not None:
+                fk_field_name = get_foreign_key_field(limiting_edges_set_fk)
                 if fk_field_name is not None:
-                    downward_clauses += "\n" + PATH_LIMITING_FK_EDGES_CLAUSE.format(
+                    downward_clauses += "\n" + PATH_LIMITING_EDGES_SET_FK_CLAUSE.format(
                         relationship_table=edge_model_table,
                         pk_name=self.get_pk_name(),
                         fk_field_name=fk_field_name,
                     )
                     query_parameters[
-                        "limiting_fk_edges_instance_pk"
-                    ] = limiting_fk_edges_instance.pk
+                        "limiting_edges_set_fk_pk"
+                    ] = limiting_edges_set_fk.pk
 
             if disallowed_nodes_queryset is not None:
                 downward_clauses += "\n" + DISALLOWED_DOWNWARD_PATH_NODES_CLAUSE
@@ -450,15 +450,15 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
             if len(list(path)) == 0 and not directional:
 
-                if limiting_fk_nodes_instance is not None:
+                if limiting_nodes_set_fk is not None:
                     pass  # Not implemented yet
 
-                if limiting_fk_edges_instance is not None:
+                if limiting_edges_set_fk is not None:
                     pass  # Not implemented yet
 
-                if limiting_fk_edges_instance is not None:
+                if limiting_edges_set_fk is not None:
                     if "fk_field_name" in locals():
-                        upward_clauses += "\n" + PATH_LIMITING_FK_EDGES_CLAUSE.format(
+                        upward_clauses += "\n" + PATH_LIMITING_EDGES_SET_FK_CLAUSE.format(
                             relationship_table=edge_model_table,
                             pk_name=self.get_pk_name(),
                             fk_field_name=fk_field_name,
