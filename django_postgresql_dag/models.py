@@ -14,7 +14,13 @@ from django.core.exceptions import ValidationError
 from .exceptions import NodeNotReachableException
 from .transformations import _ordered_filter
 from .query_strings import *
-from .query_builders import AncestorQuery
+from .query_builders import (
+    AncestorQuery,
+    DescendantQuery,
+    UpwardPathQuery,
+    DownwardPathQuery,
+    ConnectedGraphQuery
+)
 
 
 class NodeManager(models.Manager):
@@ -65,7 +71,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             This method is used to get the correct primary key field name for the
             model so that raw queries return the correct information."""
             return self._meta.pk.name
-            
+
         def ordered_queryset_from_pks(self, pks):
             """
             Generates a queryset, based on the current class and ordered by the provided pks
@@ -121,98 +127,8 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             pks = [item.pk for item in self.ancestors_raw(**kwargs)] + [self.pk]
             return self.ordered_queryset_from_pks(pks)
 
-        def descendants_raw(self, max_depth=20, **kwargs):
-            descendants_clauses_1, descendants_clauses_2 = ("", "")
-            query_parameters = {"pk": self.pk, "max_depth": max_depth}
-
-            limiting_nodes_set_fk = kwargs.get("limiting_nodes_set_fk", None)
-            limiting_edges_set_fk = kwargs.get("limiting_edges_set_fk", None)
-            disallowed_nodes_queryset = kwargs.get("disallowed_nodes_queryset", None)
-            disallowed_edges_queryset = kwargs.get("disallowed_edges_queryset", None)
-            allowed_nodes_queryset = kwargs.get("allowed_nodes_queryset", None)
-            allowed_edges_queryset = kwargs.get("allowed_edges_queryset", None)
-
-            if limiting_nodes_set_fk is not None:
-                pass  # Not implemented yet
-
-            # Limits the search to nodes that connect to edges defined in a ForeignKey
-            # ToDo: Currently fails in the case that the starting node is not in the
-            #   set of nodes related by the ForeignKey, but is adjacend to one that is
-            if limiting_edges_set_fk is not None:
-                fk_field_name = get_foreign_key_field(limiting_edges_set_fk)
-                if fk_field_name is not None:
-                    descendants_clauses_1 += "\n" + LIMITING_EDGES_SET_FK_CLAUSE_1.format(
-                        relationship_table=edge_model_table,
-                        pk_name=self.get_pk_name(),
-                        fk_field_name=fk_field_name,
-                    )
-                    descendants_clauses_2 += "\n" + LIMITING_EDGES_SET_FK_CLAUSE_2.format(
-                        relationship_table=edge_model_table,
-                        pk_name=self.get_pk_name(),
-                        fk_field_name=fk_field_name,
-                    )
-                    query_parameters[
-                        "limiting_edges_set_fk_pk"
-                    ] = limiting_edges_set_fk.pk
-
-            # Nodes that MUST NOT be included in the results
-            if disallowed_nodes_queryset is not None:
-                descendants_clauses_1 += (
-                    "\n"
-                    + DISALLOWED_DESCENDANTS_NODES_CLAUSE_1.format(
-                        relationship_table=edge_model_table,
-                        pk_name=self.get_pk_name(),
-                    )
-                )
-                descendants_clauses_2 += (
-                    "\n"
-                    + DISALLOWED_DESCENDANTS_NODES_CLAUSE_2.format(
-                        relationship_table=edge_model_table,
-                        pk_name=self.get_pk_name(),
-                    )
-                )
-                query_parameters["disallowed_downward_node_pks"] = str(
-                    set(disallowed_nodes_queryset.values_list("pk", flat=True))
-                )
-
-            if disallowed_edges_queryset is not None:
-                pass  # Not implemented yet
-
-            # Nodes that MAY be included in the results
-            if allowed_nodes_queryset is not None:
-                descendants_clauses_1 += (
-                    "\n"
-                    + ALLOWED_DESCENDANTS_NODES_CLAUSE_1.format(
-                        relationship_table=edge_model_table,
-                        pk_name=self.get_pk_name(),
-                    )
-                )
-                descendants_clauses_2 += (
-                    "\n"
-                    + ALLOWED_DESCENDANTS_NODES_CLAUSE_2.format(
-                        relationship_table=edge_model_table,
-                        pk_name=self.get_pk_name(),
-                    )
-                )
-                query_parameters["allowed_descendants_node_pks"] = str(
-                    set(allowed_nodes_queryset.values_list("pk", flat=True))
-                )
-
-            if allowed_edges_queryset is not None:
-                pass  # Not implemented yet
-
-            NodeModel = self._meta.model
-
-            raw_qs = NodeModel.objects.raw(
-                DESCENDANTS_QUERY.format(
-                    relationship_table=edge_model_table,
-                    pk_name=self.get_pk_name(),
-                    descendants_clauses_1=descendants_clauses_1,
-                    descendants_clauses_2=descendants_clauses_2,
-                ),
-                query_parameters,
-            )
-            return raw_qs
+        def descendants_raw(self, **kwargs):
+            return DescendantQuery(instance=self, **kwargs).raw_queryset()
 
         def descendants(self, **kwargs):
             pks = [item.pk for item in self.descendants_raw(**kwargs)]
@@ -271,154 +187,39 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                 children__in=self.children.all()
             ).distinct()
 
-        def descendants_edges(self):
+        def path_raw(self, ending_node, directional=True, max_depth=20, **kwargs):
             """
-            Returns a queryset of descendants edges
-
-            ToDo: Perform topological sort
-            """
-            return edge_model.objects.filter(
-                parent__in=self.self_and_descendants(),
-                child__in=self.self_and_descendants(),
-            )
-
-        def ancestors_edges(self):
-            """
-            Returns a queryset of ancestors edges
-
-            ToDo: Perform topological sort
-            """
-            return edge_model.objects.filter(
-                parent__in=self.self_and_ancestors(),
-                child__in=self.self_and_ancestors(),
-            )
-
-        def clan_edges(self):
-            """
-            Returns a queryset of all edges associated with a given node
-            """
-            return self.ancestors_edges() | self.descendants_edges()
-
-        def path_raw(self, target_node, directional=True, max_depth=20, **kwargs):
-            """
-            Returns a list of paths from self to target node, optionally in either
-            direction. The resulting lists are always sorted from root-side, toward
+            Returns shortest path from self to ending node, optionally in either
+            direction. The resulting RawQueryset is sorted from root-side, toward
             leaf-side, regardless of the relative position of starting and ending nodes.
             """
 
-            # ToDo: Implement filters
-
-            if self == target_node:
+            if self == ending_node:
                 return [[self.pk]]
 
-            downward_clauses, upward_clauses = ("", "")
-            query_parameters = {
-                "starting_node": self.pk,
-                "ending_node": target_node.pk,
-                "max_depth": max_depth,
-            }
-
-            limiting_nodes_set_fk = kwargs.get("limiting_nodes_set_fk", None)
-            limiting_edges_set_fk = kwargs.get("limiting_edges_set_fk", None)
-            disallowed_nodes_queryset = kwargs.get("disallowed_nodes_queryset", None)
-            disallowed_edges_queryset = kwargs.get("disallowed_edges_queryset", None)
-            allowed_nodes_queryset = kwargs.get("allowed_nodes_queryset", None)
-            allowed_edges_queryset = kwargs.get("allowed_edges_queryset", None)
-
-            if limiting_nodes_set_fk is not None:
-                pass  # Not implemented yet
-
-            if limiting_edges_set_fk is not None:
-                fk_field_name = get_foreign_key_field(limiting_edges_set_fk)
-                if fk_field_name is not None:
-                    downward_clauses += "\n" + PATH_LIMITING_EDGES_SET_FK_CLAUSE.format(
-                        relationship_table=edge_model_table,
-                        pk_name=self.get_pk_name(),
-                        fk_field_name=fk_field_name,
-                    )
-                    query_parameters[
-                        "limiting_edges_set_fk_pk"
-                    ] = limiting_edges_set_fk.pk
-
-            if disallowed_nodes_queryset is not None:
-                downward_clauses += "\n" + DISALLOWED_DOWNWARD_PATH_NODES_CLAUSE
-                query_parameters["disallowed_path_node_pks"] = str(
-                    set(disallowed_nodes_queryset.values_list("pk", flat=True))
-                )
-
-            if disallowed_edges_queryset is not None:
-                pass  # Not implemented yet
-
-            if allowed_nodes_queryset is not None:
-                pass  # Not implemented yet
-
-            if allowed_edges_queryset is not None:
-                pass  # Not implemented yet
-
-            NodeModel = self._meta.model
-
-            path = NodeModel.objects.raw(
-                DOWNWARD_PATH_QUERY.format(
-                    relationship_table=edge_model_table,
-                    pk_name=self.get_pk_name(),
-                    downward_clauses=downward_clauses,
-                ),
-                query_parameters,
-            )
+            path = DownwardPathQuery(
+                starting_node=self, ending_node=ending_node, **kwargs
+            ).raw_queryset()
 
             if len(list(path)) == 0 and not directional:
-
-                if limiting_nodes_set_fk is not None:
-                    pass  # Not implemented yet
-
-                if limiting_edges_set_fk is not None:
-                    pass  # Not implemented yet
-
-                if limiting_edges_set_fk is not None:
-                    if "fk_field_name" in locals():
-                        upward_clauses += "\n" + PATH_LIMITING_EDGES_SET_FK_CLAUSE.format(
-                            relationship_table=edge_model_table,
-                            pk_name=self.get_pk_name(),
-                            fk_field_name=fk_field_name,
-                        )
-
-                if disallowed_nodes_queryset is not None:
-                    upward_clauses += "\n" + DISALLOWED_UPWARD_PATH_NODES_CLAUSE
-                    query_parameters["disallowed_path_node_pks"] = str(
-                        set(disallowed_nodes_queryset.values_list("pk", flat=True))
-                    )
-
-                if disallowed_edges_queryset is not None:
-                    pass  # Not implemented yet
-
-                if allowed_nodes_queryset is not None:
-                    pass  # Not implemented yet
-
-                if allowed_edges_queryset is not None:
-                    pass  # Not implemented yet
-
-                path = NodeModel.objects.raw(
-                    UPWARD_PATH_QUERY.format(
-                        relationship_table=edge_model_table,
-                        pk_name=self.get_pk_name(),
-                        upward_clauses=upward_clauses,
-                    ),
-                    query_parameters,
-                )
+                path = UpwardPathQuery(
+                    starting_node=self, ending_node=ending_node, **kwargs
+                ).raw_queryset()
 
             if len(list(path)) == 0:
                 raise NodeNotReachableException
+
             return path
 
-        def path(self, target_node, **kwargs):
-            pks = [item.pk for item in self.path_raw(target_node, **kwargs)]
+        def path(self, ending_node, **kwargs):
+            pks = [item.pk for item in self.path_raw(ending_node, **kwargs)]
             return self.ordered_queryset_from_pks(pks)
 
-        def distance(self, target_node, **kwargs):
+        def distance(self, ending_node, **kwargs):
             """
             Returns the shortest hops count to the target node
             """
-            return self.path(target_node, **kwargs).count() - 1
+            return self.path(ending_node, **kwargs).count() - 1
 
         def is_root(self):
             """
