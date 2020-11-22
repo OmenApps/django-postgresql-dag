@@ -239,26 +239,36 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             """
             return bool(not self.children.exists() and not self.parents.exists())
 
-        def is_descendant_of(self, target):
-            # ToDo: Implement
-            pass
+        def is_ancestor_of(self, ending_node, **kwargs):
+            try:
+                return len(self.path_raw(ending_node, **kwargs)) >= 1
+            except NodeNotReachableException:
+                return False
 
-        def is_ancestor_of(self, target):
-            # ToDo: Implement
-            pass
+        def is_descendant_of(self, ending_node, **kwargs):
+            return (
+                not self.is_ancestor_of(ending_node, **kwargs)
+                and len(self.path_raw(ending_node, directional=False, **kwargs)) >= 1
+            )
 
-        def is_sibling_of(self, target):
-            # ToDo: Implement
-            pass
+        def is_sibling_of(self, ending_node):
+            return ending_node in self.siblings()
+
+        def is_partner_of(self, ending_node):
+            return ending_node in self.partners()
 
         def node_depth(self):
             # Depth from furthest root
             # ToDo: Implement
             pass
 
-        def entire_graph(self):
+        def connected_graph_raw(self, **kwargs):
             # Gets all nodes connected in any way to this node
-            pass
+            return ConnectedGraphQuery(instance=self, **kwargs).raw_queryset()
+
+        def connected_graph(self, **kwargs):
+            pks = [item.pk for item in self.connected_graph_raw(**kwargs)]
+            return self.ordered_queryset_from_pks(pks)
 
         def descendants_tree(self):
             """
@@ -362,6 +372,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                 raise ValidationError("The object is an ancestor.")
 
     return Node
+
 
 
 class EdgeManager(models.Manager):
