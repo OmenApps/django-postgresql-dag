@@ -186,7 +186,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                 children__in=self.children.all()
             ).distinct()
 
-        def path_raw(self, ending_node, directional=True, max_depth=20, **kwargs):
+        def path_raw(self, ending_node, directional=True, **kwargs):
             """
             Returns shortest path from self to ending node, optionally in either
             direction. The resulting RawQueryset is sorted from root-side, toward
