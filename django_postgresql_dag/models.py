@@ -33,18 +33,6 @@ class NodeManager(models.Manager):
 def node_factory(edge_model, children_null=True, base_model=models.Model):
     edge_model_table = edge_model._meta.db_table
 
-    def get_foreign_key_field(instance=None):
-        """
-        Provided a model instance and model class, checks if the edge model has a ForeignKey field
-        to the model class of that instance, and then returns the field name, else None.
-        """
-        if instance is not None:
-            for field in edge_model._meta.get_fields():
-                if field.related_model is instance._meta.model:
-                    # Return the first field that matches
-                    return field.name
-        return None
-
     class Node(base_model):
         children = models.ManyToManyField(
             "self",
@@ -58,6 +46,18 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         class Meta:
             abstract = True
+
+        def get_foreign_key_field(self, fk_instance=None):
+            """
+            Provided a model instance, checks if the edge model has a ForeignKey field to the
+            model class of that instance, and then returns the associated field name, else None.
+            """
+            if fk_instance is not None:
+                for field in edge_model._meta.get_fields():
+                    if field.related_model is fk_instance._meta.model:
+                        # Return the first field that matches
+                        return field.name
+            return None
 
         def get_pk_name(self):
             """Sometimes we set a field other than 'pk' for the primary key.
