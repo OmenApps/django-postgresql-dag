@@ -471,7 +471,7 @@ class ConnectedGraphQuery(BaseQuery):
                     ELSE edge.child_id
                 END
             FROM traverse
-            JOIN {relationship_table}. edge ON edge.parent_id = traverse.{pk_name}
+            JOIN {relationship_table} edge ON edge.parent_id = traverse.{pk_name}
             OR edge.child_id = traverse.{pk_name})
         SELECT *
         FROM traverse;
