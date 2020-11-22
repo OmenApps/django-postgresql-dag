@@ -13,7 +13,6 @@ from django.core.exceptions import ValidationError
 
 from .exceptions import NodeNotReachableException
 from .transformations import _ordered_filter
-from .query_strings import *
 from .query_builders import (
     AncestorQuery,
     DescendantQuery,
