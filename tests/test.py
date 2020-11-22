@@ -456,6 +456,7 @@ class DagTestCase(TestCase):
                 adjacency_list.append([f"SA{n}", f"SB{n}"])
                 adjacency_list.append([f"SA{n}", f"SC{n}"])
 
+
         # Create and assign nodes to variables
         log.debug("Start creating nodes")
         for node in node_name_list2:
@@ -470,39 +471,27 @@ class DagTestCase(TestCase):
         # Compute descendants of a root node
         canal_root = NetworkNode.objects.get(name="0")
         start_time = time.time()
-        log.debug("Descendants: %s" % str(len(canal_root.descendants())))
+        log.debug(f"Descendants: {len(canal_root.descendants())}")
         execution_time = time.time() - start_time
-        log.debug("Execution time in seconds: %s" % str(execution_time))
+        log.debug(f"Execution time in seconds: {execution_time}")
 
         # Compute descendants of a leaf node
         canal_leaf = NetworkNode.objects.get(name="200")
         start_time = time.time()
-        log.debug("Ancestors: %s" % str(len(canal_leaf.ancestors())))
+        log.debug(f"Ancestors: {len(canal_leaf.ancestors(max_depth=200))}")
         execution_time = time.time() - start_time
-        log.debug("Execution time in seconds: %s" % str(execution_time))
+        log.debug(f"Execution time in seconds: {execution_time}")
 
-        # Count number of paths from start to end of graph
-        # NOTE: Does not work with current method of returning only a single path
-        # start_time = time.time()
-        # log.debug(
-        #     "Paths through graph: : %s"
-        #     % str(
-        #         len(
-        #             canal_root.path_ids_list(
-        #                 canal_leaf, max_depth=n + 1, max_paths=500000000
-        #             )
-        #         )
-        #     )
-        # )
-        # execution_time = time.time() - start_time
-        # log.debug("Execution time in seconds: %s" % str(execution_time))
+        # Check if path exists from canal_root to canal_leaf
+        log.debug(f"Path Exists: {canal_root.path_exists(canal_leaf, max_depth=200)}")
+        self.assertTrue(canal_root.path_exists(canal_leaf, max_depth=200), True)
 
         # Find distance from root to leaf
-        log.debug("Distance: %s" % str(canal_root.distance(canal_leaf, max_depth=100)))
-        self.assertEqual(canal_root.distance(canal_leaf, max_depth=100), 60)
+        log.debug(f"Distance: {canal_root.distance(canal_leaf, max_depth=200)}")
+        self.assertEqual(canal_root.distance(canal_leaf, max_depth=200), 60)
 
-        log.debug("Node count: %s" % str(NetworkNode.objects.count()))
-        log.debug("Edge count: %s" % str(NetworkEdge.objects.count()))
+        log.debug(f"Node count: {NetworkNode.objects.count()}")
+        log.debug(f"Edge count: {NetworkEdge.objects.count()}")
 
     def test_03_deep_dag(self):
         """
@@ -544,37 +533,26 @@ class DagTestCase(TestCase):
             # Compute descendants of a root node
             root_node = NetworkNode.objects.get(pk=0)
             start_time = time.time()
-            log.debug("Descendants: %s" % str(len(root_node.ancestors())))
+            log.debug(f"Descendants: {len(root_node.ancestors())}")
             execution_time = time.time() - start_time
-            log.debug("Execution time in seconds: %s" % str(execution_time))
+            log.debug(f"Execution time in seconds: {execution_time}")
 
             # Compute ancestors of a leaf node
             leaf_node = NetworkNode.objects.get(pk=2 * n - 1)
             start_time = time.time()
-            log.debug("Ancestors: %s" % str(len(leaf_node.ancestors())))
+            log.debug(f"Ancestors: {len(leaf_node.ancestors())}")
             execution_time = time.time() - start_time
-            log.debug("Execution time in seconds: %s" % str(execution_time))
+            log.debug(f"Execution time in seconds: {execution_time}")
 
             first = NetworkNode.objects.get(name="0")
-            last = NetworkNode.objects.get(pk=2 * n - 1)
+            last = NetworkNode.objects.get(name=str(2 * n - 1))
 
-            # # Count number of paths from start to end of graph
-            # # NOTE: Does not work with current method of returning only a single path
-            # start_time = time.time()
-            # log.debug(
-            #     "Paths through graph: %s"
-            #     % str(
-            #         len(first.path_ids_list(last, max_depth=n + 1, max_paths=500000000))
-            #     )
-            # )
-            # execution_time = time.time() - start_time
-            # log.debug("Execution time in seconds: %s" % str(execution_time))
-
-            log.debug("Distance")
+            log.debug(f"Path exists: {first.path_exists(last, max_depth=n)}")            
+            self.assertTrue(first.path_exists(last, max_depth=n), True)           
             self.assertEqual(first.distance(last, max_depth=n), n - 1)
 
-            log.debug("Node count: %s" % str(NetworkNode.objects.count()))
-            log.debug("Edge count: %s" % str(NetworkEdge.objects.count()))
+            log.debug(f"Node count: {NetworkNode.objects.count()}")
+            log.debug(f"Edge count: {NetworkEdge.objects.count()}")
 
             # Connect the first-created node to the last-created node
             NetworkNode.objects.get(pk=0).add_child(
