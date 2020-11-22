@@ -210,6 +210,12 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
             return path
 
+        def path_exists(self, ending_node, **kwargs):
+            try:
+                return len(list(self.path_raw(ending_node, **kwargs))) >= 1
+            except NodeNotReachableException:
+                return False
+
         def path(self, ending_node, **kwargs):
             pks = [item.pk for item in self.path_raw(ending_node, **kwargs)]
             return self.ordered_queryset_from_pks(pks)
