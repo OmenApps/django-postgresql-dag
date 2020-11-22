@@ -5,10 +5,10 @@ import time
 from django.test import TestCase
 from django.core.exceptions import ValidationError
 from django_postgresql_dag.exceptions import NodeNotReachableException, GraphModelsCannotBeParsedException, IncorrectUsageException
-from django_postgresql_dag.transformations import _filter_order, edges_from_nodes_queryset, nodes_from_edges_queryset, nx_from_queryset, model_to_dict
+from django_postgresql_dag.transformations import _ordered_filter, edges_from_nodes_queryset, nodes_from_edges_queryset, nx_from_queryset, model_to_dict
+from django_postgresql_dag.query_builders import AncestorQuery, DescendantQuery, UpwardPathQuery, DownwardPathQuery, ConnectedGraphQuery
 
-# from .dag_output import expected_dag_output
-from .models import NetworkNode, NetworkEdge
+from .models import NetworkNode, NetworkEdge, NodeSet, EdgeSet
 
 logging.basicConfig(level=logging.DEBUG)
 
