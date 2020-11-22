@@ -218,7 +218,10 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             """
             Returns the shortest hops count to the target node
             """
-            return self.path(ending_node, **kwargs).count() - 1
+            if self is ending_node:
+                return 0
+            else:
+                return self.path(ending_node, **kwargs).count() - 1
 
         def is_root(self):
             """
