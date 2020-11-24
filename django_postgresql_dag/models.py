@@ -374,6 +374,20 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             """
             return self.ancestors_edges() | self.descendants_edges()
 
+        def parent_edges(self):
+            return edge_model.objects.filter(
+                child__in=[
+                    self,
+                ],
+            )
+
+        def child_edges(self):
+            return edge_model.objects.filter(
+                parent__in=[
+                    self,
+                ],
+            )
+
         @staticmethod
         def circular_checker(parent, child):
             if child in parent.self_and_ancestors():
