@@ -194,6 +194,7 @@ def nx_from_queryset(
     node_attribute_fields_list=None,
     edge_attribute_fields_list=None,
     date_strf=None,
+    digraph=False,
 ):
     """
     Provided a queryset of nodes or edges, returns a NetworkX graph
@@ -208,7 +209,10 @@ def nx_from_queryset(
     if graph_attributes_dict is None:
         graph_attributes_dict = {}
 
-    graph = nx.Graph(**graph_attributes_dict)
+    if not digraph:
+        graph = nx.Graph(**graph_attributes_dict)
+    else:
+        graph = nx.DiGraph(**graph_attributes_dict)
 
     if queryset_type == "nodes_queryset":
         nodes_queryset = queryset
