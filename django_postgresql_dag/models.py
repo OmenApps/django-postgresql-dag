@@ -374,20 +374,6 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             """
             return self.ancestors_edges() | self.descendants_edges()
 
-        def parent_edges(self):
-            return edge_model.objects.filter(
-                child__in=[
-                    self,
-                ],
-            )
-
-        def child_edges(self):
-            return edge_model.objects.filter(
-                parent__in=[
-                    self,
-                ],
-            )
-
         @staticmethod
         def circular_checker(parent, child):
             if child in parent.self_and_ancestors():
@@ -461,15 +447,23 @@ def edge_factory(
     else:
         node_model_name = node_model._meta.model_name
 
+
     class Edge(base_model):
+
+        # Get the current model's name for use in related_name
+        qualname = locals()["__qualname__"]
+        model_name = qualname.rsplit('.', 1)[-1].lower()
+        if not model_name.endswith("s"):
+            model_name = model_name + "s"
+
         parent = models.ForeignKey(
             node_model,
-            related_name=f"{node_model_name}_child",
+            related_name=f"children_{model_name}",
             on_delete=models.CASCADE,
         )
         child = models.ForeignKey(
             node_model,
-            related_name=f"{node_model_name}_parent",
+            related_name=f"parent_{model_name}",
             on_delete=models.CASCADE,
         )
 
