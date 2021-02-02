@@ -193,7 +193,7 @@ class DagTestCase(TestCase):
         )
 
         log.debug("get_leaves")
-        self.assertEqual([p.name for p in root.leaves()], ["b2", "c1", "c2", "b1"])
+        self.assertEqual(set([p.name for p in root.leaves()]), set(["b2", "c1", "c2", "b1"]))
         log.debug("get_roots")
         self.assertEqual([p.name for p in c2.roots()], ["root"])
 
@@ -493,7 +493,51 @@ class DagTestCase(TestCase):
         log.debug(f"Node count: {NetworkNode.objects.count()}")
         log.debug(f"Edge count: {NetworkEdge.objects.count()}")
 
-    def test_03_deep_dag(self):
+    def test_03_multilinked_nodes(self):
+        log = logging.getLogger("test_03")
+        log.debug("Test deletion of nodes two nodes with multiple shared edges")
+
+        shared_edge_count = 5
+
+        def create_multilinked_nodes(shared_edge_count):
+            log.debug("Creating multiple links between a parent and child node")
+            child_node = NetworkNode.objects.create()
+            parent_node = NetworkNode.objects.create()
+
+            # Call this multiple times to create multiple edges between same parent/child
+            for _ in range(shared_edge_count):
+                child_node.add_parent(parent_node)
+
+            return child_node, parent_node 
+
+        def delete_parents():
+            child_node, parent_node = create_multilinked_nodes(shared_edge_count)
+
+            # Refresh the related manager
+            child_node.refresh_from_db()
+
+            self.assertEqual(child_node.parents.count(), shared_edge_count)
+            log.debug(f"Initial parents count: {child_node.parents.count()}")
+            child_node.remove_parent(parent_node)
+            self.assertEqual(child_node.parents.count(), 0)
+            log.debug(f"Final parents count: {child_node.parents.count()}")
+
+        def delete_children():
+            child_node, parent_node = create_multilinked_nodes(shared_edge_count)
+
+            # Refresh the related manager
+            parent_node.refresh_from_db()
+
+            self.assertEqual(parent_node.children.count(), shared_edge_count)
+            log.debug(f"Initial children count: {parent_node.children.count()}")
+            parent_node.remove_child(child_node)
+            self.assertEqual(parent_node.children.count(), 0)
+            log.debug(f"Final children count: {parent_node.children.count()}")
+
+        delete_parents()
+        delete_children()
+
+    def test_04_deep_dag(self):
         """
         Create a deep graph and check that graph operations run in a
         reasonable amount of time (linear in size of graph, not
@@ -503,11 +547,10 @@ class DagTestCase(TestCase):
         def run_test():
             # Using the graph generation algorithm below, the number of potential
             # paths from node 0 doubles for each increase in n.
-            # number_of_paths = 2^(n-1)  WRONG!!!
-            # When n=22, there are on the order of 1 million paths through the graph
-            # from node 0, so results for intermediate nodes need to be cached
+            # When n=22, there are many paths through the graph from node 0,
+            # so results for intermediate nodes need to be cached
 
-            log = logging.getLogger("test_03")
+            log = logging.getLogger("test_04")
 
             n = 22  # Keep it an even number
 
@@ -547,8 +590,9 @@ class DagTestCase(TestCase):
             first = NetworkNode.objects.get(name="0")
             last = NetworkNode.objects.get(name=str(2 * n - 1))
 
-            log.debug(f"Path exists: {first.path_exists(last, max_depth=n)}")            
-            self.assertTrue(first.path_exists(last, max_depth=n), True)           
+            path_exists = first.path_exists(last, max_depth=n)
+            log.debug(f"Path exists: {path_exists}")            
+            self.assertTrue(path_exists, True)           
             self.assertEqual(first.distance(last, max_depth=n), n - 1)
 
             log.debug(f"Node count: {NetworkNode.objects.count()}")
@@ -560,8 +604,9 @@ class DagTestCase(TestCase):
             )
 
             middle = NetworkNode.objects.get(pk=n - 1)
-            log.debug("Distance")
-            self.assertEqual(first.distance(middle, max_depth=n), n / 2 - 1)
+            distance = first.distance(middle, max_depth=n)
+            log.debug(f"Distance: {distance}")
+            self.assertEqual(distance, n / 2 - 1)
 
         # Run the test, raising an error if the code times out
         p = multiprocessing.Process(target=run_test)

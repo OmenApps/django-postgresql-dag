@@ -86,7 +86,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
         def remove_child(self, child, delete_node=False):
             """Removes the edge connecting this node to child, and optionally deletes the child node as well"""
             if child in self.children.all():
-                self.children.through.objects.get(parent=self, child=child).delete()
+                self.children.through.objects.filter(parent=self, child=child).delete()
                 if delete_node:
                     # Note: Per django docs:
                     # https://docs.djangoproject.com/en/dev/ref/models/instances/#deleting-objects
@@ -100,7 +100,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
         def remove_parent(self, parent, delete_node=False):
             """Removes the edge connecting this node to parent, and optionally deletes the parent node as well"""
             if parent in self.parents.all():
-                parent.children.through.objects.get(parent=parent, child=self).delete()
+                parent.children.through.objects.filter(parent=parent, child=self).delete()
                 if delete_node:
                     # Note: Per django docs:
                     # https://docs.djangoproject.com/en/dev/ref/models/instances/#deleting-objects
