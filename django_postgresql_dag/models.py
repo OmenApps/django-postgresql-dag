@@ -79,9 +79,12 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         def add_child(self, child, **kwargs):
             kwargs.update({"parent": self, "child": child})
-            disable_check = kwargs.pop("disable_circular_check", False)
+
+            disable_circular_check = kwargs.pop("disable_circular_check", False)
+            allow_duplicate_edges = kwargs.pop("allow_duplicate_edges", True)
+
             cls = self.children.through(**kwargs)
-            return cls.save(disable_circular_check=disable_check)
+            return cls.save(disable_circular_check=disable_circular_check, allow_duplicate_edges=allow_duplicate_edges)
 
         def remove_child(self, child, delete_node=False):
             """Removes the edge connecting this node to child, and optionally deletes the child node as well"""
@@ -379,6 +382,11 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             if child in parent.self_and_ancestors():
                 raise ValidationError("The object is an ancestor.")
 
+        @staticmethod
+        def duplicate_edge_checker(parent, child):
+            if child in parent.self_and_descendants():
+                raise ValidationError("The edge is a duplicate.")
+
     return Node
 
 
@@ -475,6 +483,10 @@ def edge_factory(
         def save(self, *args, **kwargs):
             if not kwargs.pop("disable_circular_check", False):
                 self.parent.__class__.circular_checker(self.parent, self.child)
+
+            if not kwargs.pop("allow_duplicate_edges", True):
+                self.parent.__class__.duplicate_edge_checker(self.parent, self.child)
+
             super().save(*args, **kwargs)
 
     return Edge
