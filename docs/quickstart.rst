@@ -57,11 +57,24 @@ models.py
         def __str__(self):
             return self.name
 
+
+Optional arguments on the Edge model
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+```disable_circular_check```: Defaults to False. If set to True,
+django-postgresql-dag will not check for circular paths. Essentially,
+the resulting graph may no longer be a DAG.
+
+
+
+```allow_duplicate_edges```: Defaults to True. Determines whether two
+nodes are allowed to have more than one Edge directly connecting them.
+
+
 Add some Instances via the Shell (or in views, etc)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ::
 
-    ~/myapp$ python manage.py shell
     >>> from myapp.models import NetworkNode, NetworkEdge
     
     >>> root = NetworkNode.objects.create(name="root")
@@ -165,7 +178,6 @@ Work with the Graph in the Shell (or in views, etc)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ::
 
-    ~/myapp$ python manage.py shell
     >>> from myapp.models import NetworkNode, NetworkEdge
     
     # Descendant methods which return a queryset
