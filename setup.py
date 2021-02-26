@@ -45,4 +45,7 @@ setup(
     classifiers=classifiers,
     long_description_content_type="text/markdown",
     long_description=long_desc,
+    extras_require = {
+        'transforms': ['networkx>=2.5', 'pandas>=1.2']
+    }
 )

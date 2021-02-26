@@ -3,16 +3,18 @@ Functions for transforming RawQuerySet or other outputs of
 django-postgresql-dag to alternate formats.
 """
 
+from itertools import chain
+
+import networkx as nx
+import pandas as pd
 from django.core.exceptions import FieldDoesNotExist
 from django.db.models import Case, When
 from django.db.models.fields import DateTimeField, UUIDField
-from django.db.models.fields.files import ImageField, FileField
+from django.db.models.fields.files import FileField, ImageField
 from django.db.models.fields.related import ManyToManyField
 
-from .exceptions import GraphModelsCannotBeParsedException, IncorrectUsageException
-
-from itertools import chain
-import networkx as nx
+from .exceptions import (GraphModelsCannotBeParsedException,
+                         IncorrectUsageException)
 
 
 def _ordered_filter(queryset, field_names, values):
@@ -203,6 +205,8 @@ def nx_from_queryset(
     graph_attributes_dict: A dictionary of attributes to add to the graph itself
     node_attribute_fields_list: a list of strings of field names to be added to nodes
     edge_attribute_fields_list: a list of strings of field names to be added to edges
+    date_strf: if any provided fields are date-like, how should they be formatted?
+    digraph: bool to determine whether to output a directed or undirected graph
     """
     _NodeModel, _EdgeModel, queryset_type = get_queryset_characteristics(queryset)
 

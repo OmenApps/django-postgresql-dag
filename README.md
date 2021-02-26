@@ -16,6 +16,14 @@ Currently, it provides numerous methods for retrieving nodes, and a few for retr
 
 [Quickstart example](https://django-postgresql-dag.readthedocs.io/en/latest/quickstart.html)
 
+## Install
+
+    pip install django-postgresql-dag
+
+With optional dependencies for using transformations:
+
+    pip install django-postgresql-dag[transforms]
+
 
 ## ToDo
 
@@ -29,4 +37,3 @@ Currently, it provides numerous methods for retrieving nodes, and a few for retr
 2. [django-dag](https://pypi.org/project/django-dag/)
 3. [django-dag-postgresql](https://github.com/worsht/django-dag-postgresql)
 4. [django-treebeard-dag](https://pypi.org/project/django-treebeard-dag/)
-
