@@ -3,7 +3,7 @@
 import os
 from setuptools import setup
 
-version = '0.1.9'
+version = '0.2.0'
 
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -20,8 +20,6 @@ classifiers = [
     "Topic :: Utilities",
     "Environment :: Web Environment",
     "Framework :: Django",
-    "Framework :: Django :: 2.0",
-    "Framework :: Django :: 2.1",
     "Framework :: Django :: 2.2",
     "Framework :: Django :: 3.0",
     "Framework :: Django :: 3.1",
@@ -36,6 +34,11 @@ setup(
     name='django-postgresql-dag',
     version=version,
     url='https://github.com/OmenApps/django-postgresql-dag',
+    project_urls={
+        'Documentation': 'https://django-postgresql-dag.readthedocs.io/en/latest/',
+        'Source': 'https://github.com/OmenApps/django-postgresql-dag',
+        'Tracker': 'https://github.com/OmenApps/django-postgresql-dag/issues',
+    },
     author='Jack Linke, et al.',
     author_email='jacklinke@gmail.com',
     license='Apache Software License',

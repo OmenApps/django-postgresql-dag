@@ -6,11 +6,11 @@ The main distinguishing factor for this project is that it can retrieve entire s
 fewer queries than most other packages. The trade off is portability: it uses Postgres' Common Table
 Expressions (CTE) to achieve this and is therefore not compatible with other databases.
 
-NOTE: Not all methods which would benefit from CTEs use them yet.
+NOTE: Not all methods which would benefit from CTEs use them yet. **This project is a work in progress. Again, this project is a work in progress.** While functional, it is not yet fully optimized.
 
-NOTE: **This project is a work in progress. Again, this project is a work in progress.** While functional, it is not optimized and not yet stable. Lots of changes are happening weekly. Expect it to stabilize by the end of 2020.
+The primary purpose of this package is to *build* and *manipulate* DAGs. If you are looking for graph *analysis* or *visualization*, this is not the right package.
 
-Currently, it provides numerous methods for retrieving nodes, and a few for retrieving edges within the graph. In progress are filters within the in order to limit the area of the graph to be searched, ability to easily export to NetworkX, and other improvements and utilities.
+Currently, django-postgresql-dag provides numerous methods for retrieving nodes, and a few for retrieving edges within the graph. In-progress are filters within the CTEs in order to limit the area of the graph to be searched, ability to easily export to NetworkX, and other improvements and utilities.
 
 ## Demo
 
@@ -27,8 +27,7 @@ With optional dependencies for using transformations:
 
 ## ToDo
 
-- Describe methods of filtering nodes and edges within the CTE.
-- Finish creating proper docs.
+See the checklists in [issues](https://github.com/OmenApps/django-postgresql-dag/issues) to understand the future goals of this project.
 
 
 ## Credits:
