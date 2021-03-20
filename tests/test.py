@@ -4,9 +4,25 @@ import time
 
 from django.test import TestCase
 from django.core.exceptions import ValidationError
-from django_postgresql_dag.exceptions import NodeNotReachableException, GraphModelsCannotBeParsedException, IncorrectUsageException
-from django_postgresql_dag.transformations import _ordered_filter, edges_from_nodes_queryset, nodes_from_edges_queryset, nx_from_queryset, model_to_dict
-from django_postgresql_dag.query_builders import AncestorQuery, DescendantQuery, UpwardPathQuery, DownwardPathQuery, ConnectedGraphQuery
+from django_postgresql_dag.exceptions import (
+    NodeNotReachableException,
+    GraphModelsCannotBeParsedException,
+    IncorrectUsageException,
+)
+from django_postgresql_dag.transformations import (
+    _ordered_filter,
+    edges_from_nodes_queryset,
+    nodes_from_edges_queryset,
+    nx_from_queryset,
+    model_to_dict,
+)
+from django_postgresql_dag.query_builders import (
+    AncestorQuery,
+    DescendantQuery,
+    UpwardPathQuery,
+    DownwardPathQuery,
+    ConnectedGraphQuery,
+)
 
 from .models import NetworkNode, NetworkEdge, NodeSet, EdgeSet
 
@@ -58,7 +74,7 @@ class DagTestCase(TestCase):
         a3.add_child(b3)
         a3.add_child(b4)
         b3.add_child(c1)
-        
+
         log.debug("descendants part 2")
         root_descendants = root.descendants()
         self.assertNotIn(root, root_descendants)
@@ -69,17 +85,17 @@ class DagTestCase(TestCase):
         self.assertNotIn(c1, c1_ancestors)
         self.assertNotIn(b4, c1_ancestors)
         self.assertTrue(all(elem in c1_ancestors for elem in [root, a3, b3]))
-        
+
         a1.add_child(b2)
         a2.add_child(b2)
         b3.add_child(c2)
         b4.add_child(c1)
-        
+
         log.debug("ancestors part 2")
         c1_ancestors = c1.ancestors()
         self.assertNotIn(c1, c1_ancestors)
         self.assertTrue(all(elem in c1_ancestors for elem in [root, a3, b3, b4]))
-        
+
         # Try to add a node that is already an ancestor
         try:
             b3.add_parent(c1)
@@ -174,8 +190,7 @@ class DagTestCase(TestCase):
         log.debug("path x2")
         self.assertTrue(
             [p.name for p in root.path(c1)] == ["root", "a3", "b3", "c1"]
-            or [p.name for p in c1.path(root, directional=False)]
-            == ["root", "a3", "b4", "c1"]
+            or [p.name for p in c1.path(root, directional=False)] == ["root", "a3", "b4", "c1"]
         )
 
         log.debug("path")
@@ -186,10 +201,8 @@ class DagTestCase(TestCase):
 
         log.debug("shortest_path x2")
         self.assertTrue(
-            [p.name for p in c1.path(root, directional=False)]
-            == ["c1", "b3", "a3", "root"]
-            or [p.name for p in c1.path(root, directional=False)]
-            == ["c1", "b4", "a3", "root"]
+            [p.name for p in c1.path(root, directional=False)] == ["c1", "b3", "a3", "root"]
+            or [p.name for p in c1.path(root, directional=False)] == ["c1", "b4", "a3", "root"]
         )
 
         log.debug("get_leaves")
@@ -227,15 +240,19 @@ class DagTestCase(TestCase):
         log.debug("ancestors")
         self.assertEqual([p.name for p in c1.ancestors()], ["root", "a3", "b4"])
         self.assertFalse(c1.is_island())
-        
+
         # Test is we can properly export to a NetworkX graph
         log = logging.getLogger("test_02_networkx")
-        nx_out = nx_from_queryset(c1.ancestors_and_self(), graph_attributes_dict={"test": "test"}, node_attribute_fields_list=["id", "name"], edge_attribute_fields_list=["id", "name"])
+        nx_out = nx_from_queryset(
+            c1.ancestors_and_self(),
+            graph_attributes_dict={"test": "test"},
+            node_attribute_fields_list=["id", "name"],
+            edge_attribute_fields_list=["id", "name"],
+        )
         log.debug("Check attributes")
         self.assertEqual(nx_out.graph, {"test": "test"})
-        self.assertEqual(nx_out.nodes[11], {'id': 11, 'name': 'root'})
-        self.assertEqual(nx_out.edges[11, 14], {'id': 4, 'name': 'root a3'})
-        
+        self.assertEqual(nx_out.nodes[11], {"id": 11, "name": "root"})
+        self.assertEqual(nx_out.edges[11, 14], {"id": 4, "name": "root a3"})
 
         """
         Simulate a basic irrigation canal network
@@ -456,13 +473,11 @@ class DagTestCase(TestCase):
                 adjacency_list.append([f"SA{n}", f"SB{n}"])
                 adjacency_list.append([f"SA{n}", f"SC{n}"])
 
-
         # Create and assign nodes to variables
         log.debug("Start creating nodes")
         for node in node_name_list2:
             globals()[f"{node}"] = NetworkNode.objects.create(name=node)
         log.debug("Done creating nodes")
-
 
         log.debug("Connect nodes")
         for connection in adjacency_list:
@@ -508,7 +523,7 @@ class DagTestCase(TestCase):
             for _ in range(shared_edge_count):
                 child_node.add_parent(parent_node)
 
-            return child_node, parent_node 
+            return child_node, parent_node
 
         def delete_parents():
             child_node, parent_node = create_multilinked_nodes(shared_edge_count)
@@ -554,7 +569,6 @@ class DagTestCase(TestCase):
 
             n = 22  # Keep it an even number
 
-
             log.debug("Start creating nodes")
             for i in range(2 * n):
                 NetworkNode(pk=i, name=str(i)).save()
@@ -591,17 +605,15 @@ class DagTestCase(TestCase):
             last = NetworkNode.objects.get(name=str(2 * n - 1))
 
             path_exists = first.path_exists(last, max_depth=n)
-            log.debug(f"Path exists: {path_exists}")            
-            self.assertTrue(path_exists, True)           
+            log.debug(f"Path exists: {path_exists}")
+            self.assertTrue(path_exists, True)
             self.assertEqual(first.distance(last, max_depth=n), n - 1)
 
             log.debug(f"Node count: {NetworkNode.objects.count()}")
             log.debug(f"Edge count: {NetworkEdge.objects.count()}")
 
             # Connect the first-created node to the last-created node
-            NetworkNode.objects.get(pk=0).add_child(
-                NetworkNode.objects.get(pk=2 * n - 1)
-            )
+            NetworkNode.objects.get(pk=0).add_child(NetworkNode.objects.get(pk=2 * n - 1))
 
             middle = NetworkNode.objects.get(pk=n - 1)
             distance = first.distance(middle, max_depth=n)
