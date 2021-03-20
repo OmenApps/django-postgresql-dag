@@ -23,4 +23,3 @@ class IncorrectUsageException(Exception):
     """
 
     pass
-

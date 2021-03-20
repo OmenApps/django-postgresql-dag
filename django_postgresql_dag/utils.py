@@ -12,8 +12,7 @@ from django.db.models.fields import DateTimeField, UUIDField
 from django.db.models.fields.files import FileField, ImageField
 from django.db.models.fields.related import ManyToManyField
 
-from .exceptions import (GraphModelsCannotBeParsedException,
-                         IncorrectUsageException)
+from .exceptions import GraphModelsCannotBeParsedException, IncorrectUsageException
 
 
 def _ordered_filter(queryset, field_names, values):
@@ -124,9 +123,7 @@ def model_to_dict(instance, fields=None, date_strf=None):
                     data[f.name] = [item.pk for item in qs]
                 else:
                     try:
-                        m2m_field = list(
-                            filter(lambda a: f.name in a and a.find("__") != -1, fields)
-                        )[0]
+                        m2m_field = list(filter(lambda a: f.name in a and a.find("__") != -1, fields))[0]
                         key = m2m_field[len(f.name) + 2 :]
                         data[f.name] = list(qs.values_list(key, flat=True))
                     except IndexError:
@@ -187,4 +184,3 @@ def nodes_from_edges_queryset(edges_queryset):
 
         return _NodeModel.objects.filter(pk__in=nodes_list)
     raise IncorrectQuerysetTypeException
-

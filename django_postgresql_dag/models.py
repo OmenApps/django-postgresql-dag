@@ -13,13 +13,7 @@ from django.core.exceptions import ValidationError
 
 from .exceptions import NodeNotReachableException
 from .utils import _ordered_filter
-from .query_builders import (
-    AncestorQuery,
-    DescendantQuery,
-    UpwardPathQuery,
-    DownwardPathQuery,
-    ConnectedGraphQuery
-)
+from .query_builders import AncestorQuery, DescendantQuery, UpwardPathQuery, DownwardPathQuery, ConnectedGraphQuery
 
 
 class NodeManager(models.Manager):
@@ -171,9 +165,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         def siblings_with_self(self):
             # Returns all nodes that share a parent with this node and self
-            return self.__class__.objects.filter(
-                parents__in=self.parents.all()
-            ).distinct()
+            return self.__class__.objects.filter(parents__in=self.parents.all()).distinct()
 
         def partners(self):
             # Returns all nodes that share a child with this node
@@ -185,9 +177,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         def partners_with_self(self):
             # Returns all nodes that share a child with this node and self
-            return self.__class__.objects.filter(
-                children__in=self.children.all()
-            ).distinct()
+            return self.__class__.objects.filter(children__in=self.children.all()).distinct()
 
         def path_raw(self, ending_node, directional=True, **kwargs):
             """
@@ -199,14 +189,10 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             if self == ending_node:
                 return [[self.pk]]
 
-            path = DownwardPathQuery(
-                starting_node=self, ending_node=ending_node, **kwargs
-            ).raw_queryset()
+            path = DownwardPathQuery(starting_node=self, ending_node=ending_node, **kwargs).raw_queryset()
 
             if len(list(path)) == 0 and not directional:
-                path = UpwardPathQuery(
-                    starting_node=self, ending_node=ending_node, **kwargs
-                ).raw_queryset()
+                path = UpwardPathQuery(starting_node=self, ending_node=ending_node, **kwargs).raw_queryset()
 
             if len(list(path)) == 0:
                 raise NodeNotReachableException
@@ -390,7 +376,6 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
     return Node
 
 
-
 class EdgeManager(models.Manager):
     def from_nodes_queryset(self, nodes_queryset):
         """Provided a queryset of nodes, returns all edges where a parent and child
@@ -401,17 +386,13 @@ class EdgeManager(models.Manager):
         """
         Returns a queryset of all edges descended from the given node
         """
-        return _ordered_filter(
-            self.model.objects, "parent", node.self_and_descendants(**kwargs)
-        )
+        return _ordered_filter(self.model.objects, "parent", node.self_and_descendants(**kwargs))
 
     def ancestors(self, node, **kwargs):
         """
         Returns a queryset of all edges which are ancestors of the given node
         """
-        return _ordered_filter(
-            self.model.objects, "child", node.ancestors_and_self(**kwargs)
-        )
+        return _ordered_filter(self.model.objects, "child", node.ancestors_and_self(**kwargs))
 
     def clan(self, node, **kwargs):
         """
@@ -455,12 +436,11 @@ def edge_factory(
     else:
         node_model_name = node_model._meta.model_name
 
-
     class Edge(base_model):
 
         # Get the current model's name for use in related_name
         qualname = locals()["__qualname__"]
-        model_name = qualname.rsplit('.', 1)[-1].lower()
+        model_name = qualname.rsplit(".", 1)[-1].lower()
         if not model_name.endswith("s"):
             model_name = model_name + "s"
 

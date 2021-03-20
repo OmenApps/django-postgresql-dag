@@ -54,9 +54,7 @@ class BaseQuery(ABC):
                 self.instance_type,
             ) = get_instance_characteristics(self.starting_node)
         else:
-            raise ImproperlyConfigured(
-                "Either instance or both starting_node and ending_nod are required"
-            )
+            raise ImproperlyConfigured("Either instance or both starting_node and ending_nod are required")
 
         self.edge_model_table = self.edge_model._meta.db_table
         super().__init__()
@@ -195,10 +193,10 @@ class AncestorQuery(BaseQuery):
         return
 
     def _limit_to_edges_set_fk(self):
-        LIMITING_EDGES_SET_FK_CLAUSE_1 = (
-            """AND second.{fk_field_name}_id = %(limiting_edges_set_fk_pk)s"""
+        LIMITING_EDGES_SET_FK_CLAUSE_1 = """AND second.{fk_field_name}_id = %(limiting_edges_set_fk_pk)s"""
+        LIMITING_EDGES_SET_FK_CLAUSE_2 = (
+            """AND {relationship_table}.{fk_field_name}_id = %(limiting_edges_set_fk_pk)s"""
         )
-        LIMITING_EDGES_SET_FK_CLAUSE_2 = """AND {relationship_table}.{fk_field_name}_id = %(limiting_edges_set_fk_pk)s"""
 
         fk_field_name = get_foreign_key_field(fk_instance=self.limiting_edges_set_fk)
         if fk_field_name is not None:
@@ -212,19 +210,13 @@ class AncestorQuery(BaseQuery):
                 # pk_name=self.instance.get_pk_name(),
                 fk_field_name=fk_field_name,
             )
-            self.query_parameters[
-                "limiting_edges_set_fk_pk"
-            ] = self.limiting_edges_set_fk.pk
+            self.query_parameters["limiting_edges_set_fk_pk"] = self.limiting_edges_set_fk.pk
 
         return
 
     def _disallow_nodes(self):
-        DISALLOWED_NODES_CLAUSE_1 = (
-            """AND first.parent_id <> ALL(%(disallowed_node_pks)s)"""
-        )
-        DISALLOWED_NODES_CLAUSE_2 = (
-            """AND {relationship_table}.parent_id <> ALL(%(disallowed_node_pks)s)"""
-        )
+        DISALLOWED_NODES_CLAUSE_1 = """AND first.parent_id <> ALL(%(disallowed_node_pks)s)"""
+        DISALLOWED_NODES_CLAUSE_2 = """AND {relationship_table}.parent_id <> ALL(%(disallowed_node_pks)s)"""
 
         self.where_clauses_part_1 += "\n" + DISALLOWED_NODES_CLAUSE_1.format(
             relationship_table=self.edge_model_table,
@@ -245,9 +237,7 @@ class AncestorQuery(BaseQuery):
 
     def _allow_nodes(self):
         ALLOWED_NODES_CLAUSE_1 = """AND first.parent_id = ANY(%(allowed_node_pks)s)"""
-        ALLOWED_NODES_CLAUSE_2 = (
-            """AND {relationship_table}.parent_id = ANY(%(allowed_node_pks)s)"""
-        )
+        ALLOWED_NODES_CLAUSE_2 = """AND {relationship_table}.parent_id = ANY(%(allowed_node_pks)s)"""
 
         self.where_clauses_part_1 += "\n" + ALLOWED_NODES_CLAUSE_1.format(
             relationship_table=self.edge_model_table,
@@ -257,9 +247,7 @@ class AncestorQuery(BaseQuery):
             relationship_table=self.edge_model_table,
             # pk_name=self.instance.get_pk_name(),
         )
-        self.query_parameters["allowed_node_pks"] = str(
-            set(self.allowed_nodes_queryset.values_list("pk", flat=True))
-        )
+        self.query_parameters["allowed_node_pks"] = str(set(self.allowed_nodes_queryset.values_list("pk", flat=True)))
 
         return
 
@@ -323,10 +311,10 @@ class DescendantQuery(BaseQuery):
         return
 
     def _limit_to_edges_set_fk(self):
-        LIMITING_EDGES_SET_FK_CLAUSE_1 = (
-            """AND second.{fk_field_name}_id = %(limiting_edges_set_fk_pk)s"""
+        LIMITING_EDGES_SET_FK_CLAUSE_1 = """AND second.{fk_field_name}_id = %(limiting_edges_set_fk_pk)s"""
+        LIMITING_EDGES_SET_FK_CLAUSE_2 = (
+            """AND {relationship_table}.{fk_field_name}_id = %(limiting_edges_set_fk_pk)s"""
         )
-        LIMITING_EDGES_SET_FK_CLAUSE_2 = """AND {relationship_table}.{fk_field_name}_id = %(limiting_edges_set_fk_pk)s"""
 
         fk_field_name = get_foreign_key_field(fk_instance=self.limiting_edges_set_fk)
         if fk_field_name is not None:
@@ -340,19 +328,13 @@ class DescendantQuery(BaseQuery):
                 # pk_name=self.instance.get_pk_name(),
                 fk_field_name=fk_field_name,
             )
-            self.query_parameters[
-                "limiting_edges_set_fk_pk"
-            ] = self.limiting_edges_set_fk.pk
+            self.query_parameters["limiting_edges_set_fk_pk"] = self.limiting_edges_set_fk.pk
 
         return
 
     def _disallow_nodes(self):
-        DISALLOWED_NODES_CLAUSE_1 = (
-            """AND first.child_id <> ALL(%(disallowed_node_pks)s)"""
-        )
-        DISALLOWED_NODES_CLAUSE_2 = (
-            """AND {relationship_table}.child_id <> ALL(%(disallowed_node_pks)s)"""
-        )
+        DISALLOWED_NODES_CLAUSE_1 = """AND first.child_id <> ALL(%(disallowed_node_pks)s)"""
+        DISALLOWED_NODES_CLAUSE_2 = """AND {relationship_table}.child_id <> ALL(%(disallowed_node_pks)s)"""
 
         self.where_clauses_part_1 += "\n" + DISALLOWED_NODES_CLAUSE_1.format(
             relationship_table=self.edge_model_table,
@@ -373,9 +355,7 @@ class DescendantQuery(BaseQuery):
 
     def _allow_nodes(self):
         ALLOWED_NODES_CLAUSE_1 = """AND first.child_id = ANY(%(allowed_node_pks)s)"""
-        ALLOWED_NODES_CLAUSE_2 = (
-            """AND {relationship_table}.child_id = ANY(%(allowed_node_pks)s)"""
-        )
+        ALLOWED_NODES_CLAUSE_2 = """AND {relationship_table}.child_id = ANY(%(allowed_node_pks)s)"""
 
         self.where_clauses_part_1 += "\n" + ALLOWED_NODES_CLAUSE_1.format(
             relationship_table=self.edge_model_table,
@@ -385,9 +365,7 @@ class DescendantQuery(BaseQuery):
             relationship_table=self.edge_model_table,
             # pk_name=self.instance.get_pk_name(),
         )
-        self.query_parameters["allowed_node_pks"] = str(
-            set(self.allowed_nodes_queryset.values_list("pk", flat=True))
-        )
+        self.query_parameters["allowed_node_pks"] = str(set(self.allowed_nodes_queryset.values_list("pk", flat=True)))
 
         return
 
@@ -494,18 +472,14 @@ class UpwardPathQuery(BaseQuery):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         if not self.starting_node and not self.ending_node:
-            raise ImproperlyConfigured(
-                "UpwardPathQuery requires a starting_node and ending_node"
-            )
+            raise ImproperlyConfigured("UpwardPathQuery requires a starting_node and ending_node")
         return
 
     def _limit_to_nodes_set_fk(self):
         return
 
     def _limit_to_edges_set_fk(self):
-        LIMITING_EDGES_SET_FK_CLAUSE = (
-            """AND first.{fk_field_name}_id = %(limiting_edges_set_fk_pk)s"""
-        )
+        LIMITING_EDGES_SET_FK_CLAUSE = """AND first.{fk_field_name}_id = %(limiting_edges_set_fk_pk)s"""
 
         fk_field_name = get_foreign_key_field(fk_instance=self.limiting_edges_set_fk)
         if fk_field_name is not None:
@@ -513,16 +487,12 @@ class UpwardPathQuery(BaseQuery):
                 relationship_table=self.edge_model_table,
                 fk_field_name=fk_field_name,
             )
-            self.query_parameters[
-                "limiting_edges_set_fk_pk"
-            ] = self.limiting_edges_set_fk.pk
+            self.query_parameters["limiting_edges_set_fk_pk"] = self.limiting_edges_set_fk.pk
 
         return
 
     def _disallow_nodes(self):
-        DISALLOWED_NODES_CLAUSE = (
-            """AND second.parent_id <> ALL('{disallowed_path_node_pks}')"""
-        )
+        DISALLOWED_NODES_CLAUSE = """AND second.parent_id <> ALL('{disallowed_path_node_pks}')"""
 
         self.where_clauses_part_2 += "\n" + DISALLOWED_NODES_CLAUSE
         self.query_parameters["disallowed_path_node_pks"] = str(
@@ -535,9 +505,7 @@ class UpwardPathQuery(BaseQuery):
         return
 
     def _allow_nodes(self):
-        ALLOWED_NODES_CLAUSE = (
-            """AND second.parent_id = ALL('{allowed_path_node_pks}')"""
-        )
+        ALLOWED_NODES_CLAUSE = """AND second.parent_id = ALL('{allowed_path_node_pks}')"""
 
         self.where_clauses_part_2 += "\n" + ALLOWED_NODES_CLAUSE
         self.query_parameters["allowed_path_node_pks"] = str(
@@ -605,18 +573,14 @@ class DownwardPathQuery(BaseQuery):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         if not self.starting_node and not self.ending_node:
-            raise ImproperlyConfigured(
-                "DownwardPathQuery requires a starting_node and ending_node"
-            )
+            raise ImproperlyConfigured("DownwardPathQuery requires a starting_node and ending_node")
         return
 
     def _limit_to_nodes_set_fk(self):
         return
 
     def _limit_to_edges_set_fk(self):
-        LIMITING_EDGES_SET_FK_CLAUSE = (
-            """AND first.{fk_field_name}_id = %(limiting_edges_set_fk_pk)s"""
-        )
+        LIMITING_EDGES_SET_FK_CLAUSE = """AND first.{fk_field_name}_id = %(limiting_edges_set_fk_pk)s"""
 
         fk_field_name = get_foreign_key_field(fk_instance=self.limiting_edges_set_fk)
         if fk_field_name is not None:
@@ -624,16 +588,12 @@ class DownwardPathQuery(BaseQuery):
                 relationship_table=self.edge_model_table,
                 fk_field_name=fk_field_name,
             )
-            self.query_parameters[
-                "limiting_edges_set_fk_pk"
-            ] = self.limiting_edges_set_fk.pk
+            self.query_parameters["limiting_edges_set_fk_pk"] = self.limiting_edges_set_fk.pk
 
         return
 
     def _disallow_nodes(self):
-        DISALLOWED_NODES_CLAUSE = (
-            """AND second.child_id <> ALL('{disallowed_path_node_pks}')"""
-        )
+        DISALLOWED_NODES_CLAUSE = """AND second.child_id <> ALL('{disallowed_path_node_pks}')"""
 
         self.where_clauses_part_2 += "\n" + DISALLOWED_NODES_CLAUSE
         self.query_parameters["disallowed_path_node_pks"] = str(
@@ -646,9 +606,7 @@ class DownwardPathQuery(BaseQuery):
         return
 
     def _allow_nodes(self):
-        ALLOWED_NODES_CLAUSE = (
-            """AND second.child_id = ALL('{allowed_path_node_pks}')"""
-        )
+        ALLOWED_NODES_CLAUSE = """AND second.child_id = ALL('{allowed_path_node_pks}')"""
 
         self.where_clauses_part_2 += "\n" + ALLOWED_NODES_CLAUSE
         self.query_parameters["allowed_path_node_pks"] = str(

@@ -8,39 +8,47 @@ class Migration(migrations.Migration):
 
     initial = True
 
-    dependencies = [
-    ]
+    dependencies = []
 
     operations = [
         migrations.CreateModel(
-            name='NetworkEdge',
+            name="NetworkEdge",
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.CharField(max_length=100)),
+                ("id", models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                ("name", models.CharField(max_length=100)),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.CreateModel(
-            name='NetworkNode',
+            name="NetworkNode",
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.CharField(max_length=100)),
-                ('children', models.ManyToManyField(blank=True, related_name='parents', through='tests.NetworkEdge', to='tests.NetworkNode')),
+                ("id", models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                ("name", models.CharField(max_length=100)),
+                (
+                    "children",
+                    models.ManyToManyField(
+                        blank=True, related_name="parents", through="tests.NetworkEdge", to="tests.NetworkNode"
+                    ),
+                ),
             ],
             options={
-                'abstract': False,
+                "abstract": False,
             },
         ),
         migrations.AddField(
-            model_name='networkedge',
-            name='child',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='NetworkNode_parent', to='tests.NetworkNode'),
+            model_name="networkedge",
+            name="child",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE, related_name="NetworkNode_parent", to="tests.NetworkNode"
+            ),
         ),
         migrations.AddField(
-            model_name='networkedge',
-            name='parent',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='NetworkNode_child', to='tests.NetworkNode'),
+            model_name="networkedge",
+            name="parent",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE, related_name="NetworkNode_child", to="tests.NetworkNode"
+            ),
         ),
     ]

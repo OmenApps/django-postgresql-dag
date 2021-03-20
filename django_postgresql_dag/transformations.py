@@ -6,9 +6,13 @@ django-postgresql-dag to alternate formats.
 import networkx as nx
 import pandas as pd
 
-from .utils import (_ordered_filter, get_queryset_characteristics,
-                    model_to_dict, edges_from_nodes_queryset,
-                    nodes_from_edges_queryset)
+from .utils import (
+    _ordered_filter,
+    get_queryset_characteristics,
+    model_to_dict,
+    edges_from_nodes_queryset,
+    nodes_from_edges_queryset,
+)
 
 
 def nx_from_queryset(
@@ -48,9 +52,7 @@ def nx_from_queryset(
 
     for node in nodes_queryset:
         if node_attribute_fields_list is not None:
-            node_attribute_fields_dict = model_to_dict(
-                node, fields=node_attribute_fields_list, date_strf=date_strf
-            )
+            node_attribute_fields_dict = model_to_dict(node, fields=node_attribute_fields_list, date_strf=date_strf)
         else:
             node_attribute_fields_dict = {}
 
@@ -58,9 +60,7 @@ def nx_from_queryset(
 
     for edge in edges_queryset:
         if edge_attribute_fields_list is not None:
-            edge_attribute_fields_dict = model_to_dict(
-                edge, fields=edge_attribute_fields_list, date_strf=date_strf
-            )
+            edge_attribute_fields_dict = model_to_dict(edge, fields=edge_attribute_fields_list, date_strf=date_strf)
         else:
             edge_attribute_fields_dict = {}
 
