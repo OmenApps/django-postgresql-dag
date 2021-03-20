@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from django.core.exceptions import ImproperlyConfigured
-from .transformations import get_instance_characteristics, get_queryset_characteristics
+from .utils import get_instance_characteristics, get_queryset_characteristics
 
 
 class BaseQuery(ABC):

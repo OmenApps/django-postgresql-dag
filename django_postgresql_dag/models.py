@@ -12,7 +12,7 @@ from django.db.models import Case, When
 from django.core.exceptions import ValidationError
 
 from .exceptions import NodeNotReachableException
-from .transformations import _ordered_filter
+from .utils import _ordered_filter
 from .query_builders import (
     AncestorQuery,
     DescendantQuery,
