@@ -539,7 +539,7 @@ class EdgeManager(models.Manager):
 
             if callable(pre_save):
                 rootside_edge = pre_save(rootside_edge)
-            
+
             rootside_edge.save()
 
             if callable(post_save):
@@ -566,7 +566,7 @@ class EdgeManager(models.Manager):
         else:
             edge.child.add_parent(node)
 
-        # Remove the original edge in the database. Still remains in memory, though, as noted above. 
+        # Remove the original edge in the database. Still remains in memory, though, as noted above.
         edge.delete()
         return rootside_edge, leafside_edge
 
