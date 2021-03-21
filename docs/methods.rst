@@ -246,6 +246,7 @@ Given a list or set of Edge instances, sort them from root-side to leaf-side
 Inserts a node into an existing Edge instance. Returns a tuple of the newly created rootside_edge (parent to the inserted node) and leafside_edge (child to the inserted node).
 
 Process:
+
 1. Add a new Edge from the parent Node of the current Edge instance to the provided Node instance, optionally cloning properties of the existing Edge.
 2. Add a new Edge from the provided Node instance to the child Node of the current Edge instance, optionally cloning properties of the existing Edge.
 3. Remove the original Edge instance.
@@ -263,13 +264,15 @@ Cloning will fail if a field has unique=True, so a pre_save function can be pass
 
 A more complete example, where we have models named NetworkEdge & NetworkNode, and we want to insert a new Node (n2) into Edge e1, while copying e1's field properties (except `name`) to the newly created rootside Edge instance (n1 to n2) is shown below.
 
-Original        Final
+::
 
-n1  o           n1  o
-    |                 \
-    |                  o n2
-    |                 /
-n3  o           n3  o
+    Original        Final
+
+    n1  o           n1  o
+        |                 \
+        |                  o n2
+        |                 /
+    n3  o           n3  o
 
 
 ::

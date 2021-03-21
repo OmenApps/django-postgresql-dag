@@ -3,7 +3,7 @@
 import os
 from setuptools import setup
 
-version = "0.2.3"
+version = "0.2.4"
 
 classifiers = [
     "Development Status :: 3 - Alpha",
