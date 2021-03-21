@@ -87,12 +87,12 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             cls = self.children.through(**kwargs)
             return cls.save(disable_circular_check=disable_circular_check, allow_duplicate_edges=allow_duplicate_edges)
 
-        def remove_child(self, child, delete_node=False):
+        def remove_child(self, child=None, delete_node=False):
             """
-            Removes the edge connecting this node to the provided child Node instance, and optionally deletes the child
-            node as well
+            Removes the edge connecting this node to child if a child Node instance is provided, otherwise removes
+            the edges connecting to all children. Optionally deletes the child(ren) node(s) as well.
             """
-            if child in self.children.all():
+            if child is not None and child in self.children.all():
                 self.children.through.objects.filter(parent=self, child=child).delete()
                 if delete_node:
                     # Note: Per django docs:
@@ -100,14 +100,26 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                     # This only deletes the object in the database; the Python instance will still
                     # exist and will still have data in its fields.
                     child.delete()
+            else:
+                for child in self.children.all():
+                    self.children.through.objects.filter(parent=self, child=child).delete()
+                    if delete_node:
+                        # Note: Per django docs:
+                        # https://docs.djangoproject.com/en/dev/ref/models/instances/#deleting-objects
+                        # This only deletes the object in the database; the Python instance will still
+                        # exist and will still have data in its fields.
+                        child.delete()
 
         def add_parent(self, parent, *args, **kwargs):
             """Provided with a Node instance, attaches the current instance as a child to the provided Node instance"""
             return parent.add_child(self, **kwargs)
 
-        def remove_parent(self, parent, delete_node=False):
-            """Removes the edge connecting this node to parent, and optionally deletes the parent node as well"""
-            if parent in self.parents.all():
+        def remove_parent(self, parent=None, delete_node=False):
+            """
+            Removes the edge connecting this node to parent if a parent Node instance is provided, otherwise removes
+            the edges connecting to all parents. Optionally deletes the parent node(s) as well.
+            """
+            if parent is not None and parent in self.parents.all():
                 parent.children.through.objects.filter(parent=parent, child=self).delete()
                 if delete_node:
                     # Note: Per django docs:
@@ -115,6 +127,15 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                     # This only deletes the object in the database; the Python instance will still
                     # exist and will still have data in its fields.
                     parent.delete()
+            else:
+                for parent in self.parents.all():
+                    parent.children.through.objects.filter(parent=parent, child=self).delete()
+                    if delete_node:
+                        # Note: Per django docs:
+                        # https://docs.djangoproject.com/en/dev/ref/models/instances/#deleting-objects
+                        # This only deletes the object in the database; the Python instance will still
+                        # exist and will still have data in its fields.
+                        parent.delete()
 
         def ancestors_raw(self, **kwargs):
             """Returns a raw QuerySet of all nodes in connected paths in a rootward direction"""
@@ -314,6 +335,10 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             """Returns a QuerySet of all nodes connected in any way to the current Node instance"""
             pks = [item.pk for item in self.connected_graph_raw(**kwargs)]
             return self.ordered_queryset_from_pks(pks)
+
+        def connected_graph_node_count(self, **kwargs):
+            """Returns the number of nodes in the graph connected in any way to the current Node instance"""
+            return len(list(self.connected_graph_raw()))
 
         def descendants_tree(self):
             """

@@ -32,7 +32,7 @@ Provided with a Node instance, attaches that instance as a child to the current 
 
 **remove_child(self, child, delete_node=False)**
 
-Removes the edge connecting this node to the provided child Node instance, and optionally deletes the child node as well
+Removes the edge connecting this node to child if a child Node instance is provided, otherwise removes the edges connecting to all children. Optionally deletes the child(ren) node(s) as well.
 
 **add_parent(self, parent, \\*args, \*\*kwargs)**
 
@@ -40,7 +40,7 @@ Provided with a Node instance, attaches the current instance as a child to the p
 
 **remove_parent(self, parent, delete_node=False)**
 
-Removes the edge connecting this node to parent, and optionally deletes the parent node as well
+Removes the edge connecting this node to parent if a parent Node instance is provided, otherwise removes the edges connecting to all parents. Optionally deletes the parent node(s) as well.
 
 
 
@@ -168,6 +168,10 @@ Returns an integer representing the depth of this Node instance from furthest ro
 **connected_graph(self, \*\*kwargs)**
 
 Returns a QuerySet of all nodes connected in any way to the current Node instance
+
+**connected_graph_node_count(self, \*\*kwargs)**
+
+Returns the number of nodes in the graph connected in any way to the current Node instance
 
 **descendants_tree(self)**
 
