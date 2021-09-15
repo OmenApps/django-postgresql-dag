@@ -73,16 +73,16 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         def get_pk_type(self):
             """The pkid class may be set to a non-default type per-model or across the project.
-            This method is used to return the postgres type name for the primary key field so 
+            This method is used to return the postgres type name for the primary key field so
             that raw queries return the correct information."""
             django_pk_type = type(self._meta.pk).__name__
 
-            if django_pk_type == 'BigAutoField':
-                return 'bigint'
-            elif django_pk_type == 'UUIDField':
-                return 'uuid'
+            if django_pk_type == "BigAutoField":
+                return "bigint"
+            elif django_pk_type == "UUIDField":
+                return "uuid"
             else:
-                return 'integer'
+                return "integer"
 
         def ordered_queryset_from_pks(self, pks):
             """
