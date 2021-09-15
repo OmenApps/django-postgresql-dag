@@ -548,7 +548,7 @@ class UpwardPathQuery(BaseQuery):
             UNNEST(ARRAY[{pk_name}]) AS {pk_name}
         FROM 
             (
-            SELECT path || ARRAY[%(ending_node)s], depth FROM traverse
+            SELECT path || ARRAY[%(ending_node)s]::{pk_type}[], depth FROM traverse
                 WHERE parent_id = %(ending_node)s
                 AND depth <= %(max_depth)s
                 LIMIT 1
@@ -559,6 +559,7 @@ class UpwardPathQuery(BaseQuery):
             QUERY.format(
                 relationship_table=self.edge_model_table,
                 pk_name=self.starting_node.get_pk_name(),
+                pk_type=self.starting_node.get_pk_type(),
                 where_clauses_part_2=self.where_clauses_part_2,
             ),
             self.query_parameters,
@@ -649,7 +650,7 @@ class DownwardPathQuery(BaseQuery):
             UNNEST(ARRAY[{pk_name}]) AS {pk_name}
         FROM 
             (
-            SELECT path || ARRAY[%(ending_node)s], depth FROM traverse
+            SELECT path || ARRAY[%(ending_node)s]::{pk_type}[], depth FROM traverse
                 WHERE child_id = %(ending_node)s
                 AND depth <= %(max_depth)s
                 LIMIT 1
@@ -660,6 +661,7 @@ class DownwardPathQuery(BaseQuery):
             QUERY.format(
                 relationship_table=self.edge_model_table,
                 pk_name=self.starting_node.get_pk_name(),
+                pk_type=self.starting_node.get_pk_type(),
                 where_clauses_part_2=self.where_clauses_part_2,
             ),
             self.query_parameters,
