@@ -442,7 +442,7 @@ class ConnectedGraphQuery(BaseQuery):
 
         QUERY = """
         WITH RECURSIVE traverse AS
-            (SELECT %(pk)s AS {pk_name}
+            (SELECT %(pk)s::{pk_type} AS {pk_name}
             UNION SELECT
                 CASE
                     WHEN edge.child_id = traverse.{pk_name} THEN edge.parent_id
@@ -459,6 +459,7 @@ class ConnectedGraphQuery(BaseQuery):
             QUERY.format(
                 relationship_table=self.edge_model_table,
                 pk_name=self.instance.get_pk_name(),
+                pk_type=self.starting_node.get_pk_type(),
             ),
             self.query_parameters,
         )
