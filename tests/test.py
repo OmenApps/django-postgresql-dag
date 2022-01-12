@@ -251,8 +251,10 @@ class DagTestCase(TestCase):
         )
         log.debug("Check attributes")
         self.assertEqual(nx_out.graph, {"test": "test"})
-        self.assertEqual(nx_out.nodes[11], {"id": 11, "name": "root"})
-        self.assertEqual(nx_out.edges[11, 14], {"id": 4, "name": "root a3"})
+        self.assertEqual(nx_out.nodes[root.pk], {"id": root.pk, "name": "root"})
+        self.assertEqual(
+            nx_out.edges[root.pk, a3.pk], {"id": NetworkEdge.objects.get(parent=root, child=a3).pk, "name": "root a3"}
+        )
 
         """
         Simulate a basic irrigation canal network
