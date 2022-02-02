@@ -2,9 +2,8 @@
 Functions for transforming RawQuerySet or other outputs of
 django-postgresql-dag to alternate formats.
 """
-
+import inspect
 from itertools import chain
-
 
 from django.core.exceptions import FieldDoesNotExist
 from django.db.models import Case, When
@@ -12,7 +11,11 @@ from django.db.models.fields import DateTimeField, UUIDField
 from django.db.models.fields.files import FileField, ImageField
 from django.db.models.fields.related import ManyToManyField
 
-from .exceptions import GraphModelsCannotBeParsedException, IncorrectUsageException
+from .exceptions import (
+    GraphModelsCannotBeParsedException,
+    IncorrectUsageException,
+    IncorrectQuerysetTypeException
+)
 
 
 def _ordered_filter(queryset, field_names, values):
@@ -55,6 +58,18 @@ def get_instance_characteristics(instance):
         except FieldDoesNotExist:
             raise GraphModelsCannotBeParsedException
     return (_NodeModel, _EdgeModel, instance_type)
+
+
+def get_foreign_key_field(edge_model, fk_instance):
+    """
+    Provided a model instance, checks if the edge model has a ForeignKey field to the
+    model class of that instance, and then returns the associated field name, else None.
+    """
+    for field in edge_model._meta.get_fields():
+        if field.related_model is fk_instance._meta.model:
+            # Return the first field that matches
+            return field.name
+    return None
 
 
 def get_queryset_characteristics(queryset):

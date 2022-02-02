@@ -6,14 +6,18 @@ query. These queries also topologically sort the ids by generation.
 """
 
 from copy import deepcopy
-from django.apps import apps
-from django.db import models, connection
-from django.db.models import Case, When
+from django.db import models
 from django.core.exceptions import ValidationError
 
 from .exceptions import NodeNotReachableException
 from .utils import _ordered_filter
-from .query_builders import AncestorQuery, DescendantQuery, UpwardPathQuery, DownwardPathQuery, ConnectedGraphQuery
+from .query_builders import (
+    AncestorQuery,
+    DescendantQuery,
+    UpwardPathQuery,
+    DownwardPathQuery,
+    ConnectedGraphQuery
+)
 
 
 class NodeManager(models.Manager):
@@ -52,18 +56,6 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         class Meta:
             abstract = True
-
-        def get_foreign_key_field(self, fk_instance=None):
-            """
-            Provided a model instance, checks if the edge model has a ForeignKey field to the
-            model class of that instance, and then returns the associated field name, else None.
-            """
-            if fk_instance is not None:
-                for field in edge_model._meta.get_fields():
-                    if field.related_model is fk_instance._meta.model:
-                        # Return the first field that matches
-                        return field.name
-            return None
 
         def get_pk_name(self):
             """Sometimes we set a field other than 'pk' for the primary key.

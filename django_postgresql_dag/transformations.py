@@ -4,10 +4,8 @@ django-postgresql-dag to alternate formats.
 """
 
 import networkx as nx
-import pandas as pd
 
 from .utils import (
-    _ordered_filter,
     get_queryset_characteristics,
     model_to_dict,
     edges_from_nodes_queryset,
