@@ -23,3 +23,10 @@ class IncorrectUsageException(Exception):
     """
 
     pass
+
+class IncorrectQuerysetTypeException(Exception):
+    """
+    Exception for mismatch between helper method and queryset arg
+    """
+
+    pass
