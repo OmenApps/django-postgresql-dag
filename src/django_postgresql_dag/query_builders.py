@@ -502,7 +502,7 @@ class UpwardPathQuery(BaseQuery):
         return
 
     def _disallow_nodes(self):
-        DISALLOWED_NODES_CLAUSE = """AND second.parent_id <> ALL('{disallowed_path_node_pks}')"""
+        DISALLOWED_NODES_CLAUSE = """AND second.parent_id <> ALL(%(disallowed_path_node_pks)s)"""
 
         self.where_clauses_part_2 += "\n" + DISALLOWED_NODES_CLAUSE
         self.query_parameters["disallowed_path_node_pks"] = str(
@@ -515,7 +515,7 @@ class UpwardPathQuery(BaseQuery):
         return
 
     def _allow_nodes(self):
-        ALLOWED_NODES_CLAUSE = """AND second.parent_id = ALL('{allowed_path_node_pks}')"""
+        ALLOWED_NODES_CLAUSE = """AND second.parent_id = ANY(%(allowed_path_node_pks)s)"""
 
         self.where_clauses_part_2 += "\n" + ALLOWED_NODES_CLAUSE
         self.query_parameters["allowed_path_node_pks"] = str(
@@ -554,9 +554,9 @@ class UpwardPathQuery(BaseQuery):
             -- LIMITING_UPWARD_NODES_CLAUSE_1  -- CORRECT?
             {where_clauses_part_2}
         )
-        SELECT 
+        SELECT
             UNNEST(ARRAY[{pk_name}]) AS {pk_name}
-        FROM 
+        FROM
             (
             SELECT path || ARRAY[%(ending_node)s]::{pk_type}[], depth FROM traverse
                 WHERE parent_id = %(ending_node)s
@@ -604,7 +604,7 @@ class DownwardPathQuery(BaseQuery):
         return
 
     def _disallow_nodes(self):
-        DISALLOWED_NODES_CLAUSE = """AND second.child_id <> ALL('{disallowed_path_node_pks}')"""
+        DISALLOWED_NODES_CLAUSE = """AND second.child_id <> ALL(%(disallowed_path_node_pks)s)"""
 
         self.where_clauses_part_2 += "\n" + DISALLOWED_NODES_CLAUSE
         self.query_parameters["disallowed_path_node_pks"] = str(
@@ -617,7 +617,7 @@ class DownwardPathQuery(BaseQuery):
         return
 
     def _allow_nodes(self):
-        ALLOWED_NODES_CLAUSE = """AND second.child_id = ALL('{allowed_path_node_pks}')"""
+        ALLOWED_NODES_CLAUSE = """AND second.child_id = ANY(%(allowed_path_node_pks)s)"""
 
         self.where_clauses_part_2 += "\n" + ALLOWED_NODES_CLAUSE
         self.query_parameters["allowed_path_node_pks"] = str(
@@ -655,10 +655,10 @@ class DownwardPathQuery(BaseQuery):
             -- ALLOWED_DOWNWARD_PATH_NODES_CLAUSE
             -- LIMITING_DOWNWARD_NODES_CLAUSE_1  -- CORRECT?
             {where_clauses_part_2}
-        )      
-        SELECT 
+        )
+        SELECT
             UNNEST(ARRAY[{pk_name}]) AS {pk_name}
-        FROM 
+        FROM
             (
             SELECT path || ARRAY[%(ending_node)s]::{pk_type}[], depth FROM traverse
                 WHERE child_id = %(ending_node)s
