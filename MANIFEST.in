@@ -1,4 +1,0 @@
-include CHANGES LICENSE README.md MANIFEST.in
-recursive-include django_postgresql_dag *.py *.html
-recursive-include example_app *.py *.html
-recursive-include tests *.py *.html

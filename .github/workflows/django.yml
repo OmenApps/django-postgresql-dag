@@ -1,52 +1,68 @@
-name: Django CI
+name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
+
+env:
+  PG_USER: postgres
+  PG_PASSWORD: postgres
+  PG_DATABASE: postgres
+  PG_HOST: localhost
+  PG_PORT: 5432
 
 jobs:
-  black:
+  lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/setup-python@v1
-      - uses: actions/checkout@v2
-      - run: python -m pip install black
-      - run: black -l 120 --check --diff .
-      
-  build:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: astral-sh/setup-uv@v4
+      - run: uv sync --extra dev
+      - run: uv run nox -s pre-commit
 
+  pip-audit:
     runs-on: ubuntu-latest
-    
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: astral-sh/setup-uv@v4
+      - run: uv sync --extra dev
+      - run: uv run nox -s pip-audit
+
+  tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+        django-version: ["4.2", "5.1", "5.2", "6.0"]
+        exclude:
+          - python-version: "3.11"
+            django-version: "6.0"
+
     services:
       postgres:
-        image: postgres:12
+        image: postgres:16
         env:
-          POSTGRES_USER: daguser
-          POSTGRES_PASSWORD: daguser
-          POSTGRES_DB: dagdb
-        ports: ['5432:5432']
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
-        
-    strategy:
-      max-parallel: 4
-      matrix:
-        python-version: [3.7, 3.8, 3.9]
 
     steps:
-    - uses: actions/checkout@v2
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
-      with:
-        python-version: ${{ matrix.python-version }}
-    - name: Install Dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements-dev.txt
-    - name: Run Migrations
-      run: |
-        python manage.py migrate
-    - name: Run Tests
-      run: |
-        python manage.py test
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - uses: astral-sh/setup-uv@v4
+      - run: uv sync --extra dev
+      - run: uv run nox -s "tests(django='${{ matrix.django-version }}', python='${{ matrix.python-version }}')"

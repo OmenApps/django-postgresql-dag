@@ -1,0 +1,107 @@
+[build-system]
+requires = ["setuptools>=75.2"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "django-postgresql-dag"
+version = "2026.2.1"
+description = "Directed Acyclic Graph implementation for Django & Postgresql"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [
+    { name = "Jack Linke", email = "jack@watervize.com" },
+]
+keywords = ["django", "graph", "tree", "dag", "network", "directed", "acyclic", "postgres", "cte"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Web Environment",
+    "Framework :: Django",
+    "Framework :: Django :: 4.2",
+    "Framework :: Django :: 5.1",
+    "Framework :: Django :: 5.2",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Database",
+    "Topic :: Utilities",
+]
+dependencies = [
+    "django>=4.2",
+    "psycopg[binary]>=3.1",
+]
+
+[project.optional-dependencies]
+transforms = [
+    "networkx>=2.5",
+    "pandas>=1.2",
+]
+
+[project.urls]
+Homepage = "https://github.com/OmenApps/django-postgresql-dag"
+Repository = "https://github.com/OmenApps/django-postgresql-dag"
+Documentation = "https://django-postgresql-dag.readthedocs.io/en/latest/"
+Issues = "https://github.com/OmenApps/django-postgresql-dag/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+src = ["src"]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I"]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["django_postgresql_dag"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "tests.settings"
+django_find_project = false
+pythonpath = ["."]
+python_files = ["test_*.py"]
+log_cli = true
+
+[tool.coverage.run]
+branch = true
+source = ["src"]
+
+[tool.coverage.report]
+show_missing = true
+omit = [
+    ".nox/*",
+    "*/migrations/*",
+    "*/__init__.py",
+]
+
+[tool.coverage.paths]
+source = [
+    "src",
+    "*/site-packages",
+]
+
+[dependency-groups]
+dev = [
+    "bandit",
+    "coverage[toml]",
+    "django-extensions",
+    "nox",
+    "pillow>=12.1.1",
+    "pip-audit",
+    "pre-commit",
+    "pre-commit-hooks",
+    "pytest",
+    "pytest-cov",
+    "pytest-django",
+    "pytest-timeout",
+    "pyupgrade",
+    "ruff",
+    "werkzeug",
+]

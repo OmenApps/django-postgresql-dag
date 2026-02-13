@@ -8,7 +8,7 @@ Expressions (CTE) to achieve this and is therefore not compatible with other dat
 
 NOTE: Not all methods which would benefit from CTEs use them yet. **This project is a work in progress. Again, this project is a work in progress.** While functional, it is not yet fully optimized.
 
-The primary purpose of this package is to *build* and *manipulate* DAGs. If you are looking for graph *analysis* or *visualization*, this is not the right package.
+The primary purpose of this package is to *build* and *manipulate* DAGs within a Django project. If you are looking for graph *analysis* or *visualization*, this may not be the right package.
 
 Currently, django-postgresql-dag provides numerous methods for retrieving nodes, and a few for retrieving edges within the graph. In-progress are filters within the CTEs in order to limit the area of the graph to be searched, ability to easily export to NetworkX, and other improvements and utilities.
 
