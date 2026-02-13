@@ -1,7 +1,5 @@
 """Functions for transforming RawQuerySet or other outputs of django-postgresql-dag to alternate formats."""
 
-import networkx as nx
-
 from .utils import (
     _ordered_filter,
     edges_from_nodes_queryset,
