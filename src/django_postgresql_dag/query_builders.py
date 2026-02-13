@@ -148,6 +148,14 @@ class BaseQuery(ABC):
         """Helper method. Override this method in subclasses."""
         return
 
+    def _add_filter_clause(self, part_1_clause, part_2_clause, param_name, queryset):
+        """Append filter clauses to CTE parts and set the query parameter from a queryset's PKs."""
+        if part_1_clause:
+            self.where_clauses_part_1 += "\n" + part_1_clause
+        if part_2_clause:
+            self.where_clauses_part_2 += "\n" + part_2_clause
+        self.query_parameters[param_name] = str(set(queryset.values_list("pk", flat=True)))
+
     @abstractmethod
     def raw_queryset(self):
         """Return the RawQueryset for this query. Should be extended in child classes."""
@@ -179,7 +187,47 @@ class BaseQuery(ABC):
         return str(self.raw_queryset())
 
 
-class AncestorQuery(BaseQuery):
+class _AncestorDescendantEdgeFilterMixin:
+    """Shared edge filtering for AncestorQuery and DescendantQuery.
+
+    In these CTEs the anchor aliases the edge table as ``first`` while the
+    recursive part references it by its real table name.
+    """
+
+    def _disallow_edges(self):
+        self._add_filter_clause(
+            "AND first.id <> ALL(%(disallowed_edge_pks)s)",
+            f"AND {self.edge_model_table}.id <> ALL(%(disallowed_edge_pks)s)",
+            "disallowed_edge_pks",
+            self.disallowed_edges_queryset,
+        )
+
+    def _allow_edges(self):
+        self._add_filter_clause(
+            "AND first.id = ANY(%(allowed_edge_pks)s)",
+            f"AND {self.edge_model_table}.id = ANY(%(allowed_edge_pks)s)",
+            "allowed_edge_pks",
+            self.allowed_edges_queryset,
+        )
+
+
+class _PathEdgeFilterMixin:
+    """Shared edge filtering for UpwardPathQuery and DownwardPathQuery.
+
+    In path CTEs both the anchor and recursive parts alias the edge table as
+    ``first``, so the same clause is appended to both parts.
+    """
+
+    def _disallow_edges(self):
+        clause = "AND first.id <> ALL(%(disallowed_path_edge_pks)s)"
+        self._add_filter_clause(clause, clause, "disallowed_path_edge_pks", self.disallowed_edges_queryset)
+
+    def _allow_edges(self):
+        clause = "AND first.id = ANY(%(allowed_path_edge_pks)s)"
+        self._add_filter_clause(clause, clause, "allowed_path_edge_pks", self.allowed_edges_queryset)
+
+
+class AncestorQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
     """Ancestor Query Class."""
 
     def __init__(self, **kwargs):
@@ -231,9 +279,6 @@ class AncestorQuery(BaseQuery):
 
         return
 
-    def _disallow_edges(self):
-        return
-
     def _allow_nodes(self):
         ALLOWED_NODES_CLAUSE_1 = """AND first.parent_id = ANY(%(allowed_node_pks)s)"""
         ALLOWED_NODES_CLAUSE_2 = """AND {relationship_table}.parent_id = ANY(%(allowed_node_pks)s)"""
@@ -248,9 +293,6 @@ class AncestorQuery(BaseQuery):
         )
         self.query_parameters["allowed_node_pks"] = str(set(self.allowed_nodes_queryset.values_list("pk", flat=True)))
 
-        return
-
-    def _allow_edges(self):
         return
 
     def raw_queryset(self):
@@ -295,7 +337,7 @@ class AncestorQuery(BaseQuery):
         )
 
 
-class DescendantQuery(BaseQuery):
+class DescendantQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
     """Descendant Query Class."""
 
     def __init__(self, **kwargs):
@@ -347,9 +389,6 @@ class DescendantQuery(BaseQuery):
 
         return
 
-    def _disallow_edges(self):
-        return
-
     def _allow_nodes(self):
         ALLOWED_NODES_CLAUSE_1 = """AND first.child_id = ANY(%(allowed_node_pks)s)"""
         ALLOWED_NODES_CLAUSE_2 = """AND {relationship_table}.child_id = ANY(%(allowed_node_pks)s)"""
@@ -364,9 +403,6 @@ class DescendantQuery(BaseQuery):
         )
         self.query_parameters["allowed_node_pks"] = str(set(self.allowed_nodes_queryset.values_list("pk", flat=True)))
 
-        return
-
-    def _allow_edges(self):
         return
 
     def raw_queryset(self):
@@ -460,7 +496,7 @@ class ConnectedGraphQuery(BaseQuery):
         )
 
 
-class UpwardPathQuery(BaseQuery):
+class UpwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
     """Upward Path Query Class."""
 
     def __init__(self, **kwargs):
@@ -495,9 +531,6 @@ class UpwardPathQuery(BaseQuery):
 
         return
 
-    def _disallow_edges(self):
-        return
-
     def _allow_nodes(self):
         ALLOWED_NODES_CLAUSE = """AND second.parent_id = ANY(%(allowed_path_node_pks)s)"""
 
@@ -506,9 +539,6 @@ class UpwardPathQuery(BaseQuery):
             set(self.allowed_nodes_queryset.values_list("pk", flat=True))
         )
 
-        return
-
-    def _allow_edges(self):
         return
 
     def raw_queryset(self):
@@ -523,6 +553,7 @@ class UpwardPathQuery(BaseQuery):
                 ARRAY[first.child_id] AS path
                 FROM {relationship_table} AS first
             WHERE child_id = %(starting_node)s
+            {where_clauses_part_1}
         UNION ALL
             SELECT
                 first.child_id,
@@ -554,13 +585,14 @@ class UpwardPathQuery(BaseQuery):
                 relationship_table=self.edge_model_table,
                 pk_name=self.starting_node.get_pk_name(),
                 pk_type=self.starting_node.get_pk_type(),
+                where_clauses_part_1=self.where_clauses_part_1,
                 where_clauses_part_2=self.where_clauses_part_2,
             ),
             self.query_parameters,
         )
 
 
-class DownwardPathQuery(BaseQuery):
+class DownwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
     """Downward Path Query Class."""
 
     def __init__(self, **kwargs):
@@ -595,9 +627,6 @@ class DownwardPathQuery(BaseQuery):
 
         return
 
-    def _disallow_edges(self):
-        return
-
     def _allow_nodes(self):
         ALLOWED_NODES_CLAUSE = """AND second.child_id = ANY(%(allowed_path_node_pks)s)"""
 
@@ -606,9 +635,6 @@ class DownwardPathQuery(BaseQuery):
             set(self.allowed_nodes_queryset.values_list("pk", flat=True))
         )
 
-        return
-
-    def _allow_edges(self):
         return
 
     def raw_queryset(self):
@@ -623,6 +649,7 @@ class DownwardPathQuery(BaseQuery):
                 ARRAY[first.parent_id] AS path
                 FROM {relationship_table} AS first
             WHERE parent_id = %(starting_node)s
+            {where_clauses_part_1}
         UNION ALL
             SELECT
                 first.parent_id,
@@ -654,6 +681,7 @@ class DownwardPathQuery(BaseQuery):
                 relationship_table=self.edge_model_table,
                 pk_name=self.starting_node.get_pk_name(),
                 pk_type=self.starting_node.get_pk_type(),
+                where_clauses_part_1=self.where_clauses_part_1,
                 where_clauses_part_2=self.where_clauses_part_2,
             ),
             self.query_parameters,

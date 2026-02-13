@@ -73,6 +73,23 @@ node.descendants(edge_type=reports_to)
 node.descendants(limiting_edges_set_fk=reports_to)
 ```
 
+##### The `disallowed_edges_queryset` and `allowed_edges_queryset` parameters
+
+All traversal methods (`ancestors`, `descendants`, `clan`, `path`, and their variants) accept optional edge-filtering keyword arguments:
+
+- **`disallowed_edges_queryset`**: A queryset of Edge instances to exclude from traversal. The CTE will not traverse these edges, effectively removing them from the graph during the query.
+- **`allowed_edges_queryset`**: A queryset of Edge instances to restrict traversal to. Only these edges will be used by the CTE; all other edges are ignored.
+
+```python
+# Exclude specific edges from traversal
+bad_edges = MyEdge.objects.filter(deprecated=True)
+node.descendants(disallowed_edges_queryset=bad_edges)
+
+# Only traverse a specific subset of edges
+approved_edges = MyEdge.objects.filter(approved=True)
+node.ancestors(allowed_edges_queryset=approved_edges)
+```
+
 **ancestors(self, \*\*kwargs)**
 
 Returns a QuerySet of all nodes in connected paths in a rootward direction
