@@ -28,6 +28,7 @@ __all__ = [
     "model_to_dict",
     "nodes_from_edges_queryset",
     "nx_from_queryset",
+    "rx_from_queryset",
 ]
 
 
@@ -86,5 +87,66 @@ def nx_from_queryset(
             edge_attribute_fields_dict = {}
 
         graph.add_edge(edge.parent.pk, edge.child.pk, **edge_attribute_fields_dict)
+
+    return graph
+
+
+def rx_from_queryset(
+    queryset,
+    graph_attributes=None,
+    node_attribute_fields_list=None,
+    edge_attribute_fields_list=None,
+    date_strf=None,
+    digraph=False,
+):
+    """Provided a queryset of nodes or edges, returns a rustworkx graph.
+
+    Unlike NetworkX, rustworkx uses integer node indices, so the Django PK is always
+    stored in the node data dict under the ``"pk"`` key.
+
+    Optionally, the following can be supplied to add attributes to components of the generated graph:
+    graph_attributes: Any Python object to store as ``graph.attrs``
+    node_attribute_fields_list: a list of strings of field names to be added to nodes
+    edge_attribute_fields_list: a list of strings of field names to be added to edges
+    date_strf: if any provided fields are date-like, how should they be formatted?
+    digraph: bool to determine whether to output a directed or undirected graph
+    """
+    if not HAS_RUSTWORKX:
+        raise ImportError(
+            "rustworkx is required for rx_from_queryset(). "
+            "Install it with: pip install django-postgresql-dag[rustworkx]"
+        )
+
+    _NodeModel, _EdgeModel, queryset_type = get_queryset_characteristics(queryset)
+
+    if digraph:
+        graph = rx.PyDiGraph(check_cycle=False)
+    else:
+        graph = rx.PyGraph()
+
+    if graph_attributes is not None:
+        graph.attrs = graph_attributes
+
+    if queryset_type == "nodes_queryset":
+        nodes_queryset = queryset
+        edges_queryset = edges_from_nodes_queryset(nodes_queryset)
+    else:
+        edges_queryset = queryset
+        nodes_queryset = nodes_from_edges_queryset(edges_queryset)
+
+    pk_to_index = {}
+    for node in nodes_queryset:
+        node_data = {"pk": node.pk}
+        if node_attribute_fields_list is not None:
+            node_data.update(model_to_dict(node, fields=node_attribute_fields_list, date_strf=date_strf))
+        index = graph.add_node(node_data)
+        pk_to_index[node.pk] = index
+
+    for edge in edges_queryset:
+        if edge_attribute_fields_list is not None:
+            edge_data = model_to_dict(edge, fields=edge_attribute_fields_list, date_strf=date_strf)
+        else:
+            edge_data = {}
+        graph.add_edge(pk_to_index[edge.parent.pk], pk_to_index[edge.child.pk], edge_data)
 
     return graph

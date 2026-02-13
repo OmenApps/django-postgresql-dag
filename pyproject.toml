@@ -40,6 +40,9 @@ transforms = [
     "networkx>=2.5",
     "pandas>=1.2",
 ]
+rustworkx = [
+    "rustworkx>=0.13",
+]
 
 [project.urls]
 Homepage = "https://github.com/OmenApps/django-postgresql-dag"
