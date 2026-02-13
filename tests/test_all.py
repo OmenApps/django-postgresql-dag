@@ -1,5 +1,4 @@
 import logging
-import multiprocessing
 import time
 
 from django.test import TestCase
@@ -24,12 +23,30 @@ from django_postgresql_dag.query_builders import (
     ConnectedGraphQuery,
 )
 
-from .models import NetworkNode, NetworkEdge, NodeSet, EdgeSet
+from tests.testapp.models import NetworkNode, NetworkEdge, NodeSet, EdgeSet
 
 logging.basicConfig(level=logging.DEBUG)
-
+log = logging.getLogger("django_postgresql_log.testapp")
 
 node_name_list = ["root", "a1", "a2", "a3", "b1", "b2", "b3", "b4", "c1", "c2"]
+
+
+class SlowTestException(Exception):
+    pass
+
+
+class CheckLongTestCaseMixin:
+    def _callTestMethod(self, method):
+        start = time.time()
+
+        result = super()._callTestMethod(method)
+
+        limit_seconds = 30
+        time_taken = time.time() - start
+        if time_taken > limit_seconds:
+            raise SlowTestException(f"This test took {time_taken:.2f}s, more than the limit of {limit_seconds}s.")
+
+        return result
 
 
 class DagTestCase(TestCase):
@@ -37,16 +54,13 @@ class DagTestCase(TestCase):
         for node in node_name_list:
             NetworkNode.objects.create(name=node)
 
-    def test_01_objects_were_created(self):
-        log = logging.getLogger("test_01")
+    def test_objects_were_created(self):
         log.debug("Creating objects")
         for node in node_name_list:
             self.assertEqual(NetworkNode.objects.get(name=f"{node}").name, f"{node}")
         log.debug("Done creating objects")
 
-    def test_02_dag(self):
-        log = logging.getLogger("test_02_dag")
-
+    def test_basic_dag(self):
         # Get nodes
         log.debug("Getting nodes")
         for node in node_name_list:
@@ -242,7 +256,6 @@ class DagTestCase(TestCase):
         self.assertFalse(c1.is_island())
 
         # Test is we can properly export to a NetworkX graph
-        log = logging.getLogger("test_02_networkx")
         nx_out = nx_from_queryset(
             c1.ancestors_and_self(),
             graph_attributes_dict={"test": "test"},
@@ -259,8 +272,6 @@ class DagTestCase(TestCase):
         """
         Simulate a basic irrigation canal network
         """
-        log = logging.getLogger("test_02_canal")
-
         node_name_list2 = [x for x in range(0, 201)]
         adjacency_list = [
             ["0", "1"],
@@ -510,8 +521,9 @@ class DagTestCase(TestCase):
         log.debug(f"Node count: {NetworkNode.objects.count()}")
         log.debug(f"Edge count: {NetworkEdge.objects.count()}")
 
-    def test_03_multilinked_nodes(self):
-        log = logging.getLogger("test_03")
+
+class MultilinkedTestCase(CheckLongTestCaseMixin, TestCase):
+    def test_multilinked_nodes(self):
         log.debug("Test deletion of nodes two nodes with multiple shared edges")
 
         shared_edge_count = 5
@@ -554,7 +566,35 @@ class DagTestCase(TestCase):
         delete_parents()
         delete_children()
 
-    def test_04_deep_dag(self):
+
+class DeepDagTestCase(CheckLongTestCaseMixin, TestCase):
+    def setUp(self):
+        # Using the graph generation algorithm below, the number of potential
+        # paths from node 0 doubles for each increase in n.
+        # When n=22, there are many paths through the graph from node 0,
+        # so results for intermediate nodes need to be cached
+
+        self.n = 22  # Keep it an even number
+
+        log.debug("Start creating nodes")
+        for i in range(2 * self.n):
+            NetworkNode(pk=i, name=str(i)).save()
+        log.debug("Done creating nodes")
+
+        # Create edges
+        log.debug("Connect nodes")
+        for i in range(0, 2 * self.n - 2, 2):
+            p1 = NetworkNode.objects.get(pk=i)
+            p2 = NetworkNode.objects.get(pk=i + 1)
+            p3 = NetworkNode.objects.get(pk=i + 2)
+            p4 = NetworkNode.objects.get(pk=i + 3)
+
+            p1.add_child(p3)
+            p1.add_child(p4)
+            p2.add_child(p3)
+            p2.add_child(p4)
+
+    def test_deep_dag(self):
         """
         Create a deep graph and check that graph operations run in a
         reasonable amount of time (linear in size of graph, not
@@ -562,33 +602,6 @@ class DagTestCase(TestCase):
         """
 
         def run_test():
-            # Using the graph generation algorithm below, the number of potential
-            # paths from node 0 doubles for each increase in n.
-            # When n=22, there are many paths through the graph from node 0,
-            # so results for intermediate nodes need to be cached
-
-            log = logging.getLogger("test_04")
-
-            n = 22  # Keep it an even number
-
-            log.debug("Start creating nodes")
-            for i in range(2 * n):
-                NetworkNode(pk=i, name=str(i)).save()
-            log.debug("Done creating nodes")
-
-            # Create edges
-            log.debug("Connect nodes")
-            for i in range(0, 2 * n - 2, 2):
-                p1 = NetworkNode.objects.get(pk=i)
-                p2 = NetworkNode.objects.get(pk=i + 1)
-                p3 = NetworkNode.objects.get(pk=i + 2)
-                p4 = NetworkNode.objects.get(pk=i + 3)
-
-                p1.add_child(p3)
-                p1.add_child(p4)
-                p2.add_child(p3)
-                p2.add_child(p4)
-
             # Compute descendants of a root node
             root_node = NetworkNode.objects.get(pk=0)
             start_time = time.time()
@@ -597,36 +610,30 @@ class DagTestCase(TestCase):
             log.debug(f"Execution time in seconds: {execution_time}")
 
             # Compute ancestors of a leaf node
-            leaf_node = NetworkNode.objects.get(pk=2 * n - 1)
+            leaf_node = NetworkNode.objects.get(pk=2 * self.n - 1)
             start_time = time.time()
             log.debug(f"Ancestors: {len(leaf_node.ancestors())}")
             execution_time = time.time() - start_time
             log.debug(f"Execution time in seconds: {execution_time}")
 
             first = NetworkNode.objects.get(name="0")
-            last = NetworkNode.objects.get(name=str(2 * n - 1))
+            last = NetworkNode.objects.get(name=str(2 * self.n - 1))
 
-            path_exists = first.path_exists(last, max_depth=n)
+            path_exists = first.path_exists(last, max_depth=self.n)
             log.debug(f"Path exists: {path_exists}")
             self.assertTrue(path_exists, True)
-            self.assertEqual(first.distance(last, max_depth=n), n - 1)
+            self.assertEqual(first.distance(last, max_depth=self.n), self.n - 1)
 
             log.debug(f"Node count: {NetworkNode.objects.count()}")
             log.debug(f"Edge count: {NetworkEdge.objects.count()}")
 
             # Connect the first-created node to the last-created node
-            NetworkNode.objects.get(pk=0).add_child(NetworkNode.objects.get(pk=2 * n - 1))
+            NetworkNode.objects.get(pk=0).add_child(NetworkNode.objects.get(pk=2 * self.n - 1))
 
-            middle = NetworkNode.objects.get(pk=n - 1)
-            distance = first.distance(middle, max_depth=n)
+            middle = NetworkNode.objects.get(pk=self.n - 1)
+            distance = first.distance(middle, max_depth=self.n)
             log.debug(f"Distance: {distance}")
-            self.assertEqual(distance, n / 2 - 1)
+            self.assertEqual(distance, self.n / 2 - 1)
 
         # Run the test, raising an error if the code times out
-        p = multiprocessing.Process(target=run_test)
-        p.start()
-        p.join(20)  # Seconds allowed to live
-        if p.is_alive():
-            p.terminate()
-            p.join()
-            raise RuntimeError("Graph operations take too long!")
+        run_test()
