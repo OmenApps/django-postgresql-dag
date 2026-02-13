@@ -4,6 +4,7 @@ The graph traversal queries use Postgresql's recursive CTEs to fetch an entire t
 query. These queries also topologically sort the ids by generation.
 """
 
+from collections import defaultdict
 from copy import deepcopy
 
 from django.core.exceptions import ValidationError
@@ -84,9 +85,13 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             else:
                 return "integer"
 
+        def _pks_from_raw(self, raw_queryset):
+            """Extract primary keys from a raw queryset, preserving order."""
+            return [item.pk for item in raw_queryset]
+
         def ordered_queryset_from_pks(self, pks):
             """Generate a queryset, based on the current class and ordered by the provided pks."""
-            return _ordered_filter(self.__class__.objects, "pk", pks)
+            return _ordered_filter(type(self).objects, "pk", pks)
 
         def add_child(self, child, **kwargs):
             """Provided with a Node instance, attaches that instance as a child to the current Node instance."""
@@ -154,7 +159,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         def ancestors(self, **kwargs):
             """Return a QuerySet of all nodes in connected paths in a rootward direction."""
-            pks = [item.pk for item in self.ancestors_raw(**kwargs)]
+            pks = self._pks_from_raw(self.ancestors_raw(**kwargs))
             return self.ordered_queryset_from_pks(pks)
 
         def ancestors_count(self):
@@ -163,12 +168,14 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         def self_and_ancestors(self, **kwargs):
             """Return a QuerySet of all nodes in connected paths in a rootward direction, prepending with self."""
-            pks = [self.pk] + [item.pk for item in self.ancestors_raw(**kwargs)][::-1]
+            ancestor_pks = self._pks_from_raw(self.ancestors_raw(**kwargs))
+            pks = [self.pk] + ancestor_pks[::-1]
             return self.ordered_queryset_from_pks(pks)
 
         def ancestors_and_self(self, **kwargs):
             """Return a QuerySet of all nodes in connected paths in a rootward direction, appending with self."""
-            pks = [item.pk for item in self.ancestors_raw(**kwargs)] + [self.pk]
+            ancestor_pks = self._pks_from_raw(self.ancestors_raw(**kwargs))
+            pks = ancestor_pks + [self.pk]
             return self.ordered_queryset_from_pks(pks)
 
         def descendants_raw(self, **kwargs):
@@ -177,7 +184,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         def descendants(self, **kwargs):
             """Return a QuerySet of all nodes in connected paths in a leafward direction."""
-            pks = [item.pk for item in self.descendants_raw(**kwargs)]
+            pks = self._pks_from_raw(self.descendants_raw(**kwargs))
             return self.ordered_queryset_from_pks(pks)
 
         def descendants_count(self):
@@ -186,21 +193,21 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         def self_and_descendants(self, **kwargs):
             """Return a QuerySet of all nodes in connected paths in a leafward direction, prepending with self."""
-            pks = [self.pk] + [item.pk for item in self.descendants_raw(**kwargs)]
+            descendant_pks = self._pks_from_raw(self.descendants_raw(**kwargs))
+            pks = [self.pk] + descendant_pks
             return self.ordered_queryset_from_pks(pks)
 
         def descendants_and_self(self, **kwargs):
             """Return a QuerySet of all nodes in connected paths in a leafward direction, appending with self."""
-            pks = [item.pk for item in self.descendants_raw(**kwargs)] + [self.pk]
+            descendant_pks = self._pks_from_raw(self.descendants_raw(**kwargs))
+            pks = descendant_pks + [self.pk]
             return self.ordered_queryset_from_pks(pks)
 
         def clan(self, **kwargs):
             """Return a QuerySet with all ancestors nodes, self, and all descendant nodes."""
-            pks = (
-                [item.pk for item in self.ancestors_raw(**kwargs)]
-                + [self.pk]
-                + [item.pk for item in self.descendants_raw(**kwargs)]
-            )
+            ancestor_pks = self._pks_from_raw(self.ancestors_raw(**kwargs))
+            descendant_pks = self._pks_from_raw(self.descendants_raw(**kwargs))
+            pks = ancestor_pks + [self.pk] + descendant_pks
             return self.ordered_queryset_from_pks(pks)
 
         def clan_count(self):
@@ -217,7 +224,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         def siblings_with_self(self):
             """Return a QuerySet of all nodes that share a parent with this node and self."""
-            return self.__class__.objects.filter(parents__in=self.parents.all()).distinct()
+            return type(self).objects.filter(parents__in=self.parents.all()).distinct()
 
         def partners(self):
             """Return a QuerySet of all nodes that share a child with this node."""
@@ -229,7 +236,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         def partners_with_self(self):
             """Return all nodes that share a child with this node and self."""
-            return self.__class__.objects.filter(children__in=self.children.all()).distinct()
+            return type(self).objects.filter(children__in=self.children.all()).distinct()
 
         def path_raw(self, ending_node, directional=True, **kwargs):
             """Return shortest path from self to ending node, optionally in either direction.
@@ -264,7 +271,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             The resulting Queryset is sorted from root-side, toward leaf-side, regardless of the relative position of
             starting and ending nodes.
             """
-            pks = [item.pk for item in self.path_raw(ending_node, **kwargs)]
+            pks = self._pks_from_raw(self.path_raw(ending_node, **kwargs))
             return self.ordered_queryset_from_pks(pks)
 
         def distance(self, ending_node, **kwargs):
@@ -295,10 +302,13 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         def is_descendant_of(self, ending_node, **kwargs):
             """Provided an ending_node Node instance, returns True if the current Node instance is a descendant."""
-            return (
-                not self.is_ancestor_of(ending_node, **kwargs)
-                and len(self.path_raw(ending_node, directional=False, **kwargs)) >= 1
-            )
+            # If self is an ancestor, it cannot also be a descendant.
+            # Note: unlike is_ancestor_of, we don't need to catch NodeNotReachableException
+            # here because path_raw with directional=False never raises it when a
+            # bidirectional path exists.
+            if self.is_ancestor_of(ending_node, **kwargs):
+                return False
+            return len(self.path_raw(ending_node, directional=False, **kwargs)) >= 1
 
         def is_sibling_of(self, ending_node):
             """Provided an ending_node Node instance, returns True if this node and the ending node share a parent."""
@@ -310,9 +320,26 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         def node_depth(self):
             """Return an integer representing the depth of this Node instance from furthest root."""
-            """Returns an integer representing the depth of this Node instance from furthest root"""
-            # ToDo: Implement
-            pass
+            from django.db import connection
+
+            pk_name = self.get_pk_name()
+            edge_table = edge_model._meta.db_table
+            QUERY = """
+            WITH RECURSIVE traverse({pk_name}, depth) AS (
+                SELECT first.parent_id, 1
+                    FROM {edge_table} AS first
+                WHERE first.child_id = %s
+            UNION
+                SELECT DISTINCT {edge_table}.parent_id, traverse.depth + 1
+                    FROM traverse
+                    INNER JOIN {edge_table}
+                    ON {edge_table}.child_id = traverse.{pk_name}
+            )
+            SELECT COALESCE(MAX(depth), 0) FROM traverse
+            """.format(pk_name=pk_name, edge_table=edge_table)
+            with connection.cursor() as cursor:
+                cursor.execute(QUERY, [self.pk])
+                return cursor.fetchone()[0]
 
         def connected_graph_raw(self, **kwargs):
             """Return a raw QuerySet of all nodes connected in any way to the current Node instance."""
@@ -320,7 +347,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         def connected_graph(self, **kwargs):
             """Return a QuerySet of all nodes connected in any way to the current Node instance."""
-            pks = [item.pk for item in self.connected_graph_raw(**kwargs)]
+            pks = self._pks_from_raw(self.connected_graph_raw(**kwargs))
             return self.ordered_queryset_from_pks(pks)
 
         def connected_graph_node_count(self, **kwargs):
@@ -329,97 +356,91 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         def descendants_tree(self):
             """Return a tree-like structure with descendants for the current Node."""
-            """
-            Returns a tree-like structure with descendants for the current Node
-            """
-            # ToDo: Modify to use CTE
-            tree = {}
-            for child in self.children.all():
-                tree[child] = child.descendants_tree()
-            return tree
+            descendants = list(self.descendants())
+            if not descendants:
+                return {}
+            all_nodes = [self] + descendants
+            all_node_pks = {n.pk for n in all_nodes}
+            node_map = {n.pk: n for n in all_nodes}
+            children_of = defaultdict(list)
+            for parent_pk, child_pk in edge_model.objects.filter(
+                parent_id__in=all_node_pks, child_id__in=all_node_pks
+            ).values_list("parent_id", "child_id"):
+                children_of[parent_pk].append(node_map[child_pk])
+
+            def _build(node):
+                # Recursively map each child node to its own subtree dict
+                return {child: _build(child) for child in children_of.get(node.pk, [])}
+
+            return _build(self)
 
         def ancestors_tree(self):
             """Return a tree-like structure with ancestors for the current Node."""
-            """
-            Returns a tree-like structure with ancestors for the current Node
-            """
-            # ToDo: Modify to use CTE
-            tree = {}
-            for parent in self.parents.all():
-                tree[parent] = parent.ancestors_tree()
-            return tree
+            ancestors = list(self.ancestors())
+            if not ancestors:
+                return {}
+            all_nodes = ancestors + [self]
+            all_node_pks = {n.pk for n in all_nodes}
+            node_map = {n.pk: n for n in all_nodes}
+            parents_of = defaultdict(list)
+            for parent_pk, child_pk in edge_model.objects.filter(
+                parent_id__in=all_node_pks, child_id__in=all_node_pks
+            ).values_list("parent_id", "child_id"):
+                parents_of[child_pk].append(node_map[parent_pk])
 
-        def _roots(self, ancestors_tree):
-            """
-            Works on objects: no queries
-            """
-            if not ancestors_tree:
-                return set([self])
-            roots = set()
-            for ancestor in ancestors_tree:
-                roots.update(ancestor._roots(ancestors_tree[ancestor]))
-            return roots
+            def _build(node):
+                # Recursively map each parent node to its own ancestor subtree dict
+                return {parent: _build(parent) for parent in parents_of.get(node.pk, [])}
+
+            return _build(self)
 
         def roots(self):
             """Return a QuerySet of all root nodes, if any, for the current Node."""
-            """
-            Returns a QuerySet of all root nodes, if any, for the current Node
-            """
-            # ToDo: Modify to use CTE
-            ancestors_tree = self.ancestors_tree()
-            roots = set()
-            for ancestor in ancestors_tree:
-                roots.update(ancestor._roots(ancestors_tree[ancestor]))
-            if len(roots) < 1:
-                roots.add(self)
-            return roots
-
-        def _leaves(self, descendants_tree):
-            """
-            Works on objects: no queries
-            """
-            if not descendants_tree:
-                return set([self])
-            leaves = set()
-            for descendant in descendants_tree:
-                leaves.update(descendant._leaves(descendants_tree[descendant]))
-            return leaves
+            ancestors = self.ancestors()
+            if not ancestors.exists():
+                return type(self).objects.filter(pk=self.pk)
+            return ancestors.filter(parents=None)
 
         def leaves(self):
             """Return a QuerySet of all leaf nodes, if any, for the current Node."""
-            """
-            Returns a QuerySet of all leaf nodes, if any, for the current Node
-            """
-            # ToDo: Modify to use CTE
-            descendants_tree = self.descendants_tree()
-            leaves = set()
-            for descendant in descendants_tree:
-                leaves.update(descendant._leaves(descendants_tree[descendant]))
-            if len(leaves) < 1:
-                leaves.add(self)
-            return leaves
+            descendants = self.descendants()
+            if not descendants.exists():
+                return type(self).objects.filter(pk=self.pk)
+            return descendants.filter(children=None)
+
+        @staticmethod
+        def _depth_case(field_name, depth_map):
+            """Build a Case expression mapping a FK field to its topological position."""
+            return models.Case(
+                *[models.When(**{field_name: pk, "then": pos}) for pk, pos in depth_map.items()],
+                default=999999,
+                output_field=models.IntegerField(),
+            )
+
+        def _edges_for_ordered_nodes(self, ordered_nodes):
+            """Filter and topologically sort edges for a set of ordered nodes."""
+            depth_map = {node.pk: idx for idx, node in enumerate(ordered_nodes)}
+            return edge_model.objects.filter(
+                parent__in=ordered_nodes,
+                child__in=ordered_nodes,
+            ).order_by(
+                self._depth_case("parent_id", depth_map),
+                self._depth_case("child_id", depth_map),
+            )
 
         def descendants_edges(self):
             """Return a QuerySet of descendant Edge instances for the current Node.
 
             Topologically sorted from root-side to leaf-side.
             """
-            # ToDo: Perform topological sort
-            return edge_model.objects.filter(
-                parent__in=self.self_and_descendants(),
-                child__in=self.self_and_descendants(),
-            )
+            return self._edges_for_ordered_nodes(list(self.self_and_descendants()))
 
         def ancestors_edges(self):
             """Return a QuerySet of ancestor Edge instances for the current Node.
 
             Topologically sorted from root-side to leaf-side.
             """
-            # ToDo: Perform topological sort
-            return edge_model.objects.filter(
-                parent__in=self.self_and_ancestors(),
-                child__in=self.self_and_ancestors(),
-            )
+            return self._edges_for_ordered_nodes(list(self.ancestors_and_self()))
 
         def clan_edges(self):
             """Return a QuerySet of all Edge instances associated with a given node."""
@@ -461,19 +482,35 @@ class EdgeManager(models.Manager):
 
     def validate_route(self, edges, **kwargs):
         """Given a list or set of Edge instances, verify that they result in a contiguous route."""
-        """
-        Given a list or set of Edge instances, verify that they result in a contiguous route
-        """
-        # ToDo: Implement
-        pass
+        edge_list = list(edges)
+        if len(edge_list) < 2:
+            return True
+        # Each edge's child must be the next edge's parent for a contiguous route
+        for i in range(len(edge_list) - 1):
+            if edge_list[i].child_id != edge_list[i + 1].parent_id:
+                return False
+        return True
 
     def sort(self, edges, **kwargs):
         """Given a list or set of Edge instances, sort them from root-side to leaf-side."""
-        """
-        Given a list or set of Edge instances, sort them from root-side to leaf-side
-        """
-        # ToDo: Implement
-        pass
+        edge_list = list(edges)
+        if len(edge_list) < 2:
+            return edge_list
+        # Collect all referenced node PKs
+        node_pks = set()
+        for e in edge_list:
+            node_pks.add(e.parent_id)
+            node_pks.add(e.child_id)
+        # Build depth map: node_pk -> depth from root
+        node_model = type(edge_list[0].parent)
+        nodes = {n.pk: n for n in node_model.objects.filter(pk__in=node_pks)}
+        depth_map = {pk: nodes[pk].node_depth() for pk in node_pks}
+
+        # Sort by parent depth first, then child depth (root-side to leaf-side)
+        def edge_sort_key(edge):
+            return (depth_map[edge.parent_id], depth_map[edge.child_id])
+
+        return sorted(edge_list, key=edge_sort_key)
 
     def insert_node(self, edge, node, clone_to_rootside=False, clone_to_leafside=False, pre_save=None, post_save=None):
         """Insert a node into an existing Edge instance.
