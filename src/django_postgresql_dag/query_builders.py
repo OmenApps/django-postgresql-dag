@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from django.core.exceptions import ImproperlyConfigured
 
-from .utils import get_foreign_key_field, get_instance_characteristics
+from .utils import get_instance_characteristics
 
 
 class BaseQuery(ABC):
@@ -205,7 +205,7 @@ class AncestorQuery(BaseQuery):
             """AND {relationship_table}.{fk_field_name}_id = %(limiting_edges_set_fk_pk)s"""
         )
 
-        fk_field_name = get_foreign_key_field(self.edge_model, self.limiting_edges_set_fk)
+        fk_field_name = self._get_node_instance().get_foreign_key_field(fk_instance=self.limiting_edges_set_fk)
         if fk_field_name is not None:
             self.where_clauses_part_1 += "\n" + LIMITING_EDGES_SET_FK_CLAUSE_1.format(
                 relationship_table=self.edge_model_table,
@@ -323,7 +323,7 @@ class DescendantQuery(BaseQuery):
             """AND {relationship_table}.{fk_field_name}_id = %(limiting_edges_set_fk_pk)s"""
         )
 
-        fk_field_name = get_foreign_key_field(self.edge_model, self.limiting_edges_set_fk)
+        fk_field_name = self._get_node_instance().get_foreign_key_field(fk_instance=self.limiting_edges_set_fk)
         if fk_field_name is not None:
             self.where_clauses_part_1 += "\n" + LIMITING_EDGES_SET_FK_CLAUSE_1.format(
                 relationship_table=self.edge_model_table,
@@ -466,7 +466,7 @@ class ConnectedGraphQuery(BaseQuery):
             QUERY.format(
                 relationship_table=self.edge_model_table,
                 pk_name=self.instance.get_pk_name(),
-                pk_type=self.starting_node.get_pk_type(),
+                pk_type=self.instance.get_pk_type(),
             ),
             self.query_parameters,
         )
@@ -489,7 +489,7 @@ class UpwardPathQuery(BaseQuery):
     def _limit_to_edges_set_fk(self):
         LIMITING_EDGES_SET_FK_CLAUSE = """AND first.{fk_field_name}_id = %(limiting_edges_set_fk_pk)s"""
 
-        fk_field_name = get_foreign_key_field(self.edge_model, self.limiting_edges_set_fk)
+        fk_field_name = self._get_node_instance().get_foreign_key_field(fk_instance=self.limiting_edges_set_fk)
         if fk_field_name is not None:
             self.where_clauses_part_2 += "\n" + LIMITING_EDGES_SET_FK_CLAUSE.format(
                 relationship_table=self.edge_model_table,
@@ -591,7 +591,7 @@ class DownwardPathQuery(BaseQuery):
     def _limit_to_edges_set_fk(self):
         LIMITING_EDGES_SET_FK_CLAUSE = """AND first.{fk_field_name}_id = %(limiting_edges_set_fk_pk)s"""
 
-        fk_field_name = get_foreign_key_field(self.edge_model, self.limiting_edges_set_fk)
+        fk_field_name = self._get_node_instance().get_foreign_key_field(fk_instance=self.limiting_edges_set_fk)
         if fk_field_name is not None:
             self.where_clauses_part_2 += "\n" + LIMITING_EDGES_SET_FK_CLAUSE.format(
                 relationship_table=self.edge_model_table,
