@@ -60,6 +60,12 @@ class BaseQuery(ABC):
         self.edge_model_table = self.edge_model._meta.db_table
         super().__init__()
 
+    def _get_node_instance(self):
+        """Return the node instance to use for method calls like get_foreign_key_field."""
+        if self.instance is not None:
+            return self.instance
+        return self.starting_node
+
     def limit_to_nodes_set_fk(self):
         """
         Limits the search to those nodes which are included in a ForeignKey's node set
