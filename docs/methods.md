@@ -14,6 +14,14 @@ Returns a Queryset of all root nodes (nodes with no parents) in the Node model. 
 
 Returns a Queryset of all leaf nodes (nodes with no children) in the Node model. If a node instance is specified, returns only the leaves for that node.
 
+**connected_components(self)**
+
+Returns a list of QuerySets, one per disconnected subgraph. Iteratively uses `connected_graph()` to discover all components. Each returned QuerySet is a standard Django QuerySet that can be further filtered.
+
+**graph_stats(self)**
+
+Returns a dict with aggregate graph metrics: `node_count`, `edge_count`, `root_count`, `leaf_count`, `island_count`, `max_depth`, `avg_depth`, `density`, `component_count`. Note: calls `node_depth()` per node, so O(N) queries — suitable for analytics, not hot paths.
+
 ### Model Methods
 
 #### Methods used for building/manipulating
@@ -35,6 +43,35 @@ Provided with a Node instance, attaches the current instance as a child to the p
 Removes the edge connecting this node to parent if a parent Node instance is provided, otherwise removes the edges connecting to all parents. Optionally deletes the parent node(s) as well.
 
 #### Methods used for querying
+
+##### The `edge_type` parameter
+
+All traversal and predicate methods (`ancestors`, `descendants`, `clan`, `path`, `connected_graph`, `is_ancestor_of`, `is_descendant_of`, `path_exists`, `distance`, and their variants) accept an optional `edge_type` keyword argument as a shorthand for `limiting_edges_set_fk`. Pass a model instance that has a ForeignKey on the edge model to limit traversal to edges matching that FK.
+
+```python
+from django.db import models
+from django_postgresql_dag.models import edge_factory, node_factory
+
+# A simple model whose instances categorize edges
+class EdgeCategory(models.Model):
+    name = models.CharField(max_length=100)
+
+# Edge model with a ForeignKey for categorizing edges
+class MyEdge(edge_factory("MyNode", concrete=False)):
+    category = models.ForeignKey(EdgeCategory, null=True, blank=True, on_delete=models.CASCADE)
+
+class MyNode(node_factory(MyEdge)):
+    name = models.CharField(max_length=100)
+```
+
+```python
+# Query only edges of a specific category
+reports_to = EdgeCategory.objects.get(name="reports_to")
+node.descendants(edge_type=reports_to)
+
+# Equivalent to:
+node.descendants(limiting_edges_set_fk=reports_to)
+```
 
 **ancestors(self, \*\*kwargs)**
 
