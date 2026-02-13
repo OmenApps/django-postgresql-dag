@@ -1,4 +1,5 @@
 from django.db import models
+
 from django_postgresql_dag.models import node_factory, edge_factory
 
 
@@ -27,7 +28,20 @@ class NetworkEdge(edge_factory("NetworkNode", concrete=False)):
         super().save(*args, **kwargs)
 
     class Meta:
-        app_label = "tests"
+        app_label = "testapp"
+
+
+class FieldTestModel(models.Model):
+    """Model for testing model_to_dict with various field types."""
+
+    name = models.CharField(max_length=100)
+    created_at = models.DateTimeField(auto_now_add=True)
+    uuid_field = models.UUIDField(null=True, blank=True)
+    file_field = models.FileField(upload_to="test/", null=True, blank=True)
+    image_field = models.ImageField(upload_to="test_images/", null=True, blank=True)
+
+    class Meta:
+        app_label = "testapp"
 
 
 class NetworkNode(node_factory(NetworkEdge)):
@@ -39,4 +53,4 @@ class NetworkNode(node_factory(NetworkEdge)):
         return self.name
 
     class Meta:
-        app_label = "tests"
+        app_label = "testapp"
