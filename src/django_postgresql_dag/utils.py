@@ -121,16 +121,24 @@ def model_to_dict(instance, fields=None, date_strf=None):
             if instance.pk is None:
                 data[f.name] = []
             else:
-                qs = f.value_from_object(instance)
-                if qs._result_cache is not None:
-                    data[f.name] = [item.pk for item in qs]
+                m2m_value = f.value_from_object(instance)
+                if isinstance(m2m_value, list):
+                    try:
+                        m2m_field = list(filter(lambda a: f.name in a and a.find("__") != -1, fields))[0]
+                        key = m2m_field[len(f.name) + 2 :]
+                        data[f.name] = [getattr(item, key) if hasattr(item, key) else item for item in m2m_value]
+                    except IndexError:
+                        data[f.name] = [item.pk if hasattr(item, "pk") else item for item in m2m_value]
+                elif hasattr(m2m_value, "_result_cache") and m2m_value._result_cache is not None:
+                    data[f.name] = [item.pk for item in m2m_value]
                 else:
                     try:
                         m2m_field = list(filter(lambda a: f.name in a and a.find("__") != -1, fields))[0]
                         key = m2m_field[len(f.name) + 2 :]
-                        data[f.name] = list(qs.values_list(key, flat=True))
+                        data[f.name] = list(m2m_value.values_list(key, flat=True))
                     except IndexError:
-                        data[f.name] = list(qs.values_list("pk", flat=True))
+                        data[f.name] = list(m2m_value.values_list("pk", flat=True))
+            continue
 
         if isinstance(f, UUIDField):
             uuid = f.value_from_object(instance)
