@@ -34,6 +34,20 @@ class NodeManager(models.Manager):
             return node.leaves()
         return self.filter(children__isnull=True)
 
+    def connected_components(self):
+        """Return a list of QuerySets, one per disconnected subgraph."""
+        all_pks = set(self.values_list("pk", flat=True))
+        components = []
+        while all_pks:
+            start_pk = next(iter(all_pks))
+            start_node = self.get(pk=start_pk)
+            component_qs = start_node.connected_graph()
+            component_pks = set(component_qs.values_list("pk", flat=True))
+            # Include the start node itself (islands may not appear in connected_graph)
+            component_pks.add(start_pk)
+            components.append(self.filter(pk__in=component_pks))
+            all_pks -= component_pks
+        return components
 
 def node_factory(edge_model, children_null=True, base_model=models.Model):
     class Node(base_model):
