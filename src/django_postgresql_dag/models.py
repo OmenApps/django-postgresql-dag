@@ -73,7 +73,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             """Sometimes we set a field other than 'pk' for the primary key.
             This method is used to get the correct primary key field name for the
             model so that raw queries return the correct information."""
-            return self._meta.pk.name
+            return self._meta.pk.attname
 
         def get_pk_type(self):
             """The pkid class may be set to a non-default type per-model or across the project.
