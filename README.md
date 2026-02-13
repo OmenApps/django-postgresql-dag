@@ -6,11 +6,9 @@ The main distinguishing factor for this project is that it can retrieve entire s
 fewer queries than most other packages. The trade off is portability: it uses Postgres' Common Table
 Expressions (CTE) to achieve this and is therefore not compatible with other databases.
 
-NOTE: Not all methods which would benefit from CTEs use them yet. **This project is a work in progress. Again, this project is a work in progress.** While functional, it is not yet fully optimized.
-
 The primary purpose of this package is to *build* and *manipulate* DAGs within a Django project. If you are looking for graph *analysis* or *visualization*, this may not be the right package.
 
-Currently, django-postgresql-dag provides numerous methods for retrieving nodes, and a few for retrieving edges within the graph. In-progress are filters within the CTEs in order to limit the area of the graph to be searched, ability to easily export to NetworkX, and other improvements and utilities.
+All core traversal methods (`ancestors()`, `descendants()`, `path()`, `connected_graph()`, tree methods, `roots()`, `leaves()`, edge queries, etc.) use CTE-based queries. The library also supports CTE filters (`disallow_nodes`, `allow_nodes`, `limiting_edges_set_fk`) to limit the area of the graph searched, and optional NetworkX export via the `transforms` extra.
 
 ## Demo
 

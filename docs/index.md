@@ -1,27 +1,14 @@
-Welcome to django-postgresql-dag's documentation!
-=================================================
+# django-postgresql-dag
 
+```{include} ../README.md
+```
 
+```{toctree}
+:maxdepth: 2
 
-Contents
-^^^^^^^^
+quickstart
+methods
+transformations
+```
 
-.. toctree::
-   :maxdepth: 2
-
-   quickstart
-   methods
-   transformations
-
-
-View this project on `Github`_.
-
-.. _Github: https://github.com/OmenApps/django-postgresql-dag
-
-Indices and tables
-^^^^^^^^^^^^^^^^^^
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
-
+View this project on [GitHub](https://github.com/OmenApps/django-postgresql-dag).

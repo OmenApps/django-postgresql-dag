@@ -1,0 +1,7 @@
+Sphinx==8.2.3
+myst-parser==4.0.1
+furo==2024.8.6
+linkify-it-py==2.0.3
+sphinx-copybutton==0.5.2
+sphinx-togglebutton==0.3.2
+sphinxcontrib-mermaid==1.0.0

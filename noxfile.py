@@ -61,3 +61,20 @@ def coverage(session: nox.Session) -> None:
     session.install("coverage[toml]")
     session.run("coverage", "combine", success_codes=[0, 1])
     session.run("coverage", "report")
+
+
+@nox.session(name="docs-build", python=PYTHON_STABLE_VERSION)
+def docs_build(session: nox.Session) -> None:
+    """Build the documentation."""
+    session.install("-r", "docs/requirements.txt")
+    session.install(".")
+    session.run("sphinx-build", "docs", "docs/_build")
+
+
+@nox.session(name="docs", python=PYTHON_STABLE_VERSION)
+def docs(session: nox.Session) -> None:
+    """Build and serve the documentation with live reload."""
+    session.install("-r", "docs/requirements.txt")
+    session.install("sphinx-autobuild")
+    session.install(".")
+    session.run("sphinx-autobuild", "docs", "docs/_build", "--open-browser")

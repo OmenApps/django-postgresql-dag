@@ -1,15 +1,10 @@
-Methods on Node and Edge
-========================
+# Methods on Node and Edge
 
 *Listed below are the methods that are useful for building/manipulating/querying the graph. We ignore here the methods used only for internal functionality.*
 
-Node
-^^^^
+## Node
 
-
-Manager Methods
-"""""""""""""""
-
+### Manager Methods
 
 **roots(self, node=None)**
 
@@ -19,12 +14,9 @@ Returns a Queryset of all root nodes (nodes with no parents) in the Node model. 
 
 Returns a Queryset of all leaf nodes (nodes with no children) in the Node model. If a node instance is specified, returns only the leaves for that node.
 
+### Model Methods
 
-Model Methods
-"""""""""""""
-
-Methods used for building/manipulating
-**************************************
+#### Methods used for building/manipulating
 
 **add_child(self, child, \*\*kwargs)**
 
@@ -42,10 +34,7 @@ Provided with a Node instance, attaches the current instance as a child to the p
 
 Removes the edge connecting this node to parent if a parent Node instance is provided, otherwise removes the edges connecting to all parents. Optionally deletes the parent node(s) as well.
 
-
-
-Methods used for querying
-*************************
+#### Methods used for querying
 
 **ancestors(self, \*\*kwargs)**
 
@@ -161,9 +150,7 @@ Provided an ending_node Node instance, returns True if the provided Node instanc
 
 **node_depth(self)**
 
-Returns an integer representing the depth of this Node instance from furthest root
-
-*Not yet implemented*
+Returns an integer representing the depth of this Node instance from furthest root. Uses a recursive CTE to find the longest path to any root node. Returns 0 for root nodes and island nodes.
 
 **connected_graph(self, \*\*kwargs)**
 
@@ -191,27 +178,19 @@ Returns a QuerySet of all leaf nodes, if any, for the current Node
 
 **descendants_edges(self)**
 
-Returns a QuerySet of descendant Edge instances for the current Node
+Returns a QuerySet of descendant Edge instances for the current Node, topologically sorted from root-side to leaf-side.
 
 **ancestors_edges(self)**
 
-Returns a QuerySet of ancestor Edge instances for the current Node
+Returns a QuerySet of ancestor Edge instances for the current Node, topologically sorted from root-side to leaf-side.
 
 **clan_edges(self)**
 
 Returns a QuerySet of all Edge instances associated with a given node
 
+## Edge
 
-
-
-
-Edge
-^^^^
-
-
-Manager Methods
-"""""""""""""""
-
+### Manager Methods
 
 **from_nodes_queryset(self, nodes_queryset)**
 
@@ -235,15 +214,11 @@ Returns a QuerySet of all Edge instances for the shortest path from start_node t
 
 **validate_route(self, edges, \*\*kwargs)**
 
-Given a list or set of Edge instances, verify that they result in a contiguous route
-
-*Not yet implemented.*
+Given an ordered list of Edge instances, verify that they result in a contiguous route. Returns `True` if each edge's child matches the next edge's parent, `False` otherwise. A single edge or empty list is always valid.
 
 **sort(self, edges, \*\*kwargs)**
 
-Given a list or set of Edge instances, sort them from root-side to leaf-side
-
-*Not yet implemented.*
+Given a list or set of Edge instances, sort them from root-side to leaf-side. Uses `node_depth()` to determine topological position and returns a sorted list.
 
 **insert_node(self, edge, node, clone_to_rootside=False, clone_to_leafside=False, pre_save=None, post_save=None)**
 
@@ -260,41 +235,40 @@ The instance will still exist in memory, though not in database (https://docs.dj
 
 Cloning will fail if a field has unique=True, so a pre_save function can be passed into this method. Likewise, a post_save function can be passed in to rebuild relationships. For instance, if you have a `name` field that is unique and generated automatically in the model's save() method, you could pass in a the following `pre_save` function to clear the name prior to saving the new Edge instance(s):
 
-::
-
-    def pre_save(new_edge):
-        new_edge.name = ""
-        return new_edge
+```python
+def pre_save(new_edge):
+    new_edge.name = ""
+    return new_edge
+```
 
 A more complete example, where we have models named NetworkEdge & NetworkNode, and we want to insert a new Node (n2) into Edge e1, while copying e1's field properties (except `name`) to the newly created rootside Edge instance (n1 to n2) is shown below.
 
-::
+```text
+Original        Final
 
-    Original        Final
+n1  o           n1  o
+    |                 \
+    |                  o n2
+    |                 /
+n3  o           n3  o
+```
 
-    n1  o           n1  o
-        |                 \
-        |                  o n2
-        |                 /
-    n3  o           n3  o
+```python
+from myapp.models import NetworkEdge, NetworkNode
 
+n1 = NetworkNode.objects.create(name="n1")
+n2 = NetworkNode.objects.create(name="n2")
+n3 = NetworkNode.objects.create(name="n3")
 
-::
+# Connect n3 to n1
+n1.add_child(n3)
 
-    from myapp.models import NetworkEdge, NetworkNode
+e1 = NetworkEdge.objects.last()
 
-    n1 = NetworkNode.objects.create(name="n1")
-    n2 = NetworkNode.objects.create(name="n2")
-    n3 = NetworkNode.objects.create(name="n3")
+# function to clear the `name` field, which is autogenerated and must be unique
+def pre_save(new_edge):
+    new_edge.name = ""
+    return new_edge
 
-    # Connect n3 to n1
-    n1.add_child(n3)
-
-    e1 = NetworkEdge.objects.last()
-
-    # function to clear the `name` field, which is autogenerated and must be unique
-    def pre_save(new_edge):
-        new_edge.name = ""
-        return new_edge
-
-    NetworkEdge.objects.insert_node(e1, n2, clone_to_rootside=True, pre_save=pre_save)
+NetworkEdge.objects.insert_node(e1, n2, clone_to_rootside=True, pre_save=pre_save)
+```
