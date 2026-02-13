@@ -6,18 +6,13 @@ query. These queries also topologically sort the ids by generation.
 """
 
 from copy import deepcopy
-from django.db import models
+
 from django.core.exceptions import ValidationError
+from django.db import models
 
 from .exceptions import NodeNotReachableException
+from .query_builders import AncestorQuery, ConnectedGraphQuery, DescendantQuery, DownwardPathQuery, UpwardPathQuery
 from .utils import _ordered_filter
-from .query_builders import (
-    AncestorQuery,
-    DescendantQuery,
-    UpwardPathQuery,
-    DownwardPathQuery,
-    ConnectedGraphQuery
-)
 
 
 class NodeManager(models.Manager):
@@ -41,8 +36,6 @@ class NodeManager(models.Manager):
 
 
 def node_factory(edge_model, children_null=True, base_model=models.Model):
-    edge_model_table = edge_model._meta.db_table
-
     class Node(base_model):
         children = models.ManyToManyField(
             "self",
@@ -618,18 +611,7 @@ def edge_factory(
     concrete=True,
     base_model=models.Model,
 ):
-
-    if isinstance(node_model, str):
-        try:
-            node_model_name = node_model.split(".")[1]
-        except IndexError:
-
-            node_model_name = node_model
-    else:
-        node_model_name = node_model._meta.model_name
-
     class Edge(base_model):
-
         # Get the current model's name for use in related_name
         qualname = locals()["__qualname__"]
         model_name = qualname.rsplit(".", 1)[-1].lower()

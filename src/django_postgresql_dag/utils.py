@@ -2,6 +2,7 @@
 Functions for transforming RawQuerySet or other outputs of
 django-postgresql-dag to alternate formats.
 """
+
 import inspect
 from itertools import chain
 
@@ -11,11 +12,7 @@ from django.db.models.fields import DateTimeField, UUIDField
 from django.db.models.fields.files import FileField, ImageField
 from django.db.models.fields.related import ManyToManyField
 
-from .exceptions import (
-    GraphModelsCannotBeParsedException,
-    IncorrectUsageException,
-    IncorrectQuerysetTypeException
-)
+from .exceptions import GraphModelsCannotBeParsedException, IncorrectQuerysetTypeException, IncorrectUsageException
 
 
 def _ordered_filter(queryset, field_names, values):
