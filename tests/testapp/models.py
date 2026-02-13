@@ -1,6 +1,6 @@
 from django.db import models
 
-from django_postgresql_dag.models import node_factory, edge_factory
+from django_postgresql_dag.models import edge_factory, node_factory
 
 
 class EdgeSet(models.Model):

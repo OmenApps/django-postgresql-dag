@@ -25,7 +25,9 @@ class BaseQuery(ABC):
         self.instance = instance
         self.starting_node = starting_node
         self.ending_node = ending_node
-        self.max_depth = max_depth if max_depth is not None else getattr(settings, "DJANGO_POSTGRESQL_DAG_MAX_DEPTH", 20)
+        self.max_depth = (
+            max_depth if max_depth is not None else getattr(settings, "DJANGO_POSTGRESQL_DAG_MAX_DEPTH", 20)
+        )
         self.limiting_nodes_set_fk = limiting_nodes_set_fk
         self.limiting_edges_set_fk = limiting_edges_set_fk
         self.disallowed_nodes_queryset = disallowed_nodes_queryset

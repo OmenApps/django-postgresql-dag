@@ -4,21 +4,20 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('testapp', '0002_networkedge_networknode_networkedge_child_and_more'),
+        ("testapp", "0002_networkedge_networknode_networkedge_child_and_more"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='FieldTestModel',
+            name="FieldTestModel",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.CharField(max_length=100)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('uuid_field', models.UUIDField(blank=True, null=True)),
-                ('file_field', models.FileField(blank=True, null=True, upload_to='test/')),
-                ('image_field', models.ImageField(blank=True, null=True, upload_to='test_images/')),
+                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                ("name", models.CharField(max_length=100)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("uuid_field", models.UUIDField(blank=True, null=True)),
+                ("file_field", models.FileField(blank=True, null=True, upload_to="test/")),
+                ("image_field", models.ImageField(blank=True, null=True, upload_to="test_images/")),
             ],
         ),
     ]

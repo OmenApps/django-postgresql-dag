@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import *  # noqa: F401, F403
+from .models import EdgeSet, NetworkEdge, NetworkNode, NodeSet
 
 
 @admin.register(EdgeSet)
