@@ -10,6 +10,20 @@ from .utils import (
     nodes_from_edges_queryset,
 )
 
+try:
+    import networkx as nx
+
+    HAS_NETWORKX = True
+except ImportError:
+    HAS_NETWORKX = False
+
+try:
+    import rustworkx as rx
+
+    HAS_RUSTWORKX = True
+except ImportError:
+    HAS_RUSTWORKX = False
+
 __all__ = [
     "_ordered_filter",
     "edges_from_nodes_queryset",
@@ -36,6 +50,12 @@ def nx_from_queryset(
     date_strf: if any provided fields are date-like, how should they be formatted?
     digraph: bool to determine whether to output a directed or undirected graph
     """
+    if not HAS_NETWORKX:
+        raise ImportError(
+            "networkx is required for nx_from_queryset(). "
+            "Install it with: pip install django-postgresql-dag[transforms]"
+        )
+
     _NodeModel, _EdgeModel, queryset_type = get_queryset_characteristics(queryset)
 
     if graph_attributes_dict is None:
