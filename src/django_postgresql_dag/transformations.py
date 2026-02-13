@@ -24,6 +24,7 @@ except ImportError:
 
 __all__ = [
     "_ordered_filter",
+    "json_from_queryset",
     "edges_from_nodes_queryset",
     "model_to_dict",
     "nodes_from_edges_queryset",
@@ -150,3 +151,54 @@ def rx_from_queryset(
         graph.add_edge(pk_to_index[edge.parent.pk], pk_to_index[edge.child.pk], edge_data)
 
     return graph
+
+
+def json_from_queryset(
+    queryset,
+    graph_attributes=None,
+    node_attribute_fields_list=None,
+    edge_attribute_fields_list=None,
+    date_strf=None,
+    digraph=False,
+):
+    """Builds a rustworkx graph from a queryset and serializes it to JSON using ``rx.node_link_json()``.
+
+    Returns a JSON string in node-link format. All attribute values are stringified
+    for JSON compatibility.
+
+    Optionally, the following can be supplied to add attributes to components of the generated graph:
+    graph_attributes: Any Python object to store as ``graph.attrs``
+    node_attribute_fields_list: a list of strings of field names to be added to nodes
+    edge_attribute_fields_list: a list of strings of field names to be added to edges
+    date_strf: if any provided fields are date-like, how should they be formatted?
+    digraph: bool to determine whether to output a directed or undirected graph
+    """
+    if not HAS_RUSTWORKX:
+        raise ImportError(
+            "rustworkx is required for json_from_queryset(). "
+            "Install it with: pip install django-postgresql-dag[rustworkx]"
+        )
+
+    graph = rx_from_queryset(
+        queryset,
+        graph_attributes=graph_attributes,
+        node_attribute_fields_list=node_attribute_fields_list,
+        edge_attribute_fields_list=edge_attribute_fields_list,
+        date_strf=date_strf,
+        digraph=digraph,
+    )
+
+    def _stringify_dict(data):
+        return {str(k): str(v) for k, v in data.items()}
+
+    def _stringify_graph_attrs(attrs):
+        if isinstance(attrs, dict):
+            return {str(k): str(v) for k, v in attrs.items()}
+        return {"attrs": str(attrs)}
+
+    return rx.node_link_json(
+        graph,
+        node_attrs=_stringify_dict,
+        edge_attrs=_stringify_dict,
+        graph_attrs=_stringify_graph_attrs,
+    )
