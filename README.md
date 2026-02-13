@@ -25,6 +25,17 @@ With optional dependencies for using transformations:
     pip install django-postgresql-dag[transforms]
 
 
+## Configuration
+
+You can optionally configure the default maximum traversal depth for all graph queries by adding this to your Django settings:
+
+```python
+# settings.py
+DJANGO_POSTGRESQL_DAG_MAX_DEPTH = 50  # default is 20
+```
+
+This sets the project-wide default for all graph traversal methods (`ancestors()`, `descendants()`, `path()`, etc.). You can still override it per-call by passing `max_depth=N` to any method.
+
 ## ToDo
 
 See the checklists in [issues](https://github.com/OmenApps/django-postgresql-dag/issues) to understand the future goals of this project.
