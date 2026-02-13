@@ -219,8 +219,16 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                         # exist and will still have data in its fields.
                         parent.delete()
 
+        @staticmethod
+        def _resolve_edge_type(kwargs):
+            """Pop ``edge_type`` from *kwargs* and translate it to ``limiting_edges_set_fk``."""
+            edge_type = kwargs.pop("edge_type", None)
+            if edge_type is not None:
+                kwargs.setdefault("limiting_edges_set_fk", edge_type)
+
         def ancestors_raw(self, **kwargs):
             """Return a raw QuerySet of all nodes in connected paths in a rootward direction."""
+            self._resolve_edge_type(kwargs)
             return AncestorQuery(instance=self, **kwargs).raw_queryset()
 
         def ancestors(self, **kwargs):
@@ -246,6 +254,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         def descendants_raw(self, **kwargs):
             """Return a raw QuerySet of all nodes in connected paths in a leafward direction."""
+            self._resolve_edge_type(kwargs)
             return DescendantQuery(instance=self, **kwargs).raw_queryset()
 
         def descendants(self, **kwargs):
@@ -271,6 +280,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         def clan(self, **kwargs):
             """Return a QuerySet with all ancestors nodes, self, and all descendant nodes."""
+            self._resolve_edge_type(kwargs)
             ancestor_pks = self._pks_from_raw(self.ancestors_raw(**kwargs))
             descendant_pks = self._pks_from_raw(self.descendants_raw(**kwargs))
             pks = ancestor_pks + [self.pk] + descendant_pks
@@ -310,6 +320,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             The resulting RawQueryset is sorted from root-side, toward
             leaf-side, regardless of the relative position of starting and ending nodes.
             """
+            self._resolve_edge_type(kwargs)
 
             if self == ending_node:
                 return [[self.pk]]
@@ -368,6 +379,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         def is_descendant_of(self, ending_node, **kwargs):
             """Provided an ending_node Node instance, returns True if the current Node instance is a descendant."""
+            self._resolve_edge_type(kwargs)
             # If self is an ancestor, it cannot also be a descendant.
             # Note: unlike is_ancestor_of, we don't need to catch NodeNotReachableException
             # here because path_raw with directional=False never raises it when a
@@ -409,6 +421,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         def connected_graph_raw(self, **kwargs):
             """Return a raw QuerySet of all nodes connected in any way to the current Node instance."""
+            self._resolve_edge_type(kwargs)
             return ConnectedGraphQuery(instance=self, **kwargs).raw_queryset()
 
         def connected_graph(self, **kwargs):
