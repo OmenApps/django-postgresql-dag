@@ -4,13 +4,13 @@ from django_postgresql_dag.models import node_factory, edge_factory
 
 
 class EdgeSet(models.Model):
-    """A model designed as a container for a set of edges"""
+    """A model designed as a container for a set of edges."""
 
     name = models.CharField(max_length=100)
 
 
 class NodeSet(models.Model):
-    """A model designed as a container for a set of nodes"""
+    """A model designed as a container for a set of nodes."""
 
     name = models.CharField(max_length=100)
 

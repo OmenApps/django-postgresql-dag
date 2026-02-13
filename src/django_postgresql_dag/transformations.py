@@ -1,7 +1,4 @@
-"""
-Functions for transforming RawQuerySet or other outputs of
-django-postgresql-dag to alternate formats.
-"""
+"""Functions for transforming RawQuerySet or other outputs of django-postgresql-dag to alternate formats."""
 
 import networkx as nx
 
@@ -30,8 +27,7 @@ def nx_from_queryset(
     date_strf=None,
     digraph=False,
 ):
-    """
-    Provided a queryset of nodes or edges, returns a NetworkX graph
+    """Provided a queryset of nodes or edges, returns a NetworkX graph.
 
     Optionally, the following can be supplied to add attributes to components of the generated graph:
     graph_attributes_dict: A dictionary of attributes to add to the graph itself

@@ -1,5 +1,4 @@
-"""
-ASGI config for testproject project.
+"""ASGI config for testproject project.
 
 It exposes the ASGI callable as a module-level variable named ``application``.
 

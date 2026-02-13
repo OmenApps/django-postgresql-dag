@@ -1,5 +1,4 @@
-"""
-A set of model classes to model hierarchies of objects following Directed Acyclic Graph structure.
+"""A set of model classes to model hierarchies of objects following Directed Acyclic Graph structure.
 
 The graph traversal queries use Postgresql's recursive CTEs to fetch an entire tree of related node ids in a single
 query. These queries also topologically sort the ids by generation.
@@ -17,18 +16,18 @@ from .utils import _ordered_filter
 
 class NodeManager(models.Manager):
     def roots(self, node=None):
-        """
-        Returns a Queryset of all root nodes (nodes with no parents) in the Node model. If a node instance is specified,
-        returns only the roots for that node.
+        """Return a Queryset of all root nodes (nodes with no parents) in the Node model.
+
+        If a node instance is specified, returns only the roots for that node.
         """
         if node is not None:
             return node.roots()
         return self.filter(parents__isnull=True)
 
     def leaves(self, node=None):
-        """
-        Returns a Queryset of all leaf nodes (nodes with no children) in the Node model. If a node instance is
-        specified, returns only the leaves for that node.
+        """Return a Queryset of all leaf nodes (nodes with no children) in the Node model.
+
+        If a node instance is specified, returns only the leaves for that node.
         """
         if node is not None:
             return node.leaves()
@@ -51,9 +50,9 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             abstract = True
 
         def get_foreign_key_field(self, fk_instance=None):
-            """
-            Provided a model instance, checks if the edge model has a ForeignKey field to the
-            model class of that instance, and then returns the associated field name, else None.
+            """Provided a model instance, checks if the edge model has a ForeignKey field to the model class.
+
+            Returns the associated field name if found, else None.
             """
             if fk_instance is not None:
                 for field in edge_model._meta.get_fields():
@@ -64,14 +63,18 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         def get_pk_name(self):
             """Sometimes we set a field other than 'pk' for the primary key.
+
             This method is used to get the correct primary key field name for the
-            model so that raw queries return the correct information."""
+            model so that raw queries return the correct information.
+            """
             return self._meta.pk.attname
 
         def get_pk_type(self):
             """The pkid class may be set to a non-default type per-model or across the project.
+
             This method is used to return the postgres type name for the primary key field so
-            that raw queries return the correct information."""
+            that raw queries return the correct information.
+            """
             django_pk_type = type(self._meta.pk).__name__
 
             if django_pk_type == "BigAutoField":
@@ -82,13 +85,11 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                 return "integer"
 
         def ordered_queryset_from_pks(self, pks):
-            """
-            Generates a queryset, based on the current class and ordered by the provided pks
-            """
+            """Generate a queryset, based on the current class and ordered by the provided pks."""
             return _ordered_filter(self.__class__.objects, "pk", pks)
 
         def add_child(self, child, **kwargs):
-            """Provided with a Node instance, attaches that instance as a child to the current Node instance"""
+            """Provided with a Node instance, attaches that instance as a child to the current Node instance."""
             kwargs.update({"parent": self, "child": child})
 
             disable_circular_check = kwargs.pop("disable_circular_check", False)
@@ -98,9 +99,9 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             return cls.save(disable_circular_check=disable_circular_check, allow_duplicate_edges=allow_duplicate_edges)
 
         def remove_child(self, child=None, delete_node=False):
-            """
-            Removes the edge connecting this node to child if a child Node instance is provided, otherwise removes
-            the edges connecting to all children. Optionally deletes the child(ren) node(s) as well.
+            """Remove the edge connecting this node to child if a child Node instance is provided.
+
+            Otherwise removes the edges connecting to all children. Optionally deletes the child(ren) node(s) as well.
             """
             if child is not None and child in self.children.all():
                 self.children.through.objects.filter(parent=self, child=child).delete()
@@ -121,13 +122,13 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                         child.delete()
 
         def add_parent(self, parent, *args, **kwargs):
-            """Provided with a Node instance, attaches the current instance as a child to the provided Node instance"""
+            """Provided with a Node instance, attaches the current instance as a child to the provided Node instance."""
             return parent.add_child(self, **kwargs)
 
         def remove_parent(self, parent=None, delete_node=False):
-            """
-            Removes the edge connecting this node to parent if a parent Node instance is provided, otherwise removes
-            the edges connecting to all parents. Optionally deletes the parent node(s) as well.
+            """Remove the edge connecting this node to parent if a parent Node instance is provided.
+
+            Otherwise removes the edges connecting to all parents. Optionally deletes the parent node(s) as well.
             """
             if parent is not None and parent in self.parents.all():
                 parent.children.through.objects.filter(parent=parent, child=self).delete()
@@ -148,55 +149,53 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                         parent.delete()
 
         def ancestors_raw(self, **kwargs):
-            """Returns a raw QuerySet of all nodes in connected paths in a rootward direction"""
+            """Return a raw QuerySet of all nodes in connected paths in a rootward direction."""
             return AncestorQuery(instance=self, **kwargs).raw_queryset()
 
         def ancestors(self, **kwargs):
-            """Returns a QuerySet of all nodes in connected paths in a rootward direction"""
+            """Return a QuerySet of all nodes in connected paths in a rootward direction."""
             pks = [item.pk for item in self.ancestors_raw(**kwargs)]
             return self.ordered_queryset_from_pks(pks)
 
         def ancestors_count(self):
-            """Returns an integer number representing the total number of ancestor nodes"""
+            """Return an integer number representing the total number of ancestor nodes."""
             return self.ancestors().count()
 
         def self_and_ancestors(self, **kwargs):
-            """Returns a QuerySet of all nodes in connected paths in a rootward direction, prepending with self"""
+            """Return a QuerySet of all nodes in connected paths in a rootward direction, prepending with self."""
             pks = [self.pk] + [item.pk for item in self.ancestors_raw(**kwargs)][::-1]
             return self.ordered_queryset_from_pks(pks)
 
         def ancestors_and_self(self, **kwargs):
-            """Returns a QuerySet of all nodes in connected paths in a rootward direction, appending with self"""
+            """Return a QuerySet of all nodes in connected paths in a rootward direction, appending with self."""
             pks = [item.pk for item in self.ancestors_raw(**kwargs)] + [self.pk]
             return self.ordered_queryset_from_pks(pks)
 
         def descendants_raw(self, **kwargs):
-            """Returns a raw QuerySet of all nodes in connected paths in a leafward direction"""
+            """Return a raw QuerySet of all nodes in connected paths in a leafward direction."""
             return DescendantQuery(instance=self, **kwargs).raw_queryset()
 
         def descendants(self, **kwargs):
-            """Returns a QuerySet of all nodes in connected paths in a leafward direction"""
+            """Return a QuerySet of all nodes in connected paths in a leafward direction."""
             pks = [item.pk for item in self.descendants_raw(**kwargs)]
             return self.ordered_queryset_from_pks(pks)
 
         def descendants_count(self):
-            """Returns an integer number representing the total number of descendant nodes"""
+            """Return an integer number representing the total number of descendant nodes."""
             return self.descendants().count()
 
         def self_and_descendants(self, **kwargs):
-            """Returns a QuerySet of all nodes in connected paths in a leafward direction, prepending with self"""
+            """Return a QuerySet of all nodes in connected paths in a leafward direction, prepending with self."""
             pks = [self.pk] + [item.pk for item in self.descendants_raw(**kwargs)]
             return self.ordered_queryset_from_pks(pks)
 
         def descendants_and_self(self, **kwargs):
-            """Returns a QuerySet of all nodes in connected paths in a leafward direction, appending with self"""
+            """Return a QuerySet of all nodes in connected paths in a leafward direction, appending with self."""
             pks = [item.pk for item in self.descendants_raw(**kwargs)] + [self.pk]
             return self.ordered_queryset_from_pks(pks)
 
         def clan(self, **kwargs):
-            """
-            Returns a QuerySet with all ancestors nodes, self, and all descendant nodes
-            """
+            """Return a QuerySet with all ancestors nodes, self, and all descendant nodes."""
             pks = (
                 [item.pk for item in self.ancestors_raw(**kwargs)]
                 + [self.pk]
@@ -205,37 +204,37 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             return self.ordered_queryset_from_pks(pks)
 
         def clan_count(self):
-            """Returns an integer number representing the total number of clan nodes"""
+            """Return an integer number representing the total number of clan nodes."""
             return self.clan().count()
 
         def siblings(self):
-            """Returns a QuerySet of all nodes that share a parent with this node, excluding self"""
+            """Return a QuerySet of all nodes that share a parent with this node, excluding self."""
             return self.siblings_with_self().exclude(pk=self.pk)
 
         def siblings_count(self):
-            """Returns count of all nodes that share a parent with this node"""
+            """Return count of all nodes that share a parent with this node."""
             return self.siblings().count()
 
         def siblings_with_self(self):
-            """Returns a QuerySet of all nodes that share a parent with this node and self"""
+            """Return a QuerySet of all nodes that share a parent with this node and self."""
             return self.__class__.objects.filter(parents__in=self.parents.all()).distinct()
 
         def partners(self):
-            """Returns a QuerySet of all nodes that share a child with this node"""
+            """Return a QuerySet of all nodes that share a child with this node."""
             return self.partners_with_self().exclude(pk=self.pk)
 
         def partners_count(self):
-            # Returns count of all nodes that share a child with this node
+            """Return count of all nodes that share a child with this node."""
             return self.partners().count()
 
         def partners_with_self(self):
-            # Returns all nodes that share a child with this node and self
+            """Return all nodes that share a child with this node and self."""
             return self.__class__.objects.filter(children__in=self.children.all()).distinct()
 
         def path_raw(self, ending_node, directional=True, **kwargs):
-            """
-            Returns shortest path from self to ending node, optionally in either
-            direction. The resulting RawQueryset is sorted from root-side, toward
+            """Return shortest path from self to ending node, optionally in either direction.
+
+            The resulting RawQueryset is sorted from root-side, toward
             leaf-side, regardless of the relative position of starting and ending nodes.
             """
 
@@ -253,18 +252,15 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             return path
 
         def path_exists(self, ending_node, **kwargs):
-            """
-            Given an ending Node instance, returns a boolean value determining whether there is a path from the current
-            Node instance to the ending Node instance
-            """
+            """Given an ending Node instance, returns a boolean determining whether there is a path to it."""
             try:
                 return len(list(self.path_raw(ending_node, **kwargs))) >= 1
             except NodeNotReachableException:
                 return False
 
         def path(self, ending_node, **kwargs):
-            """
-            Returns a QuerySet of the shortest path from self to ending node, optionally in either direction.
+            """Return a QuerySet of the shortest path from self to ending node, optionally in either direction.
+
             The resulting Queryset is sorted from root-side, toward leaf-side, regardless of the relative position of
             starting and ending nodes.
             """
@@ -272,85 +268,67 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             return self.ordered_queryset_from_pks(pks)
 
         def distance(self, ending_node, **kwargs):
-            """
-            Returns the shortest hops count to the target node
-            """
+            """Return the shortest hops count to the target node."""
             if self is ending_node:
                 return 0
             else:
                 return self.path(ending_node, **kwargs).count() - 1
 
         def is_root(self):
-            """
-            Returns True if the current Node instance has children, but no parents
-            """
+            """Return True if the current Node instance has children, but no parents."""
             return bool(self.children.exists() and not self.parents.exists())
 
         def is_leaf(self):
-            """
-            Returns True if the current Node instance has parents, but no children
-            """
+            """Return True if the current Node instance has parents, but no children."""
             return bool(self.parents.exists() and not self.children.exists())
 
         def is_island(self):
-            """
-            Returns True if the current Node instance has no parents nor children
-            """
+            """Return True if the current Node instance has no parents nor children."""
             return bool(not self.children.exists() and not self.parents.exists())
 
         def is_ancestor_of(self, ending_node, **kwargs):
-            """
-            Provided an ending_node Node instance, returns True if the current Node instance and is an ancestor of the
-            provided Node instance
-            """
+            """Provided an ending_node Node instance, returns True if the current Node instance is an ancestor."""
             try:
                 return len(self.path_raw(ending_node, **kwargs)) >= 1
             except NodeNotReachableException:
                 return False
 
         def is_descendant_of(self, ending_node, **kwargs):
-            """
-            Provided an ending_node Node instance, returns True if the current Node instance and is a descendant of the
-            provided Node instance
-            """
+            """Provided an ending_node Node instance, returns True if the current Node instance is a descendant."""
             return (
                 not self.is_ancestor_of(ending_node, **kwargs)
                 and len(self.path_raw(ending_node, directional=False, **kwargs)) >= 1
             )
 
         def is_sibling_of(self, ending_node):
-            """
-            Provided an ending_node Node instance, returns True if the provided Node instance and the current Node
-            instance share a parent Node
-            """
+            """Provided an ending_node Node instance, returns True if this node and the ending node share a parent."""
             return ending_node in self.siblings()
 
         def is_partner_of(self, ending_node):
-            """
-            Provided an ending_node Node instance, returns True if the provided Node instance and the current Node
-            instance share a child Node
-            """
+            """Provided an ending_node Node instance, returns True if this node and the ending node share a child."""
             return ending_node in self.partners()
 
         def node_depth(self):
+            """Return an integer representing the depth of this Node instance from furthest root."""
             """Returns an integer representing the depth of this Node instance from furthest root"""
             # ToDo: Implement
             pass
 
         def connected_graph_raw(self, **kwargs):
-            """Returns a raw QuerySet of  all nodes connected in any way to the current Node instance"""
+            """Return a raw QuerySet of all nodes connected in any way to the current Node instance."""
             return ConnectedGraphQuery(instance=self, **kwargs).raw_queryset()
 
         def connected_graph(self, **kwargs):
-            """Returns a QuerySet of all nodes connected in any way to the current Node instance"""
+            """Return a QuerySet of all nodes connected in any way to the current Node instance."""
             pks = [item.pk for item in self.connected_graph_raw(**kwargs)]
             return self.ordered_queryset_from_pks(pks)
 
         def connected_graph_node_count(self, **kwargs):
-            """Returns the number of nodes in the graph connected in any way to the current Node instance"""
+            """Return the number of nodes in the graph connected in any way to the current Node instance."""
             return len(list(self.connected_graph_raw()))
 
         def descendants_tree(self):
+            """Return a tree-like structure with descendants for the current Node."""
             """
             Returns a tree-like structure with descendants for the current Node
             """
@@ -361,6 +339,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             return tree
 
         def ancestors_tree(self):
+            """Return a tree-like structure with ancestors for the current Node."""
             """
             Returns a tree-like structure with ancestors for the current Node
             """
@@ -382,6 +361,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             return roots
 
         def roots(self):
+            """Return a QuerySet of all root nodes, if any, for the current Node."""
             """
             Returns a QuerySet of all root nodes, if any, for the current Node
             """
@@ -406,6 +386,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             return leaves
 
         def leaves(self):
+            """Return a QuerySet of all leaf nodes, if any, for the current Node."""
             """
             Returns a QuerySet of all leaf nodes, if any, for the current Node
             """
@@ -419,8 +400,9 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             return leaves
 
         def descendants_edges(self):
-            """
-            Returns a QuerySet of descendant Edge instances for the current Node
+            """Return a QuerySet of descendant Edge instances for the current Node.
+
+            Topologically sorted from root-side to leaf-side.
             """
             # ToDo: Perform topological sort
             return edge_model.objects.filter(
@@ -429,8 +411,9 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             )
 
         def ancestors_edges(self):
-            """
-            Returns a QuerySet of ancestor Edge instances for the current Node
+            """Return a QuerySet of ancestor Edge instances for the current Node.
+
+            Topologically sorted from root-side to leaf-side.
             """
             # ToDo: Perform topological sort
             return edge_model.objects.filter(
@@ -439,9 +422,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             )
 
         def clan_edges(self):
-            """
-            Returns a QuerySet of all Edge instances associated with a given node
-            """
+            """Return a QuerySet of all Edge instances associated with a given node."""
             return self.ancestors_edges() | self.descendants_edges()
 
         @staticmethod
@@ -459,37 +440,27 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
 class EdgeManager(models.Manager):
     def from_nodes_queryset(self, nodes_queryset):
-        """
-        Provided a QuerySet of nodes, returns a QuerySet of all Edge instances where a parent and child Node are within
-        the QuerySet of nodes
-        """
+        """Provided a QuerySet of nodes, returns a QuerySet of all Edge instances within the nodes."""
         return _ordered_filter(self.model.objects, ["parent", "child"], nodes_queryset)
 
     def descendants(self, node, **kwargs):
-        """
-        Returns a QuerySet of all Edge instances descended from the given Node instance
-        """
+        """Return a QuerySet of all Edge instances descended from the given Node instance."""
         return _ordered_filter(self.model.objects, "parent", node.self_and_descendants(**kwargs))
 
     def ancestors(self, node, **kwargs):
-        """
-        Returns a QuerySet of all Edge instances which are ancestors of the given Node instance
-        """
+        """Return a QuerySet of all Edge instances which are ancestors of the given Node instance."""
         return _ordered_filter(self.model.objects, "child", node.ancestors_and_self(**kwargs))
 
     def clan(self, node, **kwargs):
-        """
-        Returns a QuerySet of all Edge instances for ancestors, self, and descendants
-        """
+        """Return a QuerySet of all Edge instances for ancestors, self, and descendants."""
         return self.from_nodes_queryset(node.clan(**kwargs))
 
     def path(self, start_node, end_node, **kwargs):
-        """
-        Returns a QuerySet of all Edge instances for the shortest path from start_node to end_node
-        """
+        """Return a QuerySet of all Edge instances for the shortest path from start_node to end_node."""
         return self.from_nodes_queryset(start_node.path(end_node, **kwargs))
 
     def validate_route(self, edges, **kwargs):
+        """Given a list or set of Edge instances, verify that they result in a contiguous route."""
         """
         Given a list or set of Edge instances, verify that they result in a contiguous route
         """
@@ -497,6 +468,7 @@ class EdgeManager(models.Manager):
         pass
 
     def sort(self, edges, **kwargs):
+        """Given a list or set of Edge instances, sort them from root-side to leaf-side."""
         """
         Given a list or set of Edge instances, sort them from root-side to leaf-side
         """
@@ -504,8 +476,9 @@ class EdgeManager(models.Manager):
         pass
 
     def insert_node(self, edge, node, clone_to_rootside=False, clone_to_leafside=False, pre_save=None, post_save=None):
-        """
-        Inserts a node into an existing Edge instance. Returns a tuple of the newly created rootside_edge (parent to
+        """Insert a node into an existing Edge instance.
+
+        Returns a tuple of the newly created rootside_edge (parent to
         the inserted node) and leafside_edge (child to the inserted node).
 
         Process:

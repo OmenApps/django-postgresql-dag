@@ -1,7 +1,4 @@
-"""
-Functions for transforming RawQuerySet or other outputs of
-django-postgresql-dag to alternate formats.
-"""
+"""Functions for transforming RawQuerySet or other outputs of django-postgresql-dag to alternate formats."""
 
 import inspect
 from itertools import chain
@@ -16,14 +13,13 @@ from .exceptions import GraphModelsCannotBeParsedException, IncorrectQuerysetTyp
 
 
 def _ordered_filter(queryset, field_names, values):
-    """
-    Filters the provided queryset for 'field_name__in values' for each given field_name in [field_names]
-    orders results in the same order as provided values
+    """Filter the provided queryset for 'field_name__in values' for each given field_name in [field_names].
+
+    Orders results in the same order as provided values.
 
         For instance
             _ordered_filter(self.__class__.objects, "pk", pks)
-        returns a queryset of the current class, with instances where the 'pk' field matches an pk in pks
-
+        returns a queryset of the current class, with instances where the 'pk' field matches a pk in pks.
     """
     if not isinstance(field_names, list):
         field_names = [field_names]
@@ -37,10 +33,7 @@ def _ordered_filter(queryset, field_names, values):
 
 
 def get_instance_characteristics(instance):
-    """
-    Returns a tuple of the node & edge model classes and the instance_type
-    for the provided instance
-    """
+    """Return a tuple of the node & edge model classes and the instance_type for the provided instance."""
     try:
         # Assume a queryset of nodes was provided
         _NodeModel = instance._meta.model
@@ -58,10 +51,7 @@ def get_instance_characteristics(instance):
 
 
 def get_queryset_characteristics(queryset):
-    """
-    Returns a tuple of the node & edge model classes and the queryset type
-    for the provided queryset
-    """
+    """Return a tuple of the node & edge model classes and the queryset type for the provided queryset."""
     try:
         # Assume a queryset of nodes was provided
         _NodeModel = queryset.model
@@ -79,11 +69,11 @@ def get_queryset_characteristics(queryset):
 
 
 def model_to_dict(instance, fields=None, date_strf=None):
-    """
-    Returns a dictionary of {field_name: field_value} for a given model instance
+    """Return a dictionary of {field_name: field_value} for a given model instance.
+
     e.g.: model_to_dict(myqueryset.first(), fields=["id",])
 
-    For DateTimeFields, a formatting string can be provided
+    For DateTimeFields, a formatting string can be provided.
 
     Adapted from: https://ziwon.github.io/post/using_custom_model_to_dict_in_django/
     """
@@ -157,8 +147,7 @@ def model_to_dict(instance, fields=None, date_strf=None):
 
 
 def edges_from_nodes_queryset(nodes_queryset):
-    """Given an Edge Model and a QuerySet or RawQuerySet of nodes,
-    returns a queryset of the associated edges"""
+    """Given an Edge Model and a QuerySet or RawQuerySet of nodes, returns a queryset of the associated edges."""
     _NodeModel, _EdgeModel, queryset_type = get_queryset_characteristics(nodes_queryset)
 
     if queryset_type == "nodes_queryset":
@@ -167,8 +156,7 @@ def edges_from_nodes_queryset(nodes_queryset):
 
 
 def nodes_from_edges_queryset(edges_queryset):
-    """Given a Node Model and a QuerySet or RawQuerySet of edges,
-    returns a queryset of the associated nodes"""
+    """Given a Node Model and a QuerySet or RawQuerySet of edges, returns a queryset of the associated nodes."""
     _NodeModel, _EdgeModel, queryset_type = get_queryset_characteristics(edges_queryset)
 
     if queryset_type == "edges_queryset":

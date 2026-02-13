@@ -7,9 +7,7 @@ from .utils import get_instance_characteristics
 
 
 class BaseQuery(ABC):
-    """
-    Base Query Class
-    """
+    """Base Query Class."""
 
     def __init__(
         self,
@@ -69,10 +67,10 @@ class BaseQuery(ABC):
         return self.starting_node
 
     def limit_to_nodes_set_fk(self):
-        """
-        Limits the search to those nodes which are included in a ForeignKey's node set
-            ToDo: Currently fails in the case that the starting node is not in the
-              set of nodes related by the ForeignKey, but is adjacend to one that is
+        """Limit the search to those nodes which are included in a ForeignKey's node set.
+
+        ToDo: Currently fails in the case that the starting node is not in the
+          set of nodes related by the ForeignKey, but is adjacent to one that is.
         """
         if not self.limiting_nodes_set_fk:
             return
@@ -81,14 +79,14 @@ class BaseQuery(ABC):
 
     @abstractmethod
     def _limit_to_nodes_set_fk(self):
-        """Helper method. Override this method in subclasses"""
+        """Helper method. Override this method in subclasses."""
         return
 
     def limit_to_edges_set_fk(self):
-        """
-        Limits the search to those nodes which connect to edges defined in a ForeignKey's edge set
-            ToDo: Currently fails in the case that the starting node is not in the
-              set of nodes related by the ForeignKey, but is adjacend to one that is
+        """Limit the search to those nodes which connect to edges defined in a ForeignKey's edge set.
+
+        ToDo: Currently fails in the case that the starting node is not in the
+          set of nodes related by the ForeignKey, but is adjacent to one that is.
         """
         if not self.limiting_edges_set_fk:
             return
@@ -97,13 +95,11 @@ class BaseQuery(ABC):
 
     @abstractmethod
     def _limit_to_edges_set_fk(self):
-        """Helper method. Override this method in subclasses"""
+        """Helper method. Override this method in subclasses."""
         return
 
     def disallow_nodes(self):
-        """
-        A queryset of Nodes that MUST NOT be included in the query
-        """
+        """A queryset of Nodes that MUST NOT be included in the query."""
         if not self.disallowed_nodes_queryset:
             return
         else:
@@ -111,13 +107,11 @@ class BaseQuery(ABC):
 
     @abstractmethod
     def _disallow_nodes(self):
-        """Helper method. Override this method in subclasses"""
+        """Helper method. Override this method in subclasses."""
         return
 
     def disallow_edges(self):
-        """
-        A queryset of Edges that MUST NOT be included in the query
-        """
+        """A queryset of Edges that MUST NOT be included in the query."""
         if not self.disallowed_edges_queryset:
             return
         else:
@@ -125,13 +119,11 @@ class BaseQuery(ABC):
 
     @abstractmethod
     def _disallow_edges(self):
-        """Helper method. Override this method in subclasses"""
+        """Helper method. Override this method in subclasses."""
         return
 
     def allow_nodes(self):
-        """
-        A queryset of Edges that MAY be included in the query
-        """
+        """A queryset of Nodes that MAY be included in the query."""
         if not self.allowed_nodes_queryset:
             return
         else:
@@ -139,13 +131,11 @@ class BaseQuery(ABC):
 
     @abstractmethod
     def _allow_nodes(self):
-        """Helper method. Override this method in subclasses"""
+        """Helper method. Override this method in subclasses."""
         return
 
     def allow_edges(self):
-        """
-        A queryset of Edges that MAY be included in the query
-        """
+        """A queryset of Edges that MAY be included in the query."""
         if not self.allowed_edges_queryset:
             return
         else:
@@ -153,12 +143,12 @@ class BaseQuery(ABC):
 
     @abstractmethod
     def _allow_edges(self):
-        """Helper method. Override this method in subclasses"""
+        """Helper method. Override this method in subclasses."""
         return
 
     @abstractmethod
     def raw_queryset(self):
-        """Returns the RawQueryset for this query. Should be extended in child classes"""
+        """Return the RawQueryset for this query. Should be extended in child classes."""
 
         # Set the query clauses here, rather than in init so that we don't keep adding to the
         # clauses each time we check/utilize raw_queryset()
@@ -175,22 +165,20 @@ class BaseQuery(ABC):
         return
 
     def id_list(self):
-        """Returns a list of ids in the resulting query"""
+        """Return a list of ids in the resulting query."""
         return [item.pk for item in self.raw_queryset()]
 
     def __str__(self):
-        """Returns a string representation of the RawQueryset"""
+        """Return a string representation of the RawQueryset."""
         return str(self.raw_queryset())
 
     def __repr__(self):
-        """Returns a string representation of the RawQueryset"""
+        """Return a string representation of the RawQueryset."""
         return str(self.raw_queryset())
 
 
 class AncestorQuery(BaseQuery):
-    """
-    Ancestor Query Class
-    """
+    """Ancestor Query Class."""
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -306,9 +294,7 @@ class AncestorQuery(BaseQuery):
 
 
 class DescendantQuery(BaseQuery):
-    """
-    Descendant Query Class
-    """
+    """Descendant Query Class."""
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -418,9 +404,7 @@ class DescendantQuery(BaseQuery):
 
 
 class ConnectedGraphQuery(BaseQuery):
-    """
-    Queries for the entire graph of nodes connected to the provided instance node
-    """
+    """Queries for the entire graph of nodes connected to the provided instance node."""
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -475,9 +459,7 @@ class ConnectedGraphQuery(BaseQuery):
 
 
 class UpwardPathQuery(BaseQuery):
-    """
-    Upward Path Query Class
-    """
+    """Upward Path Query Class."""
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -577,9 +559,7 @@ class UpwardPathQuery(BaseQuery):
 
 
 class DownwardPathQuery(BaseQuery):
-    """
-    Downward Path Query Class
-    """
+    """Downward Path Query Class."""
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
