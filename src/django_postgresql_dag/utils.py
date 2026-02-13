@@ -167,23 +167,8 @@ def nodes_from_edges_queryset(edges_queryset):
     _NodeModel, _EdgeModel, queryset_type = get_queryset_characteristics(edges_queryset)
 
     if queryset_type == "edges_queryset":
-
-        nodes_list = (
-            _ordered_filter(
-                _NodeModel.objects,
-                [
-                    f"{_NodeModel.__name__}_child",
-                ],
-                edges_queryset,
-            )
-            | _ordered_filter(
-                _NodeModel.objects,
-                [
-                    f"{_NodeModel.__name__}_parent",
-                ],
-                edges_queryset,
-            )
-        ).values_list("pk")
-
-        return _NodeModel.objects.filter(pk__in=nodes_list)
+        parent_pks = edges_queryset.values_list("parent_id", flat=True)
+        child_pks = edges_queryset.values_list("child_id", flat=True)
+        all_pks = set(parent_pks) | set(child_pks)
+        return _NodeModel.objects.filter(pk__in=all_pks)
     raise IncorrectQuerysetTypeException
