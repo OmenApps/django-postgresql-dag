@@ -49,6 +49,58 @@ class NodeManager(models.Manager):
             all_pks -= component_pks
         return components
 
+    def graph_stats(self):
+        """Return a dict with graph metrics: node_count, edge_count, root_count, leaf_count,
+        island_count, max_depth, avg_depth, density, component_count.
+
+        Note: calls node_depth() per node. This method is good for analytics, not time-critical work.
+        """
+        nodes = self.all()
+        node_count = nodes.count()
+
+        if node_count == 0:
+            return {
+                "node_count": 0,
+                "edge_count": 0,
+                "root_count": 0,
+                "leaf_count": 0,
+                "island_count": 0,
+                "max_depth": 0,
+                "avg_depth": 0.0,
+                "density": 0.0,
+                "component_count": 0,
+            }
+
+        edge_model = self.model.children.through
+        edge_count = edge_model.objects.count()
+
+        root_count = self.roots().count()
+        leaf_count = self.leaves().count()
+
+        # Islands: nodes with no parents AND no children
+        island_count = self.filter(parents__isnull=True, children__isnull=True).count()
+
+        depths = [n.node_depth() for n in nodes]
+        max_depth = max(depths)
+        avg_depth = sum(depths) / len(depths)
+
+        density = edge_count / (node_count * (node_count - 1)) if node_count > 1 else 0.0
+
+        component_count = len(self.connected_components())
+
+        return {
+            "node_count": node_count,
+            "edge_count": edge_count,
+            "root_count": root_count,
+            "leaf_count": leaf_count,
+            "island_count": island_count,
+            "max_depth": max_depth,
+            "avg_depth": avg_depth,
+            "density": density,
+            "component_count": component_count,
+        }
+
+
 def node_factory(edge_model, children_null=True, base_model=models.Model):
     class Node(base_model):
         children = models.ManyToManyField(
