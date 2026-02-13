@@ -34,7 +34,7 @@ Provided with a Node instance, attaches that instance as a child to the current 
 
 Removes the edge connecting this node to child if a child Node instance is provided, otherwise removes the edges connecting to all children. Optionally deletes the child(ren) node(s) as well.
 
-**add_parent(self, parent, \\*args, \*\*kwargs)**
+**add_parent(self, parent, \*args, \*\*kwargs)**
 
 Provided with a Node instance, attaches the current instance as a child to the provided Node instance
 
