@@ -58,7 +58,7 @@ class BaseQuery(ABC):
                 self.instance_type,
             ) = get_instance_characteristics(self.starting_node)
         else:
-            raise ImproperlyConfigured("Either instance or both starting_node and ending_nod are required")
+            raise ImproperlyConfigured("Either instance or both starting_node and ending_node are required")
 
         self.edge_model_table = self.edge_model._meta.db_table
         super().__init__()
