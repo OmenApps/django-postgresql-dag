@@ -591,6 +591,7 @@ class UpwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
             SELECT path || ARRAY[%(ending_node)s]::{pk_type}[], depth FROM traverse
                 WHERE parent_id = %(ending_node)s
                 AND depth <= %(max_depth)s
+                ORDER BY depth, path
                 LIMIT 1
         ) AS x({pk_name});
         """
@@ -687,6 +688,7 @@ class DownwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
             SELECT path || ARRAY[%(ending_node)s]::{pk_type}[], depth FROM traverse
                 WHERE child_id = %(ending_node)s
                 AND depth <= %(max_depth)s
+                ORDER BY depth, path
                 LIMIT 1
         ) AS x({pk_name});
         """
