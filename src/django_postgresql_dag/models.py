@@ -10,6 +10,7 @@ from copy import deepcopy
 from django.core.exceptions import ValidationError
 from django.db import models
 
+from .debug import _dag_query_collector
 from .exceptions import NodeNotReachableException
 from .query_builders import AncestorQuery, ConnectedGraphQuery, DescendantQuery, DownwardPathQuery, UpwardPathQuery
 from .signals import post_edge_create, post_edge_delete, pre_edge_create, pre_edge_delete
@@ -430,6 +431,15 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             )
             SELECT COALESCE(MAX(depth), 0) FROM traverse
             """.format(pk_name=pk_name, edge_table=edge_table)
+            collector = _dag_query_collector.get(None)
+            if collector is not None:
+                collector.append(
+                    {
+                        "query_class": "node_depth",
+                        "sql": QUERY,
+                        "params": {"pk": self.pk},
+                    }
+                )
             with connection.cursor() as cursor:
                 cursor.execute(QUERY, [self.pk])
                 return cursor.fetchone()[0]

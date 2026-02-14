@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 
+from .debug import _dag_query_collector
 from .utils import get_instance_characteristics
 
 
@@ -174,6 +175,20 @@ class BaseQuery(ABC):
 
         return
 
+    def _execute_raw(self, sql_template, format_kwargs):
+        """Format the SQL template, optionally record it, and return a RawQuerySet."""
+        formatted_sql = sql_template.format(**format_kwargs)
+        collector = _dag_query_collector.get(None)
+        if collector is not None:
+            collector.append(
+                {
+                    "query_class": type(self).__name__,
+                    "sql": formatted_sql,
+                    "params": dict(self.query_parameters),
+                }
+            )
+        return self.node_model.objects.raw(formatted_sql, self.query_parameters)
+
     def id_list(self):
         """Return a list of ids in the resulting query."""
         return [item.pk for item in self.raw_queryset()]
@@ -326,14 +341,14 @@ class AncestorQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
         ORDER BY MAX(depth) DESC, {pk_name} ASC
         """
 
-        return self.node_model.objects.raw(
-            QUERY.format(
-                relationship_table=self.edge_model_table,
-                pk_name=self.instance.get_pk_name(),
-                where_clauses_part_1=self.where_clauses_part_1,
-                where_clauses_part_2=self.where_clauses_part_2,
-            ),
-            self.query_parameters,
+        return self._execute_raw(
+            QUERY,
+            {
+                "relationship_table": self.edge_model_table,
+                "pk_name": self.instance.get_pk_name(),
+                "where_clauses_part_1": self.where_clauses_part_1,
+                "where_clauses_part_2": self.where_clauses_part_2,
+            },
         )
 
 
@@ -430,14 +445,14 @@ class DescendantQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
         ORDER BY MAX(depth), {pk_name} ASC
         """
 
-        return self.node_model.objects.raw(
-            QUERY.format(
-                relationship_table=self.edge_model_table,
-                pk_name=self.instance.get_pk_name(),
-                where_clauses_part_1=self.where_clauses_part_1,
-                where_clauses_part_2=self.where_clauses_part_2,
-            ),
-            self.query_parameters,
+        return self._execute_raw(
+            QUERY,
+            {
+                "relationship_table": self.edge_model_table,
+                "pk_name": self.instance.get_pk_name(),
+                "where_clauses_part_1": self.where_clauses_part_1,
+                "where_clauses_part_2": self.where_clauses_part_2,
+            },
         )
 
 
@@ -486,13 +501,13 @@ class ConnectedGraphQuery(BaseQuery):
         FROM traverse;
         """
 
-        return self.node_model.objects.raw(
-            QUERY.format(
-                relationship_table=self.edge_model_table,
-                pk_name=self.instance.get_pk_name(),
-                pk_type=self.instance.get_pk_type(),
-            ),
-            self.query_parameters,
+        return self._execute_raw(
+            QUERY,
+            {
+                "relationship_table": self.edge_model_table,
+                "pk_name": self.instance.get_pk_name(),
+                "pk_type": self.instance.get_pk_type(),
+            },
         )
 
 
@@ -580,15 +595,15 @@ class UpwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
         ) AS x({pk_name});
         """
 
-        return self.node_model.objects.raw(
-            QUERY.format(
-                relationship_table=self.edge_model_table,
-                pk_name=self.starting_node.get_pk_name(),
-                pk_type=self.starting_node.get_pk_type(),
-                where_clauses_part_1=self.where_clauses_part_1,
-                where_clauses_part_2=self.where_clauses_part_2,
-            ),
-            self.query_parameters,
+        return self._execute_raw(
+            QUERY,
+            {
+                "relationship_table": self.edge_model_table,
+                "pk_name": self.starting_node.get_pk_name(),
+                "pk_type": self.starting_node.get_pk_type(),
+                "where_clauses_part_1": self.where_clauses_part_1,
+                "where_clauses_part_2": self.where_clauses_part_2,
+            },
         )
 
 
@@ -676,13 +691,13 @@ class DownwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
         ) AS x({pk_name});
         """
 
-        return self.node_model.objects.raw(
-            QUERY.format(
-                relationship_table=self.edge_model_table,
-                pk_name=self.starting_node.get_pk_name(),
-                pk_type=self.starting_node.get_pk_type(),
-                where_clauses_part_1=self.where_clauses_part_1,
-                where_clauses_part_2=self.where_clauses_part_2,
-            ),
-            self.query_parameters,
+        return self._execute_raw(
+            QUERY,
+            {
+                "relationship_table": self.edge_model_table,
+                "pk_name": self.starting_node.get_pk_name(),
+                "pk_type": self.starting_node.get_pk_type(),
+                "where_clauses_part_1": self.where_clauses_part_1,
+                "where_clauses_part_2": self.where_clauses_part_2,
+            },
         )
