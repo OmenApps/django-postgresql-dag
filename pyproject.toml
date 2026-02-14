@@ -90,6 +90,11 @@ source = [
     "*/site-packages",
 ]
 
+[tool.pyright]
+pythonVersion = "3.11"
+typeCheckingMode = "basic"
+include = ["src"]
+
 [dependency-groups]
 dev = [
     "bandit",

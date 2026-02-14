@@ -85,7 +85,8 @@ class log_queries:
         if collector is not None:
             self._log.queries = list(collector)
 
-        _dag_query_collector.reset(self._token)
+        if self._token is not None:
+            _dag_query_collector.reset(self._token)
 
         if self._capture_context is not None:
             self._capture_context.__exit__(exc_type, exc_val, exc_tb)

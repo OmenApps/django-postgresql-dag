@@ -93,8 +93,11 @@ def model_to_dict(instance, fields=None, date_strf=None):
 
         if isinstance(f, DateTimeField):
             dt = f.value_from_object(instance)
-            # Format based on format string provided, otherwise return a timestamp
-            data[f.name] = dt.strftime(date_strf) if date_strf else dt.timestamp()
+            if dt is None:
+                data[f.name] = None
+            else:
+                # Format based on format string provided, otherwise return a timestamp
+                data[f.name] = dt.strftime(date_strf) if date_strf else dt.timestamp()
 
         elif isinstance(f, ImageField):
             image = f.value_from_object(instance)
@@ -117,7 +120,7 @@ def model_to_dict(instance, fields=None, date_strf=None):
                     except IndexError:
                         data[f.name] = [item.pk if hasattr(item, "pk") else item for item in m2m_value]
                 elif hasattr(m2m_value, "_result_cache") and m2m_value._result_cache is not None:
-                    data[f.name] = [item.pk for item in m2m_value]
+                    data[f.name] = [item.pk for item in m2m_value]  # type: ignore[union-attr]
                 else:
                     try:
                         m2m_field = list(filter(lambda a: f.name in a and a.find("__") != -1, fields))[0]
@@ -127,7 +130,7 @@ def model_to_dict(instance, fields=None, date_strf=None):
                         data[f.name] = list(m2m_value.values_list("pk", flat=True))
             continue
 
-        if isinstance(f, UUIDField):
+        elif isinstance(f, UUIDField):
             uuid = f.value_from_object(instance)
             data[f.name] = str(uuid) if uuid else None
 

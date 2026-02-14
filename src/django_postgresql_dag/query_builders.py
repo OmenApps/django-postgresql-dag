@@ -65,9 +65,9 @@ class BaseQuery(ABC):
 
     def _get_node_instance(self):
         """Return the node instance to use for method calls like get_foreign_key_field."""
-        if self.instance is not None:
-            return self.instance
-        return self.starting_node
+        node = self.instance if self.instance is not None else self.starting_node
+        assert node is not None, "Either instance or starting_node must be set"
+        return node
 
     def limit_to_nodes_set_fk(self):
         """Limit the search to those nodes which are included in a ForeignKey's node set.
@@ -191,7 +191,7 @@ class BaseQuery(ABC):
 
     def id_list(self):
         """Return a list of ids in the resulting query."""
-        return [item.pk for item in self.raw_queryset()]
+        return [item.pk for item in self.raw_queryset()]  # type: ignore[union-attr]
 
     def __str__(self):
         """Return a string representation of the RawQueryset."""
@@ -207,22 +207,24 @@ class _AncestorDescendantEdgeFilterMixin:
 
     In these CTEs the anchor aliases the edge table as ``first`` while the
     recursive part references it by its real table name.
+
+    Note: this is a cooperative mixin — attributes come from BaseQuery via MRO.
     """
 
     def _disallow_edges(self):
-        self._add_filter_clause(
+        self._add_filter_clause(  # type: ignore[attr-defined]
             "AND first.id <> ALL(%(disallowed_edge_pks)s)",
-            f"AND {self.edge_model_table}.id <> ALL(%(disallowed_edge_pks)s)",  # nosec B608 — edge_model_table from Django model metadata
+            f"AND {self.edge_model_table}.id <> ALL(%(disallowed_edge_pks)s)",  # type: ignore[attr-defined]  # nosec B608 — edge_model_table from Django model metadata
             "disallowed_edge_pks",
-            self.disallowed_edges_queryset,
+            self.disallowed_edges_queryset,  # type: ignore[attr-defined]
         )
 
     def _allow_edges(self):
-        self._add_filter_clause(
+        self._add_filter_clause(  # type: ignore[attr-defined]
             "AND first.id = ANY(%(allowed_edge_pks)s)",
-            f"AND {self.edge_model_table}.id = ANY(%(allowed_edge_pks)s)",  # nosec B608 — edge_model_table from Django model metadata
+            f"AND {self.edge_model_table}.id = ANY(%(allowed_edge_pks)s)",  # type: ignore[attr-defined]  # nosec B608 — edge_model_table from Django model metadata
             "allowed_edge_pks",
-            self.allowed_edges_queryset,
+            self.allowed_edges_queryset,  # type: ignore[attr-defined]
         )
 
 
@@ -231,15 +233,17 @@ class _PathEdgeFilterMixin:
 
     In path CTEs both the anchor and recursive parts alias the edge table as
     ``first``, so the same clause is appended to both parts.
+
+    Note: this is a cooperative mixin — attributes come from BaseQuery via MRO.
     """
 
     def _disallow_edges(self):
         clause = "AND first.id <> ALL(%(disallowed_path_edge_pks)s)"
-        self._add_filter_clause(clause, clause, "disallowed_path_edge_pks", self.disallowed_edges_queryset)
+        self._add_filter_clause(clause, clause, "disallowed_path_edge_pks", self.disallowed_edges_queryset)  # type: ignore[attr-defined]
 
     def _allow_edges(self):
         clause = "AND first.id = ANY(%(allowed_path_edge_pks)s)"
-        self._add_filter_clause(clause, clause, "allowed_path_edge_pks", self.allowed_edges_queryset)
+        self._add_filter_clause(clause, clause, "allowed_path_edge_pks", self.allowed_edges_queryset)  # type: ignore[attr-defined]
 
 
 class AncestorQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
@@ -255,6 +259,7 @@ class AncestorQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
         return
 
     def _limit_to_edges_set_fk(self):
+        assert self.limiting_edges_set_fk is not None
         LIMITING_EDGES_SET_FK_CLAUSE_1 = """AND second.{fk_field_name}_id = %(limiting_edges_set_fk_pk)s"""
         LIMITING_EDGES_SET_FK_CLAUSE_2 = (
             """AND {relationship_table}.{fk_field_name}_id = %(limiting_edges_set_fk_pk)s"""
@@ -275,6 +280,7 @@ class AncestorQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
         return
 
     def _disallow_nodes(self):
+        assert self.disallowed_nodes_queryset is not None
         DISALLOWED_NODES_CLAUSE_1 = """AND first.parent_id <> ALL(%(disallowed_node_pks)s)"""
         DISALLOWED_NODES_CLAUSE_2 = """AND {relationship_table}.parent_id <> ALL(%(disallowed_node_pks)s)"""
 
@@ -289,6 +295,7 @@ class AncestorQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
         return
 
     def _allow_nodes(self):
+        assert self.allowed_nodes_queryset is not None
         ALLOWED_NODES_CLAUSE_1 = """AND first.parent_id = ANY(%(allowed_node_pks)s)"""
         ALLOWED_NODES_CLAUSE_2 = """AND {relationship_table}.parent_id = ANY(%(allowed_node_pks)s)"""
 
@@ -303,6 +310,7 @@ class AncestorQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
         return
 
     def raw_queryset(self):
+        assert self.instance is not None
         super().raw_queryset()
 
         QUERY = """
@@ -357,6 +365,7 @@ class DescendantQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
         return
 
     def _limit_to_edges_set_fk(self):
+        assert self.limiting_edges_set_fk is not None
         LIMITING_EDGES_SET_FK_CLAUSE_1 = """AND second.{fk_field_name}_id = %(limiting_edges_set_fk_pk)s"""
         LIMITING_EDGES_SET_FK_CLAUSE_2 = (
             """AND {relationship_table}.{fk_field_name}_id = %(limiting_edges_set_fk_pk)s"""
@@ -377,6 +386,7 @@ class DescendantQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
         return
 
     def _disallow_nodes(self):
+        assert self.disallowed_nodes_queryset is not None
         DISALLOWED_NODES_CLAUSE_1 = """AND first.child_id <> ALL(%(disallowed_node_pks)s)"""
         DISALLOWED_NODES_CLAUSE_2 = """AND {relationship_table}.child_id <> ALL(%(disallowed_node_pks)s)"""
 
@@ -391,6 +401,7 @@ class DescendantQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
         return
 
     def _allow_nodes(self):
+        assert self.allowed_nodes_queryset is not None
         ALLOWED_NODES_CLAUSE_1 = """AND first.child_id = ANY(%(allowed_node_pks)s)"""
         ALLOWED_NODES_CLAUSE_2 = """AND {relationship_table}.child_id = ANY(%(allowed_node_pks)s)"""
 
@@ -405,6 +416,7 @@ class DescendantQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
         return
 
     def raw_queryset(self):
+        assert self.instance is not None
         super().raw_queryset()
 
         QUERY = """
@@ -468,6 +480,7 @@ class ConnectedGraphQuery(BaseQuery):
         return
 
     def raw_queryset(self):
+        assert self.instance is not None
         super().raw_queryset()
 
         QUERY = """
@@ -508,6 +521,7 @@ class UpwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
         return
 
     def _limit_to_edges_set_fk(self):
+        assert self.limiting_edges_set_fk is not None
         LIMITING_EDGES_SET_FK_CLAUSE = """AND first.{fk_field_name}_id = %(limiting_edges_set_fk_pk)s"""
 
         fk_field_name = self._get_node_instance().get_foreign_key_field(fk_instance=self.limiting_edges_set_fk)
@@ -521,6 +535,7 @@ class UpwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
         return
 
     def _disallow_nodes(self):
+        assert self.disallowed_nodes_queryset is not None
         DISALLOWED_NODES_CLAUSE = """AND second.parent_id <> ALL(%(disallowed_path_node_pks)s)"""
 
         self.where_clauses_part_2 += "\n" + DISALLOWED_NODES_CLAUSE
@@ -531,6 +546,7 @@ class UpwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
         return
 
     def _allow_nodes(self):
+        assert self.allowed_nodes_queryset is not None
         ALLOWED_NODES_CLAUSE = """AND second.parent_id = ANY(%(allowed_path_node_pks)s)"""
 
         self.where_clauses_part_2 += "\n" + ALLOWED_NODES_CLAUSE
@@ -539,6 +555,7 @@ class UpwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
         return
 
     def raw_queryset(self):
+        assert self.starting_node is not None
         super().raw_queryset()
 
         QUERY = """
@@ -603,6 +620,7 @@ class DownwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
         return
 
     def _limit_to_edges_set_fk(self):
+        assert self.limiting_edges_set_fk is not None
         LIMITING_EDGES_SET_FK_CLAUSE = """AND first.{fk_field_name}_id = %(limiting_edges_set_fk_pk)s"""
 
         fk_field_name = self._get_node_instance().get_foreign_key_field(fk_instance=self.limiting_edges_set_fk)
@@ -616,6 +634,7 @@ class DownwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
         return
 
     def _disallow_nodes(self):
+        assert self.disallowed_nodes_queryset is not None
         DISALLOWED_NODES_CLAUSE = """AND second.child_id <> ALL(%(disallowed_path_node_pks)s)"""
 
         self.where_clauses_part_2 += "\n" + DISALLOWED_NODES_CLAUSE
@@ -626,6 +645,7 @@ class DownwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
         return
 
     def _allow_nodes(self):
+        assert self.allowed_nodes_queryset is not None
         ALLOWED_NODES_CLAUSE = """AND second.child_id = ANY(%(allowed_path_node_pks)s)"""
 
         self.where_clauses_part_2 += "\n" + ALLOWED_NODES_CLAUSE
@@ -634,6 +654,7 @@ class DownwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
         return
 
     def raw_queryset(self):
+        assert self.starting_node is not None
         super().raw_queryset()
 
         QUERY = """

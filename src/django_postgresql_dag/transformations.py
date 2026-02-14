@@ -10,17 +10,17 @@ from .utils import (
 
 try:
     import networkx as nx
-
-    HAS_NETWORKX = True
 except ImportError:
-    HAS_NETWORKX = False
+    nx = None  # type: ignore[assignment]
+
+HAS_NETWORKX = nx is not None
 
 try:
     import rustworkx as rx
-
-    HAS_RUSTWORKX = True
 except ImportError:
-    HAS_RUSTWORKX = False
+    rx = None  # type: ignore[assignment]
+
+HAS_RUSTWORKX = rx is not None
 
 __all__ = [
     "_ordered_filter",
@@ -50,7 +50,7 @@ def nx_from_queryset(
     date_strf: if any provided fields are date-like, how should they be formatted?
     digraph: bool to determine whether to output a directed or undirected graph
     """
-    if not HAS_NETWORKX:
+    if nx is None:
         raise ImportError(
             "networkx is required for nx_from_queryset(). "
             "Install it with: pip install django-postgresql-dag[transforms]"
@@ -87,7 +87,7 @@ def nx_from_queryset(
         else:
             edge_attribute_fields_dict = {}
 
-        graph.add_edge(edge.parent.pk, edge.child.pk, **edge_attribute_fields_dict)
+        graph.add_edge(edge.parent_id, edge.child_id, **edge_attribute_fields_dict)
 
     return graph
 
@@ -112,7 +112,7 @@ def rx_from_queryset(
     date_strf: if any provided fields are date-like, how should they be formatted?
     digraph: bool to determine whether to output a directed or undirected graph
     """
-    if not HAS_RUSTWORKX:
+    if rx is None:
         raise ImportError(
             "rustworkx is required for rx_from_queryset(). "
             "Install it with: pip install django-postgresql-dag[transforms]"
@@ -148,7 +148,7 @@ def rx_from_queryset(
             edge_data = model_to_dict(edge, fields=edge_attribute_fields_list, date_strf=date_strf)
         else:
             edge_data = {}
-        graph.add_edge(pk_to_index[edge.parent.pk], pk_to_index[edge.child.pk], edge_data)
+        graph.add_edge(pk_to_index[edge.parent_id], pk_to_index[edge.child_id], edge_data)
 
     return graph
 
@@ -173,7 +173,7 @@ def json_from_queryset(
     date_strf: if any provided fields are date-like, how should they be formatted?
     digraph: bool to determine whether to output a directed or undirected graph
     """
-    if not HAS_RUSTWORKX:
+    if rx is None:
         raise ImportError(
             "rustworkx is required for json_from_queryset(). "
             "Install it with: pip install django-postgresql-dag[transforms]"

@@ -136,7 +136,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             This method is used to get the correct primary key field name for the
             model so that raw queries return the correct information.
             """
-            return self._meta.pk.attname
+            return self._meta.pk.attname  # type: ignore[union-attr]
 
         def get_pk_type(self):
             """The pkid class may be set to a non-default type per-model or across the project.
@@ -144,7 +144,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             This method is used to return the postgres type name for the primary key field so
             that raw queries return the correct information.
             """
-            django_pk_type = type(self._meta.pk).__name__
+            django_pk_type = type(self._meta.pk).__name__  # type: ignore[arg-type]
 
             if django_pk_type == "BigAutoField":
                 return "bigint"
@@ -168,7 +168,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             disable_circular_check = kwargs.pop("disable_circular_check", False)
             allow_duplicate_edges = kwargs.pop("allow_duplicate_edges", True)
 
-            cls = self.children.through(**kwargs)
+            cls = self.children.through(**kwargs)  # type: ignore[attr-defined]
             return cls.save(disable_circular_check=disable_circular_check, allow_duplicate_edges=allow_duplicate_edges)
 
         def remove_child(self, child=None, delete_node=False):
@@ -176,8 +176,8 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
             Otherwise removes the edges connecting to all children. Optionally deletes the child(ren) node(s) as well.
             """
-            edge_model = self.children.through
-            if child is not None and child in self.children.all():
+            edge_model = self.children.through  # type: ignore[attr-defined]
+            if child is not None and self.children.filter(pk=child.pk).exists():  # type: ignore[attr-defined]
                 qs = edge_model.objects.filter(parent=self, child=child)
                 pre_edge_delete.send(sender=edge_model, parent=self, child=child)
                 qs.delete()
@@ -189,7 +189,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                     # exist and will still have data in its fields.
                     child.delete()
             else:
-                child_pks = list(self.children.values_list("pk", flat=True)) if delete_node else None
+                child_pks = list(self.children.values_list("pk", flat=True)) if delete_node else None  # type: ignore[attr-defined]
                 qs = edge_model.objects.filter(parent=self)
                 pre_edge_delete.send(sender=edge_model, parent=self, child=None)
                 qs.delete()
@@ -210,8 +210,8 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
             Otherwise removes the edges connecting to all parents. Optionally deletes the parent node(s) as well.
             """
-            edge_model = self.children.through
-            if parent is not None and parent in self.parents.all():
+            edge_model = self.children.through  # type: ignore[attr-defined]
+            if parent is not None and self.parents.filter(pk=parent.pk).exists():  # type: ignore[attr-defined]
                 qs = edge_model.objects.filter(parent=parent, child=self)
                 pre_edge_delete.send(sender=edge_model, parent=parent, child=self)
                 qs.delete()
@@ -223,7 +223,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                     # exist and will still have data in its fields.
                     parent.delete()
             else:
-                parent_pks = list(self.parents.values_list("pk", flat=True)) if delete_node else None
+                parent_pks = list(self.parents.values_list("pk", flat=True)) if delete_node else None  # type: ignore[attr-defined]
                 qs = edge_model.objects.filter(child=self)
                 pre_edge_delete.send(sender=edge_model, parent=None, child=self)
                 qs.delete()
@@ -316,7 +316,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         def siblings_with_self(self):
             """Return a QuerySet of all nodes that share a parent with this node and self."""
-            return type(self).objects.filter(parents__in=self.parents.all()).distinct()
+            return type(self).objects.filter(parents__in=self.parents.all()).distinct()  # type: ignore[attr-defined]
 
         def partners(self):
             """Return a QuerySet of all nodes that share a child with this node."""
@@ -328,7 +328,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         def partners_with_self(self):
             """Return all nodes that share a child with this node and self."""
-            return type(self).objects.filter(children__in=self.children.all()).distinct()
+            return type(self).objects.filter(children__in=self.children.all()).distinct()  # type: ignore[attr-defined]
 
         def path_raw(self, ending_node, directional=True, **kwargs):
             """Return shortest path from self to ending node, optionally in either direction.
@@ -378,15 +378,15 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         def is_root(self):
             """Return True if the current Node instance has children, but no parents."""
-            return bool(self.children.exists() and not self.parents.exists())
+            return bool(self.children.exists() and not self.parents.exists())  # type: ignore[attr-defined]
 
         def is_leaf(self):
             """Return True if the current Node instance has parents, but no children."""
-            return bool(self.parents.exists() and not self.children.exists())
+            return bool(self.parents.exists() and not self.children.exists())  # type: ignore[attr-defined]
 
         def is_island(self):
             """Return True if the current Node instance has no parents nor children."""
-            return bool(not self.children.exists() and not self.parents.exists())
+            return bool(not self.children.exists() and not self.parents.exists())  # type: ignore[attr-defined]
 
         def is_ancestor_of(self, ending_node, **kwargs):
             """Provided an ending_node Node instance, returns True if the current Node instance is an ancestor."""
@@ -408,11 +408,11 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         def is_sibling_of(self, ending_node):
             """Provided an ending_node Node instance, returns True if this node and the ending node share a parent."""
-            return ending_node in self.siblings()
+            return self.siblings().filter(pk=ending_node.pk).exists()
 
         def is_partner_of(self, ending_node):
             """Provided an ending_node Node instance, returns True if this node and the ending node share a child."""
-            return ending_node in self.partners()
+            return self.partners().filter(pk=ending_node.pk).exists()
 
         def node_depth(self):
             """Return an integer representing the depth of this Node instance from furthest root."""
@@ -458,7 +458,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         def connected_graph_node_count(self, **kwargs):
             """Return the number of nodes in the graph connected in any way to the current Node instance."""
-            return len(list(self.connected_graph_raw()))
+            return len(list(self.connected_graph_raw(**kwargs)))
 
         def descendants_tree(self):
             """Return a tree-like structure with descendants for the current Node."""
@@ -685,7 +685,7 @@ class EdgeManager(models.Manager):
         rootside_edge = None
         leafside_edge = None
 
-        with transaction.atomic():
+        with transaction.atomic():  # type: ignore[attr-defined]
             # Attach the root-side edge
             if clone_to_rootside:
                 rootside_edge = deepcopy(edge)
@@ -698,7 +698,7 @@ class EdgeManager(models.Manager):
                     if result is not None:
                         rootside_edge = result
 
-                rootside_edge.save()
+                rootside_edge.save()  # type: ignore[union-attr]
 
                 if callable(post_save):
                     result = post_save(rootside_edge)
@@ -720,7 +720,7 @@ class EdgeManager(models.Manager):
                     if result is not None:
                         leafside_edge = result
 
-                leafside_edge.save()
+                leafside_edge.save()  # type: ignore[union-attr]
 
                 if callable(post_save):
                     result = post_save(leafside_edge)
@@ -766,10 +766,10 @@ def edge_factory(
 
         def save(self, *args, **kwargs):
             if not kwargs.pop("disable_circular_check", False):
-                self.parent.__class__.circular_checker(self.parent, self.child)
+                self.parent.__class__.circular_checker(self.parent, self.child)  # type: ignore[attr-defined]
 
             if not kwargs.pop("allow_duplicate_edges", True):
-                self.parent.__class__.duplicate_edge_checker(self.parent, self.child)
+                self.parent.__class__.duplicate_edge_checker(self.parent, self.child)  # type: ignore[attr-defined]
 
             is_new = self._state.adding
             if is_new:

@@ -61,7 +61,7 @@ class TransformationsTestCase(DAGFixtureMixin, TestCase):
         """Raises ImportError with helpful message when networkx unavailable."""
         from django_postgresql_dag import transformations
 
-        with patch.object(transformations, "HAS_NETWORKX", False):
+        with patch.object(transformations, "nx", None):
             with self.assertRaises(ImportError) as ctx:
                 transformations.nx_from_queryset(self.root.clan())
             self.assertIn("pip install", str(ctx.exception))
@@ -231,18 +231,16 @@ class ModelToDictFieldTypesTestCase(TestCase):
         self.assertIsNone(result["nullable_dt"])
 
     def test_file_field_none(self):
-        """FileField with no file exercises the FileField branch (lines 114-115).
-        The value is then overwritten by the is_editable branch."""
+        """FileField with no file returns None."""
         result = model_to_dict(self.obj, fields=["file_field"])
         self.assertIn("file_field", result)
-        self.assertFalse(result["file_field"])
+        self.assertIsNone(result["file_field"])
 
     def test_image_field_none(self):
-        """ImageField with no image exercises the ImageField branch (lines 110-111).
-        The value is then overwritten by the is_editable branch."""
+        """ImageField with no image returns None."""
         result = model_to_dict(self.obj, fields=["image_field"])
         self.assertIn("image_field", result)
-        self.assertFalse(result["image_field"])
+        self.assertIsNone(result["image_field"])
 
 
 class ModelToDictM2MBranchesTestCase(DAGFixtureMixin, TestCase):
@@ -295,7 +293,7 @@ class RustworkXExportTestCase(DAGFixtureMixin, TestCase):
         """Raises ImportError with helpful message when rustworkx unavailable."""
         from django_postgresql_dag import transformations
 
-        with patch.object(transformations, "HAS_RUSTWORKX", False):
+        with patch.object(transformations, "rx", None):
             with self.assertRaises(ImportError) as ctx:
                 transformations.rx_from_queryset(self.root.clan())
             self.assertIn("pip install", str(ctx.exception))
@@ -379,7 +377,7 @@ class JsonFromQuerysetTestCase(DAGFixtureMixin, TestCase):
     def test_import_guard_raises(self):
         from django_postgresql_dag import transformations
 
-        with patch.object(transformations, "HAS_RUSTWORKX", False):
+        with patch.object(transformations, "rx", None):
             with self.assertRaises(ImportError) as ctx:
                 transformations.json_from_queryset(self.root.clan())
             self.assertIn("pip install", str(ctx.exception))
