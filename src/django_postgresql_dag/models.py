@@ -430,7 +430,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                     ON {edge_table}.child_id = traverse.{pk_name}
             )
             SELECT COALESCE(MAX(depth), 0) FROM traverse
-            """.format(pk_name=pk_name, edge_table=edge_table)
+            """.format(pk_name=pk_name, edge_table=edge_table)  # nosec B608 — pk_name/edge_table from Django model metadata, not user input
             collector = _dag_query_collector.get(None)
             if collector is not None:
                 collector.append(

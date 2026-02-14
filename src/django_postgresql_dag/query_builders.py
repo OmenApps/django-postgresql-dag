@@ -177,7 +177,7 @@ class BaseQuery(ABC):
 
     def _execute_raw(self, sql_template, format_kwargs):
         """Format the SQL template, optionally record it, and return a RawQuerySet."""
-        formatted_sql = sql_template.format(**format_kwargs)
+        formatted_sql = sql_template.format(**format_kwargs)  # nosec B608 — format_kwargs are Django model metadata (table/column names), not user input
         collector = _dag_query_collector.get(None)
         if collector is not None:
             collector.append(
@@ -212,7 +212,7 @@ class _AncestorDescendantEdgeFilterMixin:
     def _disallow_edges(self):
         self._add_filter_clause(
             "AND first.id <> ALL(%(disallowed_edge_pks)s)",
-            f"AND {self.edge_model_table}.id <> ALL(%(disallowed_edge_pks)s)",
+            f"AND {self.edge_model_table}.id <> ALL(%(disallowed_edge_pks)s)",  # nosec B608 — edge_model_table from Django model metadata
             "disallowed_edge_pks",
             self.disallowed_edges_queryset,
         )
@@ -220,7 +220,7 @@ class _AncestorDescendantEdgeFilterMixin:
     def _allow_edges(self):
         self._add_filter_clause(
             "AND first.id = ANY(%(allowed_edge_pks)s)",
-            f"AND {self.edge_model_table}.id = ANY(%(allowed_edge_pks)s)",
+            f"AND {self.edge_model_table}.id = ANY(%(allowed_edge_pks)s)",  # nosec B608 — edge_model_table from Django model metadata
             "allowed_edge_pks",
             self.allowed_edges_queryset,
         )
