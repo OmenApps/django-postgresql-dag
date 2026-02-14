@@ -155,7 +155,7 @@ class BaseQuery(ABC):
             self.where_clauses_part_1 += "\n" + part_1_clause
         if part_2_clause:
             self.where_clauses_part_2 += "\n" + part_2_clause
-        self.query_parameters[param_name] = str(set(queryset.values_list("pk", flat=True)))
+        self.query_parameters[param_name] = list(queryset.values_list("pk", flat=True))
 
     @abstractmethod
     def raw_queryset(self):
@@ -288,8 +288,8 @@ class AncestorQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
             relationship_table=self.edge_model_table,
             # pk_name=self.instance.get_pk_name(),
         )
-        self.query_parameters["disallowed_node_pks"] = str(
-            set(self.disallowed_nodes_queryset.values_list("pk", flat=True))
+        self.query_parameters["disallowed_node_pks"] = list(
+            self.disallowed_nodes_queryset.values_list("pk", flat=True)
         )
 
         return
@@ -306,7 +306,7 @@ class AncestorQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
             relationship_table=self.edge_model_table,
             # pk_name=self.instance.get_pk_name(),
         )
-        self.query_parameters["allowed_node_pks"] = str(set(self.allowed_nodes_queryset.values_list("pk", flat=True)))
+        self.query_parameters["allowed_node_pks"] = list(self.allowed_nodes_queryset.values_list("pk", flat=True))
 
         return
 
@@ -398,8 +398,8 @@ class DescendantQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
             relationship_table=self.edge_model_table,
             # pk_name=self.instance.get_pk_name(),
         )
-        self.query_parameters["disallowed_node_pks"] = str(
-            set(self.disallowed_nodes_queryset.values_list("pk", flat=True))
+        self.query_parameters["disallowed_node_pks"] = list(
+            self.disallowed_nodes_queryset.values_list("pk", flat=True)
         )
 
         return
@@ -416,7 +416,7 @@ class DescendantQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
             relationship_table=self.edge_model_table,
             # pk_name=self.instance.get_pk_name(),
         )
-        self.query_parameters["allowed_node_pks"] = str(set(self.allowed_nodes_queryset.values_list("pk", flat=True)))
+        self.query_parameters["allowed_node_pks"] = list(self.allowed_nodes_queryset.values_list("pk", flat=True))
 
         return
 
@@ -540,8 +540,8 @@ class UpwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
         DISALLOWED_NODES_CLAUSE = """AND second.parent_id <> ALL(%(disallowed_path_node_pks)s)"""
 
         self.where_clauses_part_2 += "\n" + DISALLOWED_NODES_CLAUSE
-        self.query_parameters["disallowed_path_node_pks"] = str(
-            set(self.disallowed_nodes_queryset.values_list("pk", flat=True))
+        self.query_parameters["disallowed_path_node_pks"] = list(
+            self.disallowed_nodes_queryset.values_list("pk", flat=True)
         )
 
         return
@@ -550,8 +550,8 @@ class UpwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
         ALLOWED_NODES_CLAUSE = """AND second.parent_id = ANY(%(allowed_path_node_pks)s)"""
 
         self.where_clauses_part_2 += "\n" + ALLOWED_NODES_CLAUSE
-        self.query_parameters["allowed_path_node_pks"] = str(
-            set(self.allowed_nodes_queryset.values_list("pk", flat=True))
+        self.query_parameters["allowed_path_node_pks"] = list(
+            self.allowed_nodes_queryset.values_list("pk", flat=True)
         )
 
         return
@@ -637,8 +637,8 @@ class DownwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
         DISALLOWED_NODES_CLAUSE = """AND second.child_id <> ALL(%(disallowed_path_node_pks)s)"""
 
         self.where_clauses_part_2 += "\n" + DISALLOWED_NODES_CLAUSE
-        self.query_parameters["disallowed_path_node_pks"] = str(
-            set(self.disallowed_nodes_queryset.values_list("pk", flat=True))
+        self.query_parameters["disallowed_path_node_pks"] = list(
+            self.disallowed_nodes_queryset.values_list("pk", flat=True)
         )
 
         return
@@ -647,8 +647,8 @@ class DownwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
         ALLOWED_NODES_CLAUSE = """AND second.child_id = ANY(%(allowed_path_node_pks)s)"""
 
         self.where_clauses_part_2 += "\n" + ALLOWED_NODES_CLAUSE
-        self.query_parameters["allowed_path_node_pks"] = str(
-            set(self.allowed_nodes_queryset.values_list("pk", flat=True))
+        self.query_parameters["allowed_path_node_pks"] = list(
+            self.allowed_nodes_queryset.values_list("pk", flat=True)
         )
 
         return
