@@ -28,13 +28,13 @@ Or fork the repository on GitHub first, then clone your fork.
 ## Installing Dependencies
 
 ```bash
-uv sync --extra dev
+uv sync --group dev
 ```
 
 To include optional NetworkX/pandas transformation support:
 
 ```bash
-uv sync --extra dev --extra transforms
+uv sync --group dev --extra transforms
 ```
 
 ## Running PostgreSQL
@@ -71,29 +71,29 @@ To run the full test matrix across Python and Django versions using nox:
 
 ```bash
 # All default nox sessions (pre-commit, pip-audit, tests)
-nox
+uv run nox
 
 # A specific Django/Python combination
-nox -s "tests(django='5.2', python='3.13')"
+uv run nox -s "tests(django='5.2', python='3.13')"
 ```
 
 ## Linting & Formatting
 
 ```bash
-ruff check src/              # lint
-ruff check --fix src/        # lint and auto-fix
-ruff format src/             # format
-pre-commit run --all-files   # run all pre-commit hooks
+uv run ruff check src/              # lint
+uv run ruff check --fix src/        # lint and auto-fix
+uv run ruff format src/             # format
+uv run pre-commit run --all-files   # run all pre-commit hooks
 ```
 
 ## Building Documentation
 
 ```bash
 # Build docs with live reload (opens browser)
-nox -s docs
+uv run nox -s docs
 
 # Build docs without serving
-nox -s docs-build
+uv run nox -s docs-build
 ```
 
 ## Nox Sessions
