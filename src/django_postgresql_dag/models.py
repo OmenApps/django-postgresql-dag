@@ -8,7 +8,7 @@ from collections import defaultdict
 from copy import deepcopy
 
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, transaction
 
 from .debug import _dag_query_collector
 from .exceptions import NodeNotReachableException
@@ -342,11 +342,13 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                 return [[self.pk]]
 
             path = DownwardPathQuery(starting_node=self, ending_node=ending_node, **kwargs).raw_queryset()
+            path_results = list(path)
 
-            if len(list(path)) == 0 and not directional:
+            if len(path_results) == 0 and not directional:
                 path = UpwardPathQuery(starting_node=self, ending_node=ending_node, **kwargs).raw_queryset()
+                path_results = list(path)
 
-            if len(list(path)) == 0:
+            if len(path_results) == 0:
                 raise NodeNotReachableException
 
             return path
@@ -679,44 +681,54 @@ class EdgeManager(models.Manager):
         rootside_edge = None
         leafside_edge = None
 
-        # Attach the root-side edge
-        if clone_to_rootside:
-            rootside_edge = deepcopy(edge)
-            rootside_edge.pk = None
-            rootside_edge.parent = edge.parent
-            rootside_edge.child = node
+        with transaction.atomic():
+            # Attach the root-side edge
+            if clone_to_rootside:
+                rootside_edge = deepcopy(edge)
+                rootside_edge.pk = None
+                rootside_edge.parent = edge.parent
+                rootside_edge.child = node
 
-            if callable(pre_save):
-                rootside_edge = pre_save(rootside_edge)
+                if callable(pre_save):
+                    result = pre_save(rootside_edge)
+                    if result is not None:
+                        rootside_edge = result
 
-            rootside_edge.save()
+                rootside_edge.save()
 
-            if callable(post_save):
-                rootside_edge = post_save(rootside_edge)
+                if callable(post_save):
+                    result = post_save(rootside_edge)
+                    if result is not None:
+                        rootside_edge = result
 
-        else:
-            edge.parent.add_child(node)
+            else:
+                edge.parent.add_child(node)
 
-        # Attach the leaf-side edge
-        if clone_to_leafside:
-            leafside_edge = deepcopy(edge)
-            leafside_edge.pk = None
-            leafside_edge.parent = node
-            leafside_edge.child = edge.child
+            # Attach the leaf-side edge
+            if clone_to_leafside:
+                leafside_edge = deepcopy(edge)
+                leafside_edge.pk = None
+                leafside_edge.parent = node
+                leafside_edge.child = edge.child
 
-            if callable(pre_save):
-                leafside_edge = pre_save(leafside_edge)
+                if callable(pre_save):
+                    result = pre_save(leafside_edge)
+                    if result is not None:
+                        leafside_edge = result
 
-            leafside_edge.save()
+                leafside_edge.save()
 
-            if callable(post_save):
-                leafside_edge = post_save(leafside_edge)
+                if callable(post_save):
+                    result = post_save(leafside_edge)
+                    if result is not None:
+                        leafside_edge = result
 
-        else:
-            edge.child.add_parent(node)
+            else:
+                edge.child.add_parent(node)
 
-        # Remove the original edge in the database. Still remains in memory, though, as noted above.
-        edge.delete()
+            # Remove the original edge in the database. Still remains in memory, though, as noted above.
+            edge.delete()
+
         return rootside_edge, leafside_edge
 
 
