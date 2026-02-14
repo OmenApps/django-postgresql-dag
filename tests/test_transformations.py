@@ -225,6 +225,11 @@ class ModelToDictFieldTypesTestCase(TestCase):
         result = model_to_dict(self.obj, fields=["uuid_field"])
         self.assertIsNone(result["uuid_field"])
 
+    def test_nullable_datetime_field_none(self):
+        """DateTimeField with null=True and no value returns None."""
+        result = model_to_dict(self.obj, fields=["nullable_dt"])
+        self.assertIsNone(result["nullable_dt"])
+
     def test_file_field_none(self):
         """FileField with no file exercises the FileField branch (lines 114-115).
         The value is then overwritten by the is_editable branch."""

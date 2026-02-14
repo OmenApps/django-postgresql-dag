@@ -37,6 +37,7 @@ class FieldTestModel(models.Model):
     name = models.CharField(max_length=100)
     created_at = models.DateTimeField(auto_now_add=True)
     uuid_field = models.UUIDField(null=True, blank=True)
+    nullable_dt = models.DateTimeField(null=True, blank=True)
     file_field = models.FileField(upload_to="test/", null=True, blank=True)
     image_field = models.ImageField(upload_to="test_images/", null=True, blank=True)
 
