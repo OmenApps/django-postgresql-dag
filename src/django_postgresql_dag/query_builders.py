@@ -264,12 +264,10 @@ class AncestorQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
         if fk_field_name is not None:
             self.where_clauses_part_1 += "\n" + LIMITING_EDGES_SET_FK_CLAUSE_1.format(
                 relationship_table=self.edge_model_table,
-                # pk_name=self.instance.get_pk_name(),
                 fk_field_name=fk_field_name,
             )
             self.where_clauses_part_2 += "\n" + LIMITING_EDGES_SET_FK_CLAUSE_2.format(
                 relationship_table=self.edge_model_table,
-                # pk_name=self.instance.get_pk_name(),
                 fk_field_name=fk_field_name,
             )
             self.query_parameters["limiting_edges_set_fk_pk"] = self.limiting_edges_set_fk.pk
@@ -282,11 +280,9 @@ class AncestorQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
 
         self.where_clauses_part_1 += "\n" + DISALLOWED_NODES_CLAUSE_1.format(
             relationship_table=self.edge_model_table,
-            # pk_name=self.instance.get_pk_name(),
         )
         self.where_clauses_part_2 += "\n" + DISALLOWED_NODES_CLAUSE_2.format(
             relationship_table=self.edge_model_table,
-            # pk_name=self.instance.get_pk_name(),
         )
         self.query_parameters["disallowed_node_pks"] = list(self.disallowed_nodes_queryset.values_list("pk", flat=True))
 
@@ -298,11 +294,9 @@ class AncestorQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
 
         self.where_clauses_part_1 += "\n" + ALLOWED_NODES_CLAUSE_1.format(
             relationship_table=self.edge_model_table,
-            # pk_name=self.instance.get_pk_name(),
         )
         self.where_clauses_part_2 += "\n" + ALLOWED_NODES_CLAUSE_2.format(
             relationship_table=self.edge_model_table,
-            # pk_name=self.instance.get_pk_name(),
         )
         self.query_parameters["allowed_node_pks"] = list(self.allowed_nodes_queryset.values_list("pk", flat=True))
 
@@ -372,12 +366,10 @@ class DescendantQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
         if fk_field_name is not None:
             self.where_clauses_part_1 += "\n" + LIMITING_EDGES_SET_FK_CLAUSE_1.format(
                 relationship_table=self.edge_model_table,
-                # pk_name=self.instance.get_pk_name(),
                 fk_field_name=fk_field_name,
             )
             self.where_clauses_part_2 += "\n" + LIMITING_EDGES_SET_FK_CLAUSE_2.format(
                 relationship_table=self.edge_model_table,
-                # pk_name=self.instance.get_pk_name(),
                 fk_field_name=fk_field_name,
             )
             self.query_parameters["limiting_edges_set_fk_pk"] = self.limiting_edges_set_fk.pk
@@ -390,11 +382,9 @@ class DescendantQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
 
         self.where_clauses_part_1 += "\n" + DISALLOWED_NODES_CLAUSE_1.format(
             relationship_table=self.edge_model_table,
-            # pk_name=self.instance.get_pk_name(),
         )
         self.where_clauses_part_2 += "\n" + DISALLOWED_NODES_CLAUSE_2.format(
             relationship_table=self.edge_model_table,
-            # pk_name=self.instance.get_pk_name(),
         )
         self.query_parameters["disallowed_node_pks"] = list(self.disallowed_nodes_queryset.values_list("pk", flat=True))
 
@@ -406,11 +396,9 @@ class DescendantQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
 
         self.where_clauses_part_1 += "\n" + ALLOWED_NODES_CLAUSE_1.format(
             relationship_table=self.edge_model_table,
-            # pk_name=self.instance.get_pk_name(),
         )
         self.where_clauses_part_2 += "\n" + ALLOWED_NODES_CLAUSE_2.format(
             relationship_table=self.edge_model_table,
-            # pk_name=self.instance.get_pk_name(),
         )
         self.query_parameters["allowed_node_pks"] = list(self.allowed_nodes_queryset.values_list("pk", flat=True))
 
