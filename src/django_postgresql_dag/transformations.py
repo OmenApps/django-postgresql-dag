@@ -115,7 +115,7 @@ def rx_from_queryset(
     if not HAS_RUSTWORKX:
         raise ImportError(
             "rustworkx is required for rx_from_queryset(). "
-            "Install it with: pip install django-postgresql-dag[rustworkx]"
+            "Install it with: pip install django-postgresql-dag[transforms]"
         )
 
     _NodeModel, _EdgeModel, queryset_type = get_queryset_characteristics(queryset)
