@@ -8,7 +8,9 @@ Expressions (CTE) to achieve this and is therefore not compatible with other dat
 
 The primary purpose of this package is to *build* and *manipulate* DAGs within a Django project. If you are looking for graph *analysis* or *visualization*, this may not be the right package.
 
-All core traversal methods (`ancestors()`, `descendants()`, `path()`, `connected_graph()`, tree methods, `roots()`, `leaves()`, edge queries, etc.) use CTE-based queries. The library also supports CTE filters (`disallow_nodes`, `allow_nodes`, `limiting_edges_set_fk`) to limit the area of the graph searched, and optional NetworkX export via the `transforms` extra.
+All core traversal methods (`ancestors()`, `descendants()`, `path()`, `connected_graph()`, tree methods, `roots()`, `leaves()`, edge queries, etc.) use CTE-based queries.
+
+The package also supports CTE filters (`disallow_nodes`, `allow_nodes`, `disallow_edges`, `allow_edges`, `limiting_edges_set_fk`) to limit the area of the graph searched, and optional NetworkX/RustworkX/JSON export via the `transforms` extra. Manager-level methods `connected_components()` and `graph_stats()` provide whole-graph analytics. All traversal and predicate methods accept a convenient `edge_type` parameter as shorthand for `limiting_edges_set_fk`.
 
 ## Demo
 
