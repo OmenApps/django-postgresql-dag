@@ -176,7 +176,7 @@ def json_from_queryset(
     if not HAS_RUSTWORKX:
         raise ImportError(
             "rustworkx is required for json_from_queryset(). "
-            "Install it with: pip install django-postgresql-dag[rustworkx]"
+            "Install it with: pip install django-postgresql-dag[transforms]"
         )
 
     graph = rx_from_queryset(
