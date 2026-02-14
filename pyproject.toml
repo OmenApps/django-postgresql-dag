@@ -74,7 +74,7 @@ log_cli = true
 
 [tool.coverage.run]
 branch = true
-source = ["src"]
+source_pkgs = ["django_postgresql_dag"]
 
 [tool.coverage.report]
 show_missing = true
