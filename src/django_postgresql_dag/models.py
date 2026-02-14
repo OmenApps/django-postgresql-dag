@@ -12,6 +12,7 @@ from django.db import models
 
 from .exceptions import NodeNotReachableException
 from .query_builders import AncestorQuery, ConnectedGraphQuery, DescendantQuery, DownwardPathQuery, UpwardPathQuery
+from .signals import post_edge_create, post_edge_delete, pre_edge_create, pre_edge_delete
 from .utils import _ordered_filter
 
 
@@ -174,8 +175,12 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
             Otherwise removes the edges connecting to all children. Optionally deletes the child(ren) node(s) as well.
             """
+            edge_model = self.children.through
             if child is not None and child in self.children.all():
-                self.children.through.objects.filter(parent=self, child=child).delete()
+                qs = edge_model.objects.filter(parent=self, child=child)
+                pre_edge_delete.send(sender=edge_model, parent=self, child=child)
+                qs.delete()
+                post_edge_delete.send(sender=edge_model, parent=self, child=child)
                 if delete_node:
                     # Note: Per django docs:
                     # https://docs.djangoproject.com/en/dev/ref/models/instances/#deleting-objects
@@ -183,14 +188,17 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                     # exist and will still have data in its fields.
                     child.delete()
             else:
-                for child in self.children.all():
-                    self.children.through.objects.filter(parent=self, child=child).delete()
-                    if delete_node:
-                        # Note: Per django docs:
-                        # https://docs.djangoproject.com/en/dev/ref/models/instances/#deleting-objects
-                        # This only deletes the object in the database; the Python instance will still
-                        # exist and will still have data in its fields.
-                        child.delete()
+                child_pks = list(self.children.values_list("pk", flat=True)) if delete_node else None
+                qs = edge_model.objects.filter(parent=self)
+                pre_edge_delete.send(sender=edge_model, parent=self, child=None)
+                qs.delete()
+                post_edge_delete.send(sender=edge_model, parent=self, child=None)
+                if delete_node and child_pks:
+                    # Note: Per django docs:
+                    # https://docs.djangoproject.com/en/dev/ref/models/instances/#deleting-objects
+                    # This only deletes the object in the database; the Python instance will still
+                    # exist and will still have data in its fields.
+                    type(self).objects.filter(pk__in=child_pks).delete()
 
         def add_parent(self, parent, *args, **kwargs):
             """Provided with a Node instance, attaches the current instance as a child to the provided Node instance."""
@@ -201,8 +209,12 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
             Otherwise removes the edges connecting to all parents. Optionally deletes the parent node(s) as well.
             """
+            edge_model = self.children.through
             if parent is not None and parent in self.parents.all():
-                parent.children.through.objects.filter(parent=parent, child=self).delete()
+                qs = edge_model.objects.filter(parent=parent, child=self)
+                pre_edge_delete.send(sender=edge_model, parent=parent, child=self)
+                qs.delete()
+                post_edge_delete.send(sender=edge_model, parent=parent, child=self)
                 if delete_node:
                     # Note: Per django docs:
                     # https://docs.djangoproject.com/en/dev/ref/models/instances/#deleting-objects
@@ -210,14 +222,17 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                     # exist and will still have data in its fields.
                     parent.delete()
             else:
-                for parent in self.parents.all():
-                    parent.children.through.objects.filter(parent=parent, child=self).delete()
-                    if delete_node:
-                        # Note: Per django docs:
-                        # https://docs.djangoproject.com/en/dev/ref/models/instances/#deleting-objects
-                        # This only deletes the object in the database; the Python instance will still
-                        # exist and will still have data in its fields.
-                        parent.delete()
+                parent_pks = list(self.parents.values_list("pk", flat=True)) if delete_node else None
+                qs = edge_model.objects.filter(child=self)
+                pre_edge_delete.send(sender=edge_model, parent=None, child=self)
+                qs.delete()
+                post_edge_delete.send(sender=edge_model, parent=None, child=self)
+                if delete_node and parent_pks:
+                    # Note: Per django docs:
+                    # https://docs.djangoproject.com/en/dev/ref/models/instances/#deleting-objects
+                    # This only deletes the object in the database; the Python instance will still
+                    # exist and will still have data in its fields.
+                    type(self).objects.filter(pk__in=parent_pks).delete()
 
         @staticmethod
         def _resolve_edge_type(kwargs):
@@ -730,6 +745,17 @@ def edge_factory(
             if not kwargs.pop("allow_duplicate_edges", True):
                 self.parent.__class__.duplicate_edge_checker(self.parent, self.child)
 
+            is_new = self._state.adding
+            if is_new:
+                pre_edge_create.send(sender=type(self), instance=self, parent=self.parent, child=self.child)
             super().save(*args, **kwargs)
+            if is_new:
+                post_edge_create.send(sender=type(self), instance=self, parent=self.parent, child=self.child)
+
+        def delete(self, *args, **kwargs):
+            pre_edge_delete.send(sender=type(self), instance=self, parent=self.parent, child=self.child)
+            result = super().delete(*args, **kwargs)
+            post_edge_delete.send(sender=type(self), instance=self, parent=self.parent, child=self.child)
+            return result
 
     return Edge
