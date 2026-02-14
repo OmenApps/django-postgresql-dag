@@ -6,8 +6,8 @@ import nox
 
 DJANGO_STABLE_VERSION = "5.2"
 DJANGO_VERSIONS = ["4.2", "5.1", "5.2", "6.0"]
-PYTHON_STABLE_VERSION = "3.13"
-PYTHON_VERSIONS = ["3.11", "3.12", "3.13"]
+PYTHON_STABLE_VERSION = "3.14"
+PYTHON_VERSIONS = ["3.11", "3.12", "3.13", "3.14"]
 PACKAGE = "django_postgresql_dag"
 
 nox.options.default_venv_backend = "uv"
@@ -21,7 +21,7 @@ def precommit(session: nox.Session) -> None:
     session.run("pre-commit", "run", "--all-files")
 
 
-@nox.session(python=PYTHON_STABLE_VERSION)
+@nox.session(name="pip-audit", python=PYTHON_STABLE_VERSION)
 def pip_audit(session: nox.Session) -> None:
     """Scan dependencies for known vulnerabilities."""
     session.install(".[dev]")
@@ -36,6 +36,12 @@ def pip_audit(session: nox.Session) -> None:
 @nox.parametrize("django", DJANGO_VERSIONS)
 def tests(session: nox.Session, django: str) -> None:
     """Run the test suite across Python and Django versions."""
+    # Django 4.2 supports only Python 3.11-3.12
+    if django == "4.2" and session.python in ("3.13", "3.14"):
+        session.skip("Django 4.2 supports only Python 3.11-3.12")
+    # Django 5.1 supports only Python 3.11-3.13
+    if django == "5.1" and session.python == "3.14":
+        session.skip("Django 5.1 supports only Python 3.11-3.13")
     # Django 6.0 requires Python 3.12+
     if django == "6.0" and session.python == "3.11":
         session.skip("Django 6.0 requires Python 3.12+")
