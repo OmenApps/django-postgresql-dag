@@ -24,7 +24,9 @@ def precommit(session: nox.Session) -> None:
 @nox.session(name="pip-audit", python=PYTHON_STABLE_VERSION)
 def pip_audit(session: nox.Session) -> None:
     """Scan dependencies for known vulnerabilities."""
-    session.install(".[dev]")
+    pyproject = nox.project.load_toml("pyproject.toml")
+    deps = nox.project.dependency_groups(pyproject, "dev")
+    session.install(".", *deps)
     session.install("pip-audit")
     session.run("pip-audit")
 
@@ -46,7 +48,9 @@ def tests(session: nox.Session, django: str) -> None:
     if django == "6.0" and session.python == "3.11":
         session.skip("Django 6.0 requires Python 3.12+")
 
-    session.install(".[dev]")
+    pyproject = nox.project.load_toml("pyproject.toml")
+    deps = nox.project.dependency_groups(pyproject, "dev")
+    session.install(".[transforms]", *deps)
     session.install(f"django~={django}.0")
     session.run(
         "coverage",
