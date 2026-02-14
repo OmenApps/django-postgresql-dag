@@ -2,19 +2,19 @@
 
 
 class NodeNotReachableException(Exception):
-    """Exception for node distance and path."""
+    """Exception raised when no path exists between two nodes."""
 
     pass
 
 
 class GraphModelsCannotBeParsedException(Exception):
-    """Exception for node distance and path."""
+    """Exception raised when the provided model cannot be identified as a node or edge model."""
 
     pass
 
 
 class IncorrectUsageException(Exception):
-    """Exception for node distance and path."""
+    """Exception raised when a function is called with incorrect arguments."""
 
     pass
 
