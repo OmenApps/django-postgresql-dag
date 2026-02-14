@@ -11,10 +11,13 @@ class PathTestCase(TenNodeDAGFixtureMixin, TestCase):
 
     def test_path_downward(self):
         result = [p.name for p in self.root.path(self.c1)]
-        self.assertIn(result, [
-            ["root", "a3", "b3", "c1"],
-            ["root", "a3", "b4", "c1"],
-        ])
+        self.assertIn(
+            result,
+            [
+                ["root", "a3", "b3", "c1"],
+                ["root", "a3", "b4", "c1"],
+            ],
+        )
 
     def test_path_unreachable_raises(self):
         try:
@@ -24,13 +27,16 @@ class PathTestCase(TenNodeDAGFixtureMixin, TestCase):
 
     def test_path_nondirectional(self):
         result = [p.name for p in self.c1.path(self.root, directional=False)]
-        self.assertIn(result, [
-            ["c1", "b3", "a3", "root"],
-            ["c1", "b4", "a3", "root"],
-        ])
+        self.assertIn(
+            result,
+            [
+                ["c1", "b3", "a3", "root"],
+                ["c1", "b4", "a3", "root"],
+            ],
+        )
 
     def test_leaves_from_root(self):
-        self.assertEqual(set([p.name for p in self.root.leaves()]), set(["b2", "c1", "c2", "b1"]))
+        self.assertEqual({p.name for p in self.root.leaves()}, {"b2", "c1", "c2", "b1"})
 
     def test_roots_from_leaf(self):
         self.assertEqual([p.name for p in self.c2.roots()], ["root"])

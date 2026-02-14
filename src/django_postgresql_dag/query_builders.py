@@ -288,9 +288,7 @@ class AncestorQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
             relationship_table=self.edge_model_table,
             # pk_name=self.instance.get_pk_name(),
         )
-        self.query_parameters["disallowed_node_pks"] = list(
-            self.disallowed_nodes_queryset.values_list("pk", flat=True)
-        )
+        self.query_parameters["disallowed_node_pks"] = list(self.disallowed_nodes_queryset.values_list("pk", flat=True))
 
         return
 
@@ -398,9 +396,7 @@ class DescendantQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
             relationship_table=self.edge_model_table,
             # pk_name=self.instance.get_pk_name(),
         )
-        self.query_parameters["disallowed_node_pks"] = list(
-            self.disallowed_nodes_queryset.values_list("pk", flat=True)
-        )
+        self.query_parameters["disallowed_node_pks"] = list(self.disallowed_nodes_queryset.values_list("pk", flat=True))
 
         return
 
@@ -550,9 +546,7 @@ class UpwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
         ALLOWED_NODES_CLAUSE = """AND second.parent_id = ANY(%(allowed_path_node_pks)s)"""
 
         self.where_clauses_part_2 += "\n" + ALLOWED_NODES_CLAUSE
-        self.query_parameters["allowed_path_node_pks"] = list(
-            self.allowed_nodes_queryset.values_list("pk", flat=True)
-        )
+        self.query_parameters["allowed_path_node_pks"] = list(self.allowed_nodes_queryset.values_list("pk", flat=True))
 
         return
 
@@ -647,9 +641,7 @@ class DownwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
         ALLOWED_NODES_CLAUSE = """AND second.child_id = ANY(%(allowed_path_node_pks)s)"""
 
         self.where_clauses_part_2 += "\n" + ALLOWED_NODES_CLAUSE
-        self.query_parameters["allowed_path_node_pks"] = list(
-            self.allowed_nodes_queryset.values_list("pk", flat=True)
-        )
+        self.query_parameters["allowed_path_node_pks"] = list(self.allowed_nodes_queryset.values_list("pk", flat=True))
 
         return
 

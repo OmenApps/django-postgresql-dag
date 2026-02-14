@@ -469,9 +469,11 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             all_node_pks = {n.pk for n in all_nodes}
             node_map = {n.pk: n for n in all_nodes}
             children_of = defaultdict(list)
-            for parent_pk, child_pk in edge_model.objects.filter(
-                parent_id__in=all_node_pks, child_id__in=all_node_pks
-            ).values_list("parent_id", "child_id").distinct():
+            for parent_pk, child_pk in (
+                edge_model.objects.filter(parent_id__in=all_node_pks, child_id__in=all_node_pks)
+                .values_list("parent_id", "child_id")
+                .distinct()
+            ):
                 children_of[parent_pk].append(node_map[child_pk])
 
             def _build(node):
@@ -489,9 +491,11 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             all_node_pks = {n.pk for n in all_nodes}
             node_map = {n.pk: n for n in all_nodes}
             parents_of = defaultdict(list)
-            for parent_pk, child_pk in edge_model.objects.filter(
-                parent_id__in=all_node_pks, child_id__in=all_node_pks
-            ).values_list("parent_id", "child_id").distinct():
+            for parent_pk, child_pk in (
+                edge_model.objects.filter(parent_id__in=all_node_pks, child_id__in=all_node_pks)
+                .values_list("parent_id", "child_id")
+                .distinct()
+            ):
                 parents_of[child_pk].append(node_map[parent_pk])
 
             def _build(node):

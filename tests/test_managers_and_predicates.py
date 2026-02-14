@@ -83,7 +83,7 @@ class PredicateFromTenNodeDAGTestCase(TenNodeDAGFixtureMixin, TestCase):
 
 class LeavesRootsTestCase(TenNodeDAGFixtureMixin, TestCase):
     def test_leaves_from_root(self):
-        self.assertEqual(set([p.name for p in self.root.leaves()]), set(["b2", "c1", "c2", "b1"]))
+        self.assertEqual({p.name for p in self.root.leaves()}, {"b2", "c1", "c2", "b1"})
 
     def test_roots_from_leaf(self):
         self.assertEqual([p.name for p in self.c2.roots()], ["root"])
