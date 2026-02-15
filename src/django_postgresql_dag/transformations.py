@@ -26,10 +26,13 @@ __all__ = [
     "_ordered_filter",
     "json_from_queryset",
     "edges_from_nodes_queryset",
+    "graph_hash",
+    "graphs_are_isomorphic",
     "model_to_dict",
     "nodes_from_edges_queryset",
     "nx_from_queryset",
     "rx_from_queryset",
+    "subgraph_hashes",
 ]
 
 
@@ -202,3 +205,122 @@ def json_from_queryset(
         edge_attrs=_stringify_dict,
         graph_attrs=_stringify_graph_attrs,
     )
+
+
+def graph_hash(
+    queryset,
+    node_attr=None,
+    edge_attr=None,
+    node_attr_fields_list=None,
+    edge_attr_fields_list=None,
+    iterations=3,
+    digest_size=16,
+):
+    """Return a Weisfeiler-Lehman graph hash for the given queryset.
+
+    Uses NetworkX's weisfeiler_lehman_graph_hash. The hash is NOT collision-free.
+    """
+    if nx is None:
+        raise ImportError(
+            "networkx is required for graph_hash(). Install it with: pip install django-postgresql-dag[transforms]"
+        )
+
+    if node_attr and not node_attr_fields_list:
+        node_attr_fields_list = [node_attr]
+    if edge_attr and not edge_attr_fields_list:
+        edge_attr_fields_list = [edge_attr]
+
+    graph = nx_from_queryset(
+        queryset,
+        node_attribute_fields_list=node_attr_fields_list,
+        edge_attribute_fields_list=edge_attr_fields_list,
+        digraph=True,
+    )
+
+    return nx.weisfeiler_lehman_graph_hash(
+        graph,
+        node_attr=node_attr,
+        edge_attr=edge_attr,
+        iterations=iterations,
+        digest_size=digest_size,
+    )
+
+
+def subgraph_hashes(
+    queryset,
+    node_attr=None,
+    edge_attr=None,
+    node_attr_fields_list=None,
+    edge_attr_fields_list=None,
+    iterations=3,
+    digest_size=16,
+    include_initial_labels=False,
+):
+    """Return a dict of {node_pk: [hash_str, ...]} for Weisfeiler-Lehman subgraph hashes.
+
+    Requires NetworkX >= 3.3 for weisfeiler_lehman_subgraph_hashes.
+    """
+    if nx is None:
+        raise ImportError(
+            "networkx is required for subgraph_hashes(). Install it with: pip install django-postgresql-dag[transforms]"
+        )
+
+    if not hasattr(nx, "weisfeiler_lehman_subgraph_hashes"):
+        raise ImportError(
+            f"weisfeiler_lehman_subgraph_hashes requires NetworkX >= 3.3. Current version: {nx.__version__}"
+        )
+
+    if node_attr and not node_attr_fields_list:
+        node_attr_fields_list = [node_attr]
+    if edge_attr and not edge_attr_fields_list:
+        edge_attr_fields_list = [edge_attr]
+
+    graph = nx_from_queryset(
+        queryset,
+        node_attribute_fields_list=node_attr_fields_list,
+        edge_attribute_fields_list=edge_attr_fields_list,
+        digraph=True,
+    )
+
+    return nx.weisfeiler_lehman_subgraph_hashes(
+        graph,
+        node_attr=node_attr,
+        edge_attr=edge_attr,
+        iterations=iterations,
+        digest_size=digest_size,
+    )
+
+
+def graphs_are_isomorphic(
+    queryset_a,
+    queryset_b,
+    node_attr=None,
+    edge_attr=None,
+    node_attr_fields_list=None,
+    edge_attr_fields_list=None,
+    iterations=3,
+    digest_size=16,
+):
+    """Compare graph hashes of two querysets. Returns True if hashes match.
+
+    Hash equality is necessary but NOT sufficient for true isomorphism.
+    """
+    hash_a = graph_hash(
+        queryset_a,
+        node_attr=node_attr,
+        edge_attr=edge_attr,
+        node_attr_fields_list=node_attr_fields_list,
+        edge_attr_fields_list=edge_attr_fields_list,
+        iterations=iterations,
+        digest_size=digest_size,
+    )
+    hash_b = graph_hash(
+        queryset_b,
+        node_attr=node_attr,
+        edge_attr=edge_attr,
+        node_attr_fields_list=node_attr_fields_list,
+        edge_attr_fields_list=edge_attr_fields_list,
+        iterations=iterations,
+        digest_size=digest_size,
+    )
+    return hash_a == hash_b
