@@ -14,14 +14,14 @@ This installs `networkx`, `rustworkx`, and `pandas`.
 
 ## Common parameters
 
-All export functions accept a queryset of either nodes or edges. The queryset type is detected automatically — pass a nodes queryset and the corresponding edges are looked up, or vice versa.
+All export functions accept a queryset of either nodes or edges. The queryset type is detected automatically - pass a nodes queryset and the corresponding edges are looked up, or vice versa.
 
 These parameters are shared across `nx_from_queryset`, `rx_from_queryset`, and `json_from_queryset`:
 
-- `node_attribute_fields_list` — field names to include as attributes on each node
-- `edge_attribute_fields_list` — field names to include as attributes on each edge
-- `date_strf` — strftime format string for date-like fields (e.g. `"%Y-%m-%d"`)
-- `digraph` — `True` for a directed graph, `False` (default) for undirected
+- `node_attribute_fields_list` - field names to include as attributes on each node
+- `edge_attribute_fields_list` - field names to include as attributes on each edge
+- `date_strf` - strftime format string for date-like fields (e.g. `"%Y-%m-%d"`)
+- `digraph` - `True` for a directed graph, `False` (default) for undirected
 
 ## NetworkX export
 
@@ -158,11 +158,11 @@ True
 
 The output follows the node-link JSON format with these top-level keys:
 
-- `directed` — whether the graph is directed
-- `multigraph` — whether the graph allows multiple edges
-- `attrs` — graph-level attributes
-- `nodes` — list of node objects, each with `id` (index) and `data` dict
-- `links` — list of edge objects, each with `source`, `target`, `id`, and `data` dict
+- `directed` - whether the graph is directed
+- `multigraph` - whether the graph allows multiple edges
+- `attrs` - graph-level attributes
+- `nodes` - list of node objects, each with `id` (index) and `data` dict
+- `links` - list of edge objects, each with `source`, `target`, `id`, and `data` dict
 
 By default, `digraph=False` produces undirected output:
 
@@ -202,7 +202,7 @@ These functions use NetworkX's Weisfeiler-Lehman algorithm to compute structural
 True
 ```
 
-WL hashing is not collision-free — hash equality is necessary but not sufficient for true isomorphism.
+WL hashing is not collision-free - hash equality is necessary but not sufficient for true isomorphism.
 
 These functions also have node-level convenience methods that use lazy imports (so NetworkX isn't required at import time):
 
@@ -217,8 +217,8 @@ Scope options: `"connected"`, `"descendants"`, `"ancestors"`, `"clan"`.
 
 These functions are used internally by the export functions, but can be useful when working with querysets directly.
 
-**`edges_from_nodes_queryset(nodes_queryset)`** — Given a queryset of nodes, returns a queryset of all edges where both parent and child are in the provided nodes.
+**`edges_from_nodes_queryset(nodes_queryset)`** - Given a queryset of nodes, returns a queryset of all edges where both parent and child are in the provided nodes.
 
-**`nodes_from_edges_queryset(edges_queryset)`** — Given a queryset of edges, returns a queryset of all nodes that appear as a parent or child in the provided edges.
+**`nodes_from_edges_queryset(edges_queryset)`** - Given a queryset of edges, returns a queryset of all nodes that appear as a parent or child in the provided edges.
 
-**`model_to_dict(instance, fields=None, date_strf=None)`** — Converts a model instance to a dictionary for the specified fields. Handles ForeignKeys, ManyToMany fields (with `__` subfield lookup), dates, UUIDs, file fields, and callable methods.
+**`model_to_dict(instance, fields=None, date_strf=None)`** - Converts a model instance to a dictionary for the specified fields. Handles ForeignKeys, ManyToMany fields (with `__` subfield lookup), dates, UUIDs, file fields, and callable methods.

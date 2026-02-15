@@ -16,7 +16,7 @@ These are called on `MyNode.objects`.
 : Returns a list of QuerySets, one per disconnected subgraph. Each QuerySet can be further filtered.
 
 **graph_stats(self)**
-: Returns a dict with aggregate metrics: `node_count`, `edge_count`, `root_count`, `leaf_count`, `island_count`, `max_depth`, `avg_depth`, `density`, `component_count`. Runs O(N) queries — suitable for analytics, not hot paths.
+: Returns a dict with aggregate metrics: `node_count`, `edge_count`, `root_count`, `leaf_count`, `island_count`, `max_depth`, `avg_depth`, `density`, `component_count`. Runs O(N) queries - suitable for analytics, not hot paths.
 
 **topological_sort(self, max_depth=None)**
 : Returns a QuerySet of all nodes in topological order (parents before children). Island nodes are included at the front.
@@ -102,7 +102,7 @@ All traversal methods accept optional keyword arguments for [filtering](filterin
 ## Path Methods
 
 **path(self, ending_node, \*\*kwargs)**
-: Returns a QuerySet of the shortest path from self to `ending_node`. Sorted root-side toward leaf-side regardless of direction. Raises `NodeNotReachableException` if no path exists. Accepts `directional` (default `True`) — set to `False` to search in both directions.
+: Returns a QuerySet of the shortest path from self to `ending_node`. Sorted root-side toward leaf-side regardless of direction. Raises `NodeNotReachableException` if no path exists. Accepts `directional` (default `True`) - set to `False` to search in both directions.
 
 **path_exists(self, ending_node, \*\*kwargs)**
 : Returns `True` if a path exists from self to `ending_node`. Accepts `directional`.
@@ -114,7 +114,7 @@ All traversal methods accept optional keyword arguments for [filtering](filterin
 : Returns a list of QuerySets, each representing one path. Unlike `path()`, returns all paths, not just the shortest.
 
 **all_paths_as_pk_lists(self, ending_node, directional=True, max_results=None, \*\*kwargs)**
-: Returns a list of PK lists — lightweight alternative to `all_paths()`.
+: Returns a list of PK lists - lightweight alternative to `all_paths()`.
 
 **weighted_path(self, ending_node, weight_field="weight", \*\*kwargs)**
 : Returns a `(QuerySet, total_weight)` tuple for the minimum-weight path. The edge model must have the specified weight field. Raises `NodeNotReachableException` or `WeightFieldDoesNotExistException`.

@@ -1,6 +1,6 @@
 # Filtering Graph Traversals
 
-All traversal methods (`ancestors()`, `descendants()`, `clan()`, `path()`, `connected_graph()`, and their variants) accept filtering parameters that control which parts of the graph are explored. These filters operate at the CTE level — excluded edges are never traversed, not just hidden from results.
+All traversal methods (`ancestors()`, `descendants()`, `clan()`, `path()`, `connected_graph()`, and their variants) accept filtering parameters that control which parts of the graph are explored. These filters operate at the CTE level - excluded edges are never traversed, not just hidden from results.
 
 ## Limiting depth with `max_depth`
 
@@ -70,7 +70,7 @@ Pass a queryset of edge instances to exclude from traversal. The CTE will skip t
 >>> node.path(target, disallowed_edges_queryset=edge_to_skip)
 ```
 
-This is useful for "what if" scenarios — exploring the graph as it would look with certain connections removed, without actually deleting them.
+This is useful for "what if" scenarios - exploring the graph as it would look with certain connections removed, without actually deleting them.
 
 ## Restricting to specific edges with `allowed_edges_queryset`
 

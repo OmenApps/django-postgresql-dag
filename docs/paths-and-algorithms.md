@@ -1,6 +1,6 @@
 # Working with Paths and Algorithms
 
-Beyond basic ancestor/descendant traversal, django-postgresql-dag provides several graph algorithms — all implemented as PostgreSQL recursive CTEs or using the NetworkX library.
+Beyond basic ancestor/descendant traversal, django-postgresql-dag provides several graph algorithms - all implemented as PostgreSQL recursive CTEs or using the NetworkX library.
 
 The examples on this page use the graph from the [Quickstart](quickstart.md):
 
@@ -62,7 +62,7 @@ For lightweight processing, `all_paths_as_pk_lists()` returns lists of primary k
 [[1, 4, 7, 9], [1, 4, 8, 9]]
 ```
 
-Use `max_results` to cap the number of paths returned — useful in dense graphs:
+Use `max_results` to cap the number of paths returned - useful in dense graphs:
 
 ```python
 >>> root.all_paths(c1, max_results=1)
@@ -120,7 +120,7 @@ At the instance level, get a node and its descendants in topological order:
 
 ## Critical path
 
-The critical path is the longest weighted path from any root to any leaf in the DAG. This is useful for project scheduling — the critical path determines the minimum total duration.
+The critical path is the longest weighted path from any root to any leaf in the DAG. This is useful for project scheduling - the critical path determines the minimum total duration.
 
 ```python
 >>> path_qs, total_weight = NetworkNode.objects.critical_path(weight_field="weight")
@@ -175,7 +175,7 @@ Annotate nodes with their distance from the current node:
 
 Transitive reduction removes redundant edges. An edge A → C is redundant if C is already reachable from A through other paths (of length >= 2).
 
-Dry run — find redundant edges without removing them:
+Dry run - find redundant edges without removing them:
 
 ```python
 >>> NetworkNode.objects.transitive_reduction()

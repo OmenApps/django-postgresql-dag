@@ -22,7 +22,7 @@ These are called on `MyEdge.objects`.
 : Returns a QuerySet of edges forming the shortest path from `start_node` to `end_node`. Accepts `directional` (default `True`).
 
 **redundant_edges(self)**
-: Returns a QuerySet of redundant edges — those removable by transitive reduction. An edge A→C is redundant if C is reachable from A via a path of length >= 2.
+: Returns a QuerySet of redundant edges - those removable by transitive reduction. An edge A→C is redundant if C is reachable from A via a path of length >= 2.
 
 **transitive_reduction(self, delete=False)**
 : Identifies redundant edges. With `delete=True`, removes them and returns the count. See also `NodeManager.transitive_reduction()`.

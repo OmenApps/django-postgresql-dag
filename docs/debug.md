@@ -53,20 +53,20 @@ def debug_my_operation():
 
 These operations are captured when called inside a `log_queries` block:
 
-- `ancestors()` / `ancestors_raw()` — records `AncestorQuery`
-- `descendants()` / `descendants_raw()` — records `DescendantQuery`
-- `path()` / `path_raw()` — records `DownwardPathQuery` and/or `UpwardPathQuery`
-- `connected_graph()` / `connected_graph_raw()` — records `ConnectedGraphQuery`
-- `node_depth()` — records `node_depth`
+- `ancestors()` / `ancestors_raw()` - records `AncestorQuery`
+- `descendants()` / `descendants_raw()` - records `DescendantQuery`
+- `path()` / `path_raw()` - records `DownwardPathQuery` and/or `UpwardPathQuery`
+- `connected_graph()` / `connected_graph_raw()` - records `ConnectedGraphQuery`
+- `node_depth()` - records `node_depth`
 
 ## `DAGQueryLog` reference
 
 The object returned by `log_queries().__enter__()` is a `DAGQueryLog` instance with:
 
-- **`queries`** (`list[dict]`) — each entry has:
+- **`queries`** (`list[dict]`) - each entry has:
   - `query_class` (str): the query builder class name (e.g. `"DescendantQuery"`) or `"node_depth"`
   - `sql` (str): the formatted CTE SQL template
   - `params` (dict): the parameters passed to the query
-- **`executed`** (`list[dict]`) — only populated when `capture_executed=True`. Each entry has:
+- **`executed`** (`list[dict]`) - only populated when `capture_executed=True`. Each entry has:
   - `sql` (str): the actual SQL executed by Django
   - `time` (str): execution time in seconds

@@ -2,7 +2,7 @@
 
 This tutorial builds a university course prerequisite system from scratch. By the end, you'll have a working DAG that models courses, their prerequisites, and the relationships between them.
 
-The scenario: a computer science department needs to track which courses must be completed before a student can enroll in more advanced ones. A single course can have multiple prerequisites, and one course can be a prerequisite for many others — a natural DAG structure.
+The scenario: a computer science department needs to track which courses must be completed before a student can enroll in more advanced ones. A single course can have multiple prerequisites, and one course can be a prerequisite for many others - a natural DAG structure.
 
 ```text
 Intro to CS ──→ Data Structures ──→ Algorithms ──→ Operating Systems
@@ -16,7 +16,7 @@ Intro to CS ──→ Data Structures ──→ Algorithms ──→ Operating S
 
 ## Step 1: Define your models
 
-django-postgresql-dag uses a factory pattern to generate abstract model classes. You provide two models — an Edge and a Node — and the factories wire up the foreign keys and manager methods.
+django-postgresql-dag uses a factory pattern to generate abstract model classes. You provide two models - an Edge and a Node - and the factories wire up the foreign keys and manager methods.
 
 **Order matters**: define the Edge class first (referencing the Node by string name), then the Node class.
 
@@ -51,7 +51,7 @@ class Course(node_factory(Prerequisite)):
 
 What's happening here:
 
-- `edge_factory("Course", concrete=False)` creates an abstract base class with `parent` and `child` ForeignKey fields pointing to the `Course` model. The `concrete=False` argument means the factory produces an abstract model — your `Prerequisite` class provides the concrete table.
+- `edge_factory("Course", concrete=False)` creates an abstract base class with `parent` and `child` ForeignKey fields pointing to the `Course` model. The `concrete=False` argument means the factory produces an abstract model - your `Prerequisite` class provides the concrete table.
 - `node_factory(Prerequisite)` creates an abstract base class with a ManyToManyField through `Prerequisite`, plus all the graph traversal methods (`ancestors()`, `descendants()`, `path()`, etc.).
 
 After defining these models, run `makemigrations` and `migrate` as usual.
@@ -104,35 +104,35 @@ Each call creates a row in the `Prerequisite` (edge) table. The database now has
 
 With the graph built, you can ask questions about prerequisite chains.
 
-**"What do I need to take before Algorithms?"** — use `ancestors()` to find all nodes reachable by following edges upward:
+**"What do I need to take before Algorithms?"** - use `ancestors()` to find all nodes reachable by following edges upward:
 
 ```python
 >>> algorithms.ancestors()
 <QuerySet [<Course: CS101: Intro to CS>, <Course: CS201: Data Structures>]>
 ```
 
-**"What courses does Intro to CS unlock (directly or indirectly)?"** — use `descendants()` to find all nodes reachable by following edges downward:
+**"What courses does Intro to CS unlock (directly or indirectly)?"** - use `descendants()` to find all nodes reachable by following edges downward:
 
 ```python
 >>> intro.descendants()
 <QuerySet [<Course: CS201: Data Structures>, <Course: CS301: Algorithms>, <Course: CS250: Databases>, <Course: CS350: Operating Systems>, <Course: CS340: Machine Learning>, <Course: CS260: Web Development>]>
 ```
 
-**"What are the immediate next courses after Data Structures?"** — use `max_depth=1` to limit traversal to direct children:
+**"What are the immediate next courses after Data Structures?"** - use `max_depth=1` to limit traversal to direct children:
 
 ```python
 >>> data_structures.descendants(max_depth=1)
 <QuerySet [<Course: CS301: Algorithms>, <Course: CS250: Databases>]>
 ```
 
-**"Show me everything connected to Data Structures"** — `clan()` returns all ancestors, self, and all descendants:
+**"Show me everything connected to Data Structures"** - `clan()` returns all ancestors, self, and all descendants:
 
 ```python
 >>> data_structures.clan()
 <QuerySet [<Course: CS101: Intro to CS>, <Course: CS201: Data Structures>, <Course: CS301: Algorithms>, <Course: CS250: Databases>, <Course: CS350: Operating Systems>, <Course: CS340: Machine Learning>, <Course: CS260: Web Development>]>
 ```
 
-**"Which courses share a prerequisite with Databases?"** — `siblings()` returns nodes with the same parent:
+**"Which courses share a prerequisite with Databases?"** - `siblings()` returns nodes with the same parent:
 
 ```python
 >>> databases.siblings()
@@ -143,25 +143,25 @@ Both Databases and Algorithms require Data Structures, so they're siblings.
 
 ## Step 4: Find paths
 
-**"What's the prerequisite chain from Intro to CS to Operating Systems?"** — `path()` returns the shortest path:
+**"What's the prerequisite chain from Intro to CS to Operating Systems?"** - `path()` returns the shortest path:
 
 ```python
 >>> intro.path(os)
 <QuerySet [<Course: CS101: Intro to CS>, <Course: CS201: Data Structures>, <Course: CS301: Algorithms>, <Course: CS350: Operating Systems>]>
 ```
 
-**"How many courses is that?"** — `distance()` returns the hop count:
+**"How many courses is that?"** - `distance()` returns the hop count:
 
 ```python
 >>> intro.distance(os)
 3
 ```
 
-**"Can I go from Operating Systems back to Intro to CS?"** — by default, `path()` only searches downward. To search in both directions, set `directional=False`:
+**"Can I go from Operating Systems back to Intro to CS?"** - by default, `path()` only searches downward. To search in both directions, set `directional=False`:
 
 ```python
 >>> os.path(intro)
-# Raises NodeNotReachableException — no downward path exists
+# Raises NodeNotReachableException - no downward path exists
 
 >>> os.path(intro, directional=False)
 <QuerySet [<Course: CS350: Operating Systems>, <Course: CS301: Algorithms>, <Course: CS201: Data Structures>, <Course: CS101: Intro to CS>]>
@@ -169,7 +169,7 @@ Both Databases and Algorithms require Data Structures, so they're siblings.
 
 ## Step 5: Check relationships
 
-Predicate methods return boolean values and are useful for validation logic — for example, checking whether a student has completed the necessary prerequisites.
+Predicate methods return boolean values and are useful for validation logic - for example, checking whether a student has completed the necessary prerequisites.
 
 ```python
 # Is Intro to CS a root? (no prerequisites)
@@ -241,8 +241,8 @@ And `ancestors_tree()` goes in the other direction:
 
 Now that you have a working DAG, here are some things to explore:
 
-- [Filtering Graph Traversals](filtering.md) — limit queries by edge type, depth, or specific edges
-- [Working with Paths and Algorithms](paths-and-algorithms.md) — weighted paths, topological sort, LCA, and more
-- [Exporting and Transforming Graphs](transformations.md) — convert your graph to NetworkX, rustworkx, or JSON
-- [Node API Reference](node-reference.md) — complete list of all node methods
-- [Edge API Reference](edge-reference.md) — complete list of all edge manager methods
+- [Filtering Graph Traversals](filtering.md) - limit queries by edge type, depth, or specific edges
+- [Working with Paths and Algorithms](paths-and-algorithms.md) - weighted paths, topological sort, LCA, and more
+- [Exporting and Transforming Graphs](transformations.md) - convert your graph to NetworkX, rustworkx, or JSON
+- [Node API Reference](node-reference.md) - complete list of all node methods
+- [Edge API Reference](edge-reference.md) - complete list of all edge manager methods

@@ -16,7 +16,7 @@ The `transforms` extra installs `networkx`, `rustworkx`, and `pandas`.
 
 ## Requirements
 
-- **PostgreSQL** — required. django-postgresql-dag uses recursive CTEs (`WITH RECURSIVE`), which are PostgreSQL-specific. It is not compatible with SQLite, MySQL, or other databases.
+- **PostgreSQL** - required. django-postgresql-dag uses recursive CTEs (`WITH RECURSIVE`), which are PostgreSQL-specific. It is not compatible with SQLite, MySQL, or other databases.
 - **Supported primary key types**: `integer`, `bigint`, `uuid`. The query builders handle type casting automatically.
 
 ## Django settings
@@ -41,12 +41,12 @@ Creates an abstract base class for your Edge model.
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `node_model` | `str` or model class | *(required)* | The Node model this edge connects. Use a string name (e.g. `"MyNode"`) when the Node class hasn't been defined yet. |
-| `concrete` | `bool` | `True` | If `True`, the factory returns a concrete model. If `False`, returns an abstract model — your subclass provides the database table. Almost always set to `False`. |
+| `concrete` | `bool` | `True` | If `True`, the factory returns a concrete model. If `False`, returns an abstract model - your subclass provides the database table. Almost always set to `False`. |
 | `base_model` | model class | `models.Model` | Base class for the generated model. Use this to inject a custom base (e.g. a TimeStampedModel). |
 
 The generated model provides:
-- `parent` — ForeignKey to the node model (the "from" side)
-- `child` — ForeignKey to the node model (the "to" side)
+- `parent` - ForeignKey to the node model (the "from" side)
+- `child` - ForeignKey to the node model (the "to" side)
 - Circular reference checking on save (unless disabled)
 - Duplicate edge checking on save (unless disabled)
 
@@ -61,7 +61,7 @@ Creates an abstract base class for your Node model.
 | `base_model` | model class | `models.Model` | Base class for the generated model. |
 
 The generated model provides:
-- `children` — ManyToManyField through the edge model
+- `children` - ManyToManyField through the edge model
 - All traversal, path, predicate, and mutation methods (see [Node API Reference](node-reference.md))
 - Custom manager with `roots()`, `leaves()`, `topological_sort()`, and other graph-wide methods
 
