@@ -1,8 +1,8 @@
 # Debugging DAG Queries
 
-django-postgresql-dag builds complex recursive CTEs for graph traversal, but by default the generated SQL is invisible. The `log_queries` context manager lets you inspect the CTE SQL on demand, with zero overhead when not in use.
+django-postgresql-dag builds recursive CTEs for graph traversal, and by default the generated SQL is invisible. The `log_queries` context manager lets you inspect the CTE SQL on demand, with zero overhead when not in use.
 
-## Basic Usage
+## Basic usage
 
 ```python
 from django_postgresql_dag.debug import log_queries
@@ -17,18 +17,18 @@ for q in log.queries:
     print(q["params"])       # Parameter dict
 ```
 
-## Quick Shell Debugging
+## Quick shell debugging
 
-Pass `print_queries=True` to automatically print all captured queries when the context exits:
+Pass `print_queries=True` to print all captured queries when the context exits:
 
 ```python
 with log_queries(print_queries=True):
     node.descendants()
 ```
 
-## Capturing Executed Queries
+## Capturing executed queries
 
-To also capture the actual queries executed by Django (with timing data), use `capture_executed=True`. This wraps Django's `CaptureQueriesContext` internally:
+To capture the actual queries executed by Django (with timing data), use `capture_executed=True`. This wraps Django's `CaptureQueriesContext` internally:
 
 ```python
 with log_queries(capture_executed=True) as log:
@@ -38,7 +38,7 @@ for e in log.executed:
     print(f"{e['time']}s: {e['sql'][:100]}")
 ```
 
-## Decorator Form
+## Decorator form
 
 `log_queries` also works as a decorator:
 
@@ -49,9 +49,9 @@ def debug_my_operation():
     node.ancestors()
 ```
 
-## What Gets Captured
+## What gets captured
 
-The following operations are captured when called inside a `log_queries` block:
+These operations are captured when called inside a `log_queries` block:
 
 - `ancestors()` / `ancestors_raw()` — records `AncestorQuery`
 - `descendants()` / `descendants_raw()` — records `DescendantQuery`
@@ -59,14 +59,14 @@ The following operations are captured when called inside a `log_queries` block:
 - `connected_graph()` / `connected_graph_raw()` — records `ConnectedGraphQuery`
 - `node_depth()` — records `node_depth`
 
-## `DAGQueryLog` Reference
+## `DAGQueryLog` reference
 
 The object returned by `log_queries().__enter__()` is a `DAGQueryLog` instance with:
 
-- **`queries`** (`list[dict]`): Each entry has:
-  - `query_class` (str): The query builder class name (e.g. `"DescendantQuery"`) or `"node_depth"`
-  - `sql` (str): The formatted CTE SQL template
-  - `params` (dict): The parameters passed to the query
-- **`executed`** (`list[dict]`): Only populated when `capture_executed=True`. Each entry has:
-  - `sql` (str): The actual SQL executed by Django
-  - `time` (str): Execution time in seconds
+- **`queries`** (`list[dict]`) — each entry has:
+  - `query_class` (str): the query builder class name (e.g. `"DescendantQuery"`) or `"node_depth"`
+  - `sql` (str): the formatted CTE SQL template
+  - `params` (dict): the parameters passed to the query
+- **`executed`** (`list[dict]`) — only populated when `capture_executed=True`. Each entry has:
+  - `sql` (str): the actual SQL executed by Django
+  - `time` (str): execution time in seconds

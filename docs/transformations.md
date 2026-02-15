@@ -1,10 +1,10 @@
-# Transformations
+# Exporting and Transforming Graphs
 
-Provides utilities for converting django-postgresql-dag querysets into graph library objects and serialization formats. You can export to NetworkX graphs, rustworkx graphs, or JSON — making it straightforward to leverage external graph algorithms on your DAG data.
+Once you've built your graph, you may want to export it for visualization, analysis with external graph libraries, or serialization. This page covers the export functions for NetworkX, rustworkx, and JSON, as well as the graph hashing utilities.
 
 ## Installation
 
-The transformation functions require optional extras depending on which backend you want to use.
+Export functions require optional extras:
 
 ```bash
 pip install django-postgresql-dag[transforms]
@@ -12,24 +12,20 @@ pip install django-postgresql-dag[transforms]
 
 This installs `networkx`, `rustworkx`, and `pandas`.
 
-## Common Parameters
+## Common parameters
 
-All export functions accept a queryset of either nodes or edges. The queryset type is detected automatically — if you pass a nodes queryset, the corresponding edges are looked up, and vice versa.
+All export functions accept a queryset of either nodes or edges. The queryset type is detected automatically — pass a nodes queryset and the corresponding edges are looked up, or vice versa.
 
-The following parameters are shared across `nx_from_queryset`, `rx_from_queryset`, and `dag_to_json`:
+These parameters are shared across `nx_from_queryset`, `rx_from_queryset`, and `json_from_queryset`:
 
-- `node_attribute_fields_list`: a list of field name strings to include as attributes on each node
-- `edge_attribute_fields_list`: a list of field name strings to include as attributes on each edge
-- `date_strf`: if any fields are date-like, a strftime format string to apply (e.g. `"%Y-%m-%d"`)
-- `digraph`: boolean controlling whether to create a directed or undirected graph
+- `node_attribute_fields_list` — field names to include as attributes on each node
+- `edge_attribute_fields_list` — field names to include as attributes on each edge
+- `date_strf` — strftime format string for date-like fields (e.g. `"%Y-%m-%d"`)
+- `digraph` — `True` for a directed graph, `False` (default) for undirected
 
-## NetworkX Export
+## NetworkX export
 
-**nx_from_queryset(queryset, graph_attributes_dict=None, node_attribute_fields_list=None, edge_attribute_fields_list=None, date_strf=None, digraph=False)**
-
-Provided a queryset of nodes or edges, returns a NetworkX graph. By default returns an undirected `nx.Graph`; set `digraph=True` for an `nx.DiGraph`.
-
-Graph-level attributes are passed as a dictionary and unpacked as keyword arguments to the NetworkX graph constructor.
+`nx_from_queryset()` converts a queryset into a NetworkX graph. Node PKs are used directly as NetworkX node identifiers.
 
 ```python
 >>> from django_postgresql_dag.transformations import nx_from_queryset
@@ -37,12 +33,12 @@ Graph-level attributes are passed as a dictionary and unpacked as keyword argume
 
 >>> root = NetworkNode.objects.get(name="root")
 
-# Basic export — undirected graph from a node's clan
+# Basic undirected graph from a node's clan
 >>> graph = nx_from_queryset(root.clan())
 >>> graph.nodes
 NodeView((1, 2, 3, 4, 5, 6))
 
-# Directed graph with attributes
+# Directed graph with node and edge attributes
 >>> graph = nx_from_queryset(
 ...     root.clan(),
 ...     graph_attributes_dict={"name": "my_dag"},
@@ -56,17 +52,9 @@ NodeView((1, 2, 3, 4, 5, 6))
 {'name': 'root'}
 ```
 
-Node PKs are used directly as NetworkX node identifiers, so you can look up node data with `graph.nodes[node.pk]`.
+## rustworkx export
 
-## rustworkx Export
-
-**rx_from_queryset(queryset, graph_attributes=None, node_attribute_fields_list=None, edge_attribute_fields_list=None, date_strf=None, digraph=False)**
-
-Provided a queryset of nodes or edges, returns a rustworkx graph. By default returns an undirected `rx.PyGraph`; set `digraph=True` for an `rx.PyDiGraph`.
-
-Unlike NetworkX, rustworkx uses integer node indices (0, 1, 2, ...) internally. The Django PK is always stored in the node data dictionary under the `"pk"` key, so you can map back to your Django models.
-
-Graph-level attributes can be any Python object and are stored as `graph.attrs`.
+`rx_from_queryset()` converts a queryset into a rustworkx graph. Unlike NetworkX, rustworkx uses integer indices internally. The Django PK is always stored in the node data dictionary under the `"pk"` key.
 
 ```python
 >>> from django_postgresql_dag.transformations import rx_from_queryset
@@ -85,7 +73,7 @@ Graph-level attributes can be any Python object and are stored as `graph.attrs`.
 >>> graph[0]
 {'pk': 1, 'name': 'root'}
 
-# Graph attributes
+# Graph-level attributes
 >>> graph = rx_from_queryset(
 ...     root.clan(),
 ...     graph_attributes={"name": "my_dag", "version": 2},
@@ -94,7 +82,7 @@ Graph-level attributes can be any Python object and are stored as `graph.attrs`.
 {'name': 'my_dag', 'version': 2}
 ```
 
-The PK is always present in node data, even if no `node_attribute_fields_list` is provided:
+The PK is always present in node data, even without `node_attribute_fields_list`:
 
 ```python
 >>> graph = rx_from_queryset(root.clan())
@@ -102,9 +90,9 @@ The PK is always present in node data, even if no `node_attribute_fields_list` i
 {'pk': 1}
 ```
 
-### Working with rustworkx algorithms
+### Using rustworkx algorithms
 
-Once you have a rustworkx graph, you have access to fast Rust-backed graph algorithms:
+Once you have a rustworkx graph, you get access to fast Rust-backed algorithms:
 
 ```python
 >>> import rustworkx as rx
@@ -139,13 +127,9 @@ Since rustworkx uses integer indices, you may want to map results back to model 
 >>> NetworkNode.objects.filter(pk__in=sorted_pks)
 ```
 
-## JSON Serialization
+## JSON serialization
 
-**json_from_queryset(queryset, graph_attributes=None, node_attribute_fields_list=None, edge_attribute_fields_list=None, date_strf=None, digraph=False)**
-
-Builds a rustworkx graph from a queryset and serializes it to a JSON string using `rx.node_link_json()`. This is a convenience function that combines `rx_from_queryset()` with JSON serialization. All attribute values are stringified for JSON compatibility.
-
-Requires the `rustworkx` extra.
+`json_from_queryset()` builds a rustworkx graph from a queryset and serializes it to a JSON string. All attribute values are stringified for JSON compatibility.
 
 ```python
 >>> import json
@@ -154,7 +138,6 @@ Requires the `rustworkx` extra.
 
 >>> root = NetworkNode.objects.get(name="root")
 
-# Directed JSON output
 >>> result = json_from_queryset(
 ...     root.clan(),
 ...     graph_attributes={"name": "my_dag"},
@@ -173,15 +156,15 @@ True
 {'name': 'root a1'}
 ```
 
-The output follows the node-link JSON format with the following top-level keys:
+The output follows the node-link JSON format with these top-level keys:
 
-- `directed`: boolean indicating whether the graph is directed
-- `multigraph`: boolean indicating whether the graph allows multiple edges
-- `attrs`: graph-level attributes (from `graph_attributes`)
-- `nodes`: list of node objects, each with an `id` (index) and `data` dict
-- `links`: list of edge objects, each with `source`, `target`, `id`, and `data` dict
+- `directed` — whether the graph is directed
+- `multigraph` — whether the graph allows multiple edges
+- `attrs` — graph-level attributes
+- `nodes` — list of node objects, each with `id` (index) and `data` dict
+- `links` — list of edge objects, each with `source`, `target`, `id`, and `data` dict
 
-By default, `digraph=False` produces undirected output, matching the convention of the other export functions:
+By default, `digraph=False` produces undirected output:
 
 ```python
 >>> parsed = json.loads(json_from_queryset(root.clan()))
@@ -189,18 +172,53 @@ By default, `digraph=False` produces undirected output, matching the convention 
 False
 ```
 
-## Utility Functions
+## Graph hashing
 
-The following utility functions are also available and used internally by the export functions. They can be useful when working directly with querysets.
+These functions use NetworkX's Weisfeiler-Lehman algorithm to compute structural hashes of DAG subgraphs. Useful for comparing graph structures, caching, and change detection.
 
-**edges_from_nodes_queryset(nodes_queryset)**
+`graph_hash()` returns a hash string for a queryset:
 
-Provided a QuerySet of nodes, returns a QuerySet of all Edge instances where both the parent and child are within the provided nodes.
+```python
+>>> from django_postgresql_dag.transformations import graph_hash
+>>> h = graph_hash(root.clan())
+>>> h
+'a1b2c3d4e5f6...'
+```
 
-**nodes_from_edges_queryset(edges_queryset)**
+`subgraph_hashes()` returns per-node hashes as `{node_pk: [hash_str, ...]}`:
 
-Provided a QuerySet of edges, returns a QuerySet of all Node instances that appear as a parent or child in the provided edges.
+```python
+>>> from django_postgresql_dag.transformations import subgraph_hashes
+>>> hashes = subgraph_hashes(root.clan())
+>>> hashes[root.pk]
+['abc123...', 'def456...', ...]
+```
 
-**model_to_dict(instance, fields=None, date_strf=None)**
+`graphs_are_isomorphic()` compares two querysets by their graph hash:
 
-Converts a model instance to a dictionary for the specified fields. Handles standard fields, ForeignKey fields, ManyToMany fields (with optional subfield lookup via `__` notation), date/datetime fields, UUID fields, file/image fields, and callable methods on the instance.
+```python
+>>> from django_postgresql_dag.transformations import graphs_are_isomorphic
+>>> graphs_are_isomorphic(node_a.clan(), node_b.clan())
+True
+```
+
+WL hashing is not collision-free — hash equality is necessary but not sufficient for true isomorphism.
+
+These functions also have node-level convenience methods that use lazy imports (so NetworkX isn't required at import time):
+
+```python
+node.graph_hash(scope="connected")       # -> str
+node.subgraph_hashes(scope="connected")  # -> dict
+```
+
+Scope options: `"connected"`, `"descendants"`, `"ancestors"`, `"clan"`.
+
+## Utility functions
+
+These functions are used internally by the export functions, but can be useful when working with querysets directly.
+
+**`edges_from_nodes_queryset(nodes_queryset)`** — Given a queryset of nodes, returns a queryset of all edges where both parent and child are in the provided nodes.
+
+**`nodes_from_edges_queryset(edges_queryset)`** — Given a queryset of edges, returns a queryset of all nodes that appear as a parent or child in the provided edges.
+
+**`model_to_dict(instance, fields=None, date_strf=None)`** — Converts a model instance to a dictionary for the specified fields. Handles ForeignKeys, ManyToMany fields (with `__` subfield lookup), dates, UUIDs, file fields, and callable methods.

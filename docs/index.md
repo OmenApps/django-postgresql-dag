@@ -4,12 +4,37 @@
 ```
 
 ```{toctree}
+:caption: Getting Started
 :maxdepth: 2
 
+understanding-dags
 quickstart
-methods
+tutorial
+```
+
+```{toctree}
+:caption: Guides
+:maxdepth: 2
+
+filtering
+paths-and-algorithms
 transformations
 debug
+```
+
+```{toctree}
+:caption: Reference
+:maxdepth: 2
+
+node-reference
+edge-reference
+configuration
+```
+
+```{toctree}
+:caption: Development
+:maxdepth: 2
+
 contributing
 ```
 

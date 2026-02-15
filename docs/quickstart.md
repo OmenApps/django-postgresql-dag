@@ -1,5 +1,7 @@
 # Quickstart Example
 
+This page walks through a complete example: defining models, creating nodes and edges, and querying the graph. If you want more explanation of *why* things work this way, see the [Tutorial](tutorial.md). If you just want to see the API, keep reading.
+
 ## models.py
 
 ```python
@@ -56,16 +58,9 @@ class NetworkNode(node_factory(NetworkEdge)):
         return self.name
 ```
 
-## Optional arguments on the Edge model
+For details on `edge_factory` and `node_factory` arguments (like `disable_circular_check` and `allow_duplicate_edges`), see the [Configuration Reference](configuration.md).
 
-`disable_circular_check`: Defaults to False. If set to True,
-django-postgresql-dag will not check for circular paths. Essentially,
-the resulting graph may no longer be a DAG.
-
-`allow_duplicate_edges`: Defaults to True. Determines whether two
-nodes are allowed to have more than one Edge directly connecting them.
-
-## Add some Instances via the Shell (or in views, etc)
+## Add some instances via the shell (or in views, etc)
 
 ```python
 >>> from myapp.models import NetworkNode, NetworkEdge
@@ -99,7 +94,7 @@ nodes are allowed to have more than one Edge directly connecting them.
 >>> b4.add_child(c1)
 ```
 
-## Add Edges and Nodes to EdgeSet and NodeSet models (FK)
+## Add edges and nodes to EdgeSet and NodeSet models (FK)
 
 ```python
 >>> y = EdgeSet.objects.create()
@@ -123,7 +118,7 @@ nodes are allowed to have more than one Edge directly connecting them.
 >>> b2.save()
 ```
 
-## Resulting Database Tables
+## Resulting database tables
 
 ### myapp_networknode
 
@@ -160,11 +155,11 @@ id  | child_id | parent_id | name
  11 |       9  |         8 | b4 c1
 ```
 
-## Diagramatic View
+## Diagram
 
 ![Diagram of Resulting Graph](https://raw.githubusercontent.com/OmenApps/django-postgresql-dag/master/docs/images/graph.png)
 
-## Work with the Graph in the Shell (or in views, etc)
+## Work with the graph in the shell (or in views, etc)
 
 ```python
 >>> from myapp.models import NetworkNode, NetworkEdge
@@ -263,7 +258,7 @@ False
 >>> c2.ancestors_tree()
 {<NetworkNode: b3>: {<NetworkNode: a3>: {<NetworkNode: root>: {}}}}
 
-# Get a queryset of edges relatd to a particular node
+# Get a queryset of edges related to a particular node
 
 >>> a1.ancestors_edges()
 <QuerySet [<NetworkEdge: root a1>]>
