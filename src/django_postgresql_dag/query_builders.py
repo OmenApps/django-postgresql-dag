@@ -74,7 +74,8 @@ class BaseQuery(ABC):
     def _get_node_instance(self):
         """Return the node instance to use for method calls like get_foreign_key_field."""
         node = self.instance if self.instance is not None else self.starting_node
-        assert node is not None, "Either instance or starting_node must be set"
+        if node is None:
+            raise ValueError("Either instance or starting_node must be set")
         return node
 
     def _get_pk_name(self):
@@ -319,7 +320,8 @@ class AncestorQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
         return
 
     def _limit_to_edges_set_fk(self):
-        assert self.limiting_edges_set_fk is not None
+        if self.limiting_edges_set_fk is None:
+            raise ValueError("limiting_edges_set_fk must not be None")
         LIMITING_EDGES_SET_FK_CLAUSE_1 = """AND second.{fk_field_name}_id = %(limiting_edges_set_fk_pk)s"""
         LIMITING_EDGES_SET_FK_CLAUSE_2 = (
             """AND {relationship_table}.{fk_field_name}_id = %(limiting_edges_set_fk_pk)s"""
@@ -340,7 +342,8 @@ class AncestorQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
         return
 
     def _disallow_nodes(self):
-        assert self.disallowed_nodes_queryset is not None
+        if self.disallowed_nodes_queryset is None:
+            raise ValueError("disallowed_nodes_queryset must not be None")
         DISALLOWED_NODES_CLAUSE_1 = """AND first.parent_id <> ALL(%(disallowed_node_pks)s)"""
         DISALLOWED_NODES_CLAUSE_2 = """AND {relationship_table}.parent_id <> ALL(%(disallowed_node_pks)s)"""
 
@@ -355,7 +358,8 @@ class AncestorQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
         return
 
     def _allow_nodes(self):
-        assert self.allowed_nodes_queryset is not None
+        if self.allowed_nodes_queryset is None:
+            raise ValueError("allowed_nodes_queryset must not be None")
         ALLOWED_NODES_CLAUSE_1 = """AND first.parent_id = ANY(%(allowed_node_pks)s)"""
         ALLOWED_NODES_CLAUSE_2 = """AND {relationship_table}.parent_id = ANY(%(allowed_node_pks)s)"""
 
@@ -370,7 +374,8 @@ class AncestorQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
         return
 
     def raw_queryset(self):
-        assert self.instance is not None
+        if self.instance is None:
+            raise ValueError("instance must not be None")
         super().raw_queryset()
 
         QUERY = """
@@ -425,7 +430,8 @@ class DescendantQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
         return
 
     def _limit_to_edges_set_fk(self):
-        assert self.limiting_edges_set_fk is not None
+        if self.limiting_edges_set_fk is None:
+            raise ValueError("limiting_edges_set_fk must not be None")
         LIMITING_EDGES_SET_FK_CLAUSE_1 = """AND second.{fk_field_name}_id = %(limiting_edges_set_fk_pk)s"""
         LIMITING_EDGES_SET_FK_CLAUSE_2 = (
             """AND {relationship_table}.{fk_field_name}_id = %(limiting_edges_set_fk_pk)s"""
@@ -446,7 +452,8 @@ class DescendantQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
         return
 
     def _disallow_nodes(self):
-        assert self.disallowed_nodes_queryset is not None
+        if self.disallowed_nodes_queryset is None:
+            raise ValueError("disallowed_nodes_queryset must not be None")
         DISALLOWED_NODES_CLAUSE_1 = """AND first.child_id <> ALL(%(disallowed_node_pks)s)"""
         DISALLOWED_NODES_CLAUSE_2 = """AND {relationship_table}.child_id <> ALL(%(disallowed_node_pks)s)"""
 
@@ -461,7 +468,8 @@ class DescendantQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
         return
 
     def _allow_nodes(self):
-        assert self.allowed_nodes_queryset is not None
+        if self.allowed_nodes_queryset is None:
+            raise ValueError("allowed_nodes_queryset must not be None")
         ALLOWED_NODES_CLAUSE_1 = """AND first.child_id = ANY(%(allowed_node_pks)s)"""
         ALLOWED_NODES_CLAUSE_2 = """AND {relationship_table}.child_id = ANY(%(allowed_node_pks)s)"""
 
@@ -476,7 +484,8 @@ class DescendantQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
         return
 
     def raw_queryset(self):
-        assert self.instance is not None
+        if self.instance is None:
+            raise ValueError("instance must not be None")
         super().raw_queryset()
 
         QUERY = """
@@ -540,7 +549,8 @@ class ConnectedGraphQuery(BaseQuery):
         return
 
     def raw_queryset(self):
-        assert self.instance is not None
+        if self.instance is None:
+            raise ValueError("instance must not be None")
         super().raw_queryset()
 
         QUERY = """
@@ -581,7 +591,8 @@ class UpwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
         return
 
     def _limit_to_edges_set_fk(self):
-        assert self.limiting_edges_set_fk is not None
+        if self.limiting_edges_set_fk is None:
+            raise ValueError("limiting_edges_set_fk must not be None")
         LIMITING_EDGES_SET_FK_CLAUSE = """AND first.{fk_field_name}_id = %(limiting_edges_set_fk_pk)s"""
 
         fk_field_name = self._get_node_instance().get_foreign_key_field(fk_instance=self.limiting_edges_set_fk)
@@ -595,7 +606,8 @@ class UpwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
         return
 
     def _disallow_nodes(self):
-        assert self.disallowed_nodes_queryset is not None
+        if self.disallowed_nodes_queryset is None:
+            raise ValueError("disallowed_nodes_queryset must not be None")
         DISALLOWED_NODES_CLAUSE = """AND second.parent_id <> ALL(%(disallowed_path_node_pks)s)"""
 
         self.where_clauses_part_2 += "\n" + DISALLOWED_NODES_CLAUSE
@@ -606,7 +618,8 @@ class UpwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
         return
 
     def _allow_nodes(self):
-        assert self.allowed_nodes_queryset is not None
+        if self.allowed_nodes_queryset is None:
+            raise ValueError("allowed_nodes_queryset must not be None")
         ALLOWED_NODES_CLAUSE = """AND second.parent_id = ANY(%(allowed_path_node_pks)s)"""
 
         self.where_clauses_part_2 += "\n" + ALLOWED_NODES_CLAUSE
@@ -615,7 +628,8 @@ class UpwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
         return
 
     def raw_queryset(self):
-        assert self.starting_node is not None
+        if self.starting_node is None:
+            raise ValueError("starting_node must not be None")
         super().raw_queryset()
 
         QUERY = """
@@ -680,7 +694,8 @@ class DownwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
         return
 
     def _limit_to_edges_set_fk(self):
-        assert self.limiting_edges_set_fk is not None
+        if self.limiting_edges_set_fk is None:
+            raise ValueError("limiting_edges_set_fk must not be None")
         LIMITING_EDGES_SET_FK_CLAUSE = """AND first.{fk_field_name}_id = %(limiting_edges_set_fk_pk)s"""
 
         fk_field_name = self._get_node_instance().get_foreign_key_field(fk_instance=self.limiting_edges_set_fk)
@@ -694,7 +709,8 @@ class DownwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
         return
 
     def _disallow_nodes(self):
-        assert self.disallowed_nodes_queryset is not None
+        if self.disallowed_nodes_queryset is None:
+            raise ValueError("disallowed_nodes_queryset must not be None")
         DISALLOWED_NODES_CLAUSE = """AND second.child_id <> ALL(%(disallowed_path_node_pks)s)"""
 
         self.where_clauses_part_2 += "\n" + DISALLOWED_NODES_CLAUSE
@@ -705,7 +721,8 @@ class DownwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
         return
 
     def _allow_nodes(self):
-        assert self.allowed_nodes_queryset is not None
+        if self.allowed_nodes_queryset is None:
+            raise ValueError("allowed_nodes_queryset must not be None")
         ALLOWED_NODES_CLAUSE = """AND second.child_id = ANY(%(allowed_path_node_pks)s)"""
 
         self.where_clauses_part_2 += "\n" + ALLOWED_NODES_CLAUSE
@@ -714,7 +731,8 @@ class DownwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
         return
 
     def raw_queryset(self):
-        assert self.starting_node is not None
+        if self.starting_node is None:
+            raise ValueError("starting_node must not be None")
         super().raw_queryset()
 
         QUERY = """
@@ -809,7 +827,8 @@ class AncestorDepthQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
         return
 
     def raw_queryset(self):
-        assert self.instance is not None
+        if self.instance is None:
+            raise ValueError("instance must not be None")
         super().raw_queryset()
 
         QUERY = """
@@ -870,7 +889,8 @@ class DescendantDepthQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
         return
 
     def raw_queryset(self):
-        assert self.instance is not None
+        if self.instance is None:
+            raise ValueError("instance must not be None")
         super().raw_queryset()
 
         QUERY = """
@@ -977,7 +997,8 @@ class LCAQuery(BaseQuery):
         return
 
     def raw_queryset(self):
-        assert self.starting_node is not None and self.ending_node is not None
+        if self.starting_node is None or self.ending_node is None:
+            raise ValueError("Both starting_node and ending_node must not be None")
         super().raw_queryset()
 
         pk_name = self._get_pk_name()
