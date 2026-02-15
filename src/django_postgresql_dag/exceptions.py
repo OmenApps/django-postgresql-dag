@@ -23,3 +23,9 @@ class IncorrectQuerysetTypeException(Exception):
     """Exception for incorrect queryset type passed to transformation functions."""
 
     pass
+
+
+class WeightFieldDoesNotExistException(Exception):
+    """Exception raised when a specified weight field is missing or non-numeric on the edge model."""
+
+    pass

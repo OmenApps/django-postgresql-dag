@@ -1,15 +1,24 @@
 """Functions for transforming RawQuerySet or other outputs of django-postgresql-dag to alternate formats."""
 
 import inspect
+from collections import namedtuple
 from itertools import chain
 
 from django.core.exceptions import FieldDoesNotExist
+from django.db import models
 from django.db.models import Case, When
 from django.db.models.fields import DateTimeField, UUIDField
 from django.db.models.fields.files import FileField, ImageField
 from django.db.models.fields.related import ManyToManyField
 
-from .exceptions import GraphModelsCannotBeParsedException, IncorrectQuerysetTypeException, IncorrectUsageException
+from .exceptions import (
+    GraphModelsCannotBeParsedException,
+    IncorrectQuerysetTypeException,
+    IncorrectUsageException,
+    WeightFieldDoesNotExistException,
+)
+
+WeightedPathResult = namedtuple("WeightedPathResult", ["nodes", "total_weight"])
 
 
 def _ordered_filter(queryset, field_names, values):
@@ -147,6 +156,21 @@ def model_to_dict(instance, fields=None, date_strf=None):
         else:
             data[func] = obj
     return data
+
+
+def validate_weight_field(edge_model, weight_field):
+    """Validate that weight_field exists on edge_model and is numeric. Returns the DB column name."""
+    try:
+        field = edge_model._meta.get_field(weight_field)
+    except FieldDoesNotExist:
+        raise WeightFieldDoesNotExistException(f"Field '{weight_field}' does not exist on {edge_model.__name__}")
+    numeric_types = (models.IntegerField, models.FloatField, models.DecimalField)
+    if not isinstance(field, numeric_types):
+        raise WeightFieldDoesNotExistException(
+            f"Field '{weight_field}' on {edge_model.__name__} is not a numeric field "
+            f"(must be IntegerField, FloatField, or DecimalField)"
+        )
+    return field.column
 
 
 def edges_from_nodes_queryset(nodes_queryset):

@@ -12,7 +12,23 @@ from django.db import models, transaction
 
 from .debug import _dag_query_collector
 from .exceptions import NodeNotReachableException
-from .query_builders import AncestorQuery, ConnectedGraphQuery, DescendantQuery, DownwardPathQuery, UpwardPathQuery
+from .query_builders import (
+    AllDownwardPathsQuery,
+    AllUpwardPathsQuery,
+    AncestorDepthQuery,
+    AncestorQuery,
+    ConnectedGraphQuery,
+    CriticalPathQuery,
+    DescendantDepthQuery,
+    DescendantQuery,
+    DownwardPathQuery,
+    LCAQuery,
+    TopologicalSortQuery,
+    TransitiveReductionQuery,
+    UpwardPathQuery,
+    WeightedDownwardPathQuery,
+    WeightedUpwardPathQuery,
+)
 from .signals import post_edge_create, post_edge_delete, pre_edge_create, pre_edge_delete
 from .utils import _ordered_filter
 
@@ -50,6 +66,49 @@ class NodeManager(models.Manager):
             components.append(self.filter(pk__in=component_pks))
             all_pks -= component_pks
         return components
+
+    def topological_sort(self, max_depth=None):
+        """Return all nodes in topological order (parents before children).
+
+        Island nodes (no edges) are included at the front.
+        """
+        edge_model = self.model.children.through
+        query = TopologicalSortQuery(node_model=self.model, edge_model=edge_model, max_depth=max_depth)
+        cte_pks = [item.pk for item in query.raw_queryset()]
+        # Include island nodes not found by the CTE
+        all_pks = set(self.values_list("pk", flat=True))
+        island_pks = sorted(all_pks - set(cte_pks))
+        ordered_pks = island_pks + cte_pks
+        return _ordered_filter(self, "pk", ordered_pks)
+
+    def critical_path(self, weight_field=None, max_depth=None):
+        """Return (QuerySet, total_weight) for the longest weighted path through the DAG.
+
+        Without weight_field, uses hop count (each edge = 1).
+        """
+        edge_model = self.model.children.through
+        query = CriticalPathQuery(
+            node_model=self.model, edge_model=edge_model, weight_field=weight_field, max_depth=max_depth
+        )
+        path_pks, total_weight = query.result()
+        if not path_pks:
+            return (self.none(), 0)
+        return (_ordered_filter(self, "pk", path_pks), total_weight)
+
+    def transitive_reduction(self, delete=False):
+        """Identify redundant edges. Returns edge QuerySet (dry-run) or deletion count.
+
+        An edge A->C is redundant if C is reachable from A via a path of length >= 2.
+        """
+        edge_model = self.model.children.through
+        query = TransitiveReductionQuery(node_model=self.model, edge_model=edge_model)
+        redundant_edge_ids = [item.pk for item in query.raw_queryset()]
+        qs = edge_model.objects.filter(pk__in=redundant_edge_ids)
+        if delete:
+            count = qs.count()
+            qs.delete()
+            return count
+        return qs
 
     def graph_stats(self):
         """Return a dict with graph metrics: node_count, edge_count, root_count, leaf_count,
@@ -376,6 +435,126 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             else:
                 return self.path(ending_node, **kwargs).count() - 1
 
+        def ancestors_with_depth(self, **kwargs):
+            """Return list of (ancestor_node, depth) tuples."""
+            self._resolve_edge_type(kwargs)
+            raw_qs = AncestorDepthQuery(instance=self, **kwargs).raw_queryset()
+            node_map = {}
+            depth_map = {}
+            for item in raw_qs:
+                node_map[item.pk] = item
+                depth_map[item.pk] = item.depth
+            return [(node_map[pk], depth_map[pk]) for pk in node_map]
+
+        def descendants_with_depth(self, **kwargs):
+            """Return list of (descendant_node, depth) tuples."""
+            self._resolve_edge_type(kwargs)
+            raw_qs = DescendantDepthQuery(instance=self, **kwargs).raw_queryset()
+            node_map = {}
+            depth_map = {}
+            for item in raw_qs:
+                node_map[item.pk] = item
+                depth_map[item.pk] = item.depth
+            return [(node_map[pk], depth_map[pk]) for pk in node_map]
+
+        def topological_descendants(self, **kwargs):
+            """Return self + descendants in topological order."""
+            descendant_pks = self._pks_from_raw(self.descendants_raw(**kwargs))
+            pks = [self.pk] + descendant_pks
+            return self.ordered_queryset_from_pks(pks)
+
+        def lowest_common_ancestors(self, other, **kwargs):
+            """Return QuerySet of lowest common ancestor nodes between self and other."""
+            self._resolve_edge_type(kwargs)
+            raw_qs = LCAQuery(starting_node=self, ending_node=other, **kwargs).raw_queryset()
+            pks = [item.pk for item in raw_qs]
+            return self.ordered_queryset_from_pks(pks)
+
+        def all_paths_as_pk_lists(self, ending_node, directional=True, max_results=None, **kwargs):
+            """Return list of PK lists, one per path from self to ending_node."""
+            self._resolve_edge_type(kwargs)
+
+            if self == ending_node:
+                return [[self.pk]]
+
+            paths = AllDownwardPathsQuery(
+                starting_node=self, ending_node=ending_node, max_results=max_results, **kwargs
+            ).path_lists()
+
+            if not paths and not directional:
+                paths = AllUpwardPathsQuery(
+                    starting_node=self, ending_node=ending_node, max_results=max_results, **kwargs
+                ).path_lists()
+
+            return paths
+
+        def all_paths(self, ending_node, directional=True, max_results=None, **kwargs):
+            """Return list of QuerySets, each representing one path from self to ending_node."""
+            pk_lists = self.all_paths_as_pk_lists(
+                ending_node, directional=directional, max_results=max_results, **kwargs
+            )
+            return [self.ordered_queryset_from_pks(pk_list) for pk_list in pk_lists]
+
+        def weighted_path_raw(self, ending_node, weight_field="weight", directional=True, **kwargs):
+            """Return WeightedPathResult(nodes, total_weight) for shortest weighted path."""
+            from .utils import WeightedPathResult
+
+            self._resolve_edge_type(kwargs)
+
+            if self == ending_node:
+                return WeightedPathResult(nodes=[self.pk], total_weight=0)
+
+            result = WeightedDownwardPathQuery(
+                starting_node=self, ending_node=ending_node, weight_field=weight_field, **kwargs
+            ).result()
+
+            if result is None and not directional:
+                result = WeightedUpwardPathQuery(
+                    starting_node=self, ending_node=ending_node, weight_field=weight_field, **kwargs
+                ).result()
+
+            if result is None:
+                raise NodeNotReachableException
+
+            return result
+
+        def weighted_path(self, ending_node, weight_field="weight", **kwargs):
+            """Return (QuerySet, total_weight) for shortest weighted path."""
+            result = self.weighted_path_raw(ending_node, weight_field=weight_field, **kwargs)
+            return (self.ordered_queryset_from_pks(result.nodes), result.total_weight)
+
+        def weighted_distance(self, ending_node, weight_field="weight", **kwargs):
+            """Return the total weight of the shortest weighted path to ending_node."""
+            result = self.weighted_path_raw(ending_node, weight_field=weight_field, **kwargs)
+            return result.total_weight
+
+        def _get_scope_queryset(self, scope):
+            """Map scope string to queryset method call."""
+            if scope == "connected":
+                return self.connected_graph()
+            elif scope == "descendants":
+                return self.self_and_descendants()
+            elif scope == "ancestors":
+                return self.ancestors_and_self()
+            elif scope == "clan":
+                return self.clan()
+            else:
+                raise ValueError(f"Invalid scope: {scope}. Use 'connected', 'descendants', 'ancestors', or 'clan'.")
+
+        def graph_hash(self, scope="connected", **kwargs):
+            """Return a Weisfeiler-Lehman graph hash for the scoped subgraph."""
+            from .transformations import graph_hash as _graph_hash
+
+            qs = self._get_scope_queryset(scope)
+            return _graph_hash(qs, **kwargs)
+
+        def subgraph_hashes(self, scope="connected", **kwargs):
+            """Return a dict of {pk: [hash_str, ...]} for Weisfeiler-Lehman subgraph hashes."""
+            from .transformations import subgraph_hashes as _subgraph_hashes
+
+            qs = self._get_scope_queryset(scope)
+            return _subgraph_hashes(qs, **kwargs)
+
         def is_root(self):
             """Return True if the current Node instance has children, but no parents."""
             return bool(self.children.exists() and not self.parents.exists())  # type: ignore[attr-defined]
@@ -589,6 +768,22 @@ class EdgeManager(models.Manager):
     def path(self, start_node, end_node, **kwargs):
         """Return a QuerySet of all Edge instances for the shortest path from start_node to end_node."""
         return self.from_nodes_queryset(start_node.path(end_node, **kwargs))
+
+    def redundant_edges(self):
+        """Return QuerySet of redundant edges (those removable by transitive reduction)."""
+        node_model = self.model._meta.get_field("parent").related_model
+        query = TransitiveReductionQuery(node_model=node_model, edge_model=self.model)
+        redundant_edge_ids = [item.pk for item in query.raw_queryset()]
+        return self.filter(pk__in=redundant_edge_ids)
+
+    def transitive_reduction(self, delete=False):
+        """Identify redundant edges. Returns edge QuerySet (dry-run) or deletion count."""
+        qs = self.redundant_edges()
+        if delete:
+            count = qs.count()
+            qs.delete()
+            return count
+        return qs
 
     def validate_route(self, edges, **kwargs):
         """Given a list or set of Edge instances, verify that they result in a contiguous route."""

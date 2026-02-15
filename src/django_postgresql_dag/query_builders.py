@@ -2,9 +2,10 @@ from abc import ABC, abstractmethod
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
+from django.db import connection
 
 from .debug import _dag_query_collector
-from .utils import get_instance_characteristics
+from .utils import get_instance_characteristics, validate_weight_field
 
 
 class BaseQuery(ABC):
@@ -22,6 +23,8 @@ class BaseQuery(ABC):
         disallowed_edges_queryset=None,
         allowed_nodes_queryset=None,
         allowed_edges_queryset=None,
+        node_model=None,
+        edge_model=None,
     ):
         self.instance = instance
         self.starting_node = starting_node
@@ -57,6 +60,11 @@ class BaseQuery(ABC):
                 self.edge_model,
                 self.instance_type,
             ) = get_instance_characteristics(self.starting_node)
+        elif node_model is not None and edge_model is not None:
+            self.query_parameters = {"max_depth": self.max_depth}
+            self.node_model = node_model
+            self.edge_model = edge_model
+            self.instance_type = "graph_wide"
         else:
             raise ImproperlyConfigured("Either instance or both starting_node and ending_node are required")
 
@@ -68,6 +76,58 @@ class BaseQuery(ABC):
         node = self.instance if self.instance is not None else self.starting_node
         assert node is not None, "Either instance or starting_node must be set"
         return node
+
+    def _get_pk_name(self):
+        """Return the primary key field name, working for both instance-based and graph-wide queries."""
+        if self.instance is not None:
+            return self.instance.get_pk_name()
+        if self.starting_node is not None:
+            return self.starting_node.get_pk_name()
+        return self.node_model._meta.pk.attname
+
+    def _get_pk_type(self):
+        """Return the PostgreSQL type name for the primary key field."""
+        if self.instance is not None:
+            return self.instance.get_pk_type()
+        if self.starting_node is not None:
+            return self.starting_node.get_pk_type()
+        django_pk_type = type(self.node_model._meta.pk).__name__
+        if django_pk_type == "BigAutoField":
+            return "bigint"
+        elif django_pk_type == "UUIDField":
+            return "uuid"
+        else:
+            return "integer"
+
+    def _execute_raw_on_edge_model(self, sql_template, format_kwargs):
+        """Format the SQL template and return a RawQuerySet on the edge model."""
+        formatted_sql = sql_template.format(**format_kwargs)  # nosec B608
+        collector = _dag_query_collector.get(None)
+        if collector is not None:
+            collector.append(
+                {
+                    "query_class": type(self).__name__,
+                    "sql": formatted_sql,
+                    "params": dict(self.query_parameters),
+                }
+            )
+        return self.edge_model.objects.raw(formatted_sql, self.query_parameters)
+
+    def _execute_cursor(self, sql_template, format_kwargs):
+        """Format the SQL template and execute via cursor, returning (cursor, formatted_sql)."""
+        formatted_sql = sql_template.format(**format_kwargs)  # nosec B608
+        collector = _dag_query_collector.get(None)
+        if collector is not None:
+            collector.append(
+                {
+                    "query_class": type(self).__name__,
+                    "sql": formatted_sql,
+                    "params": dict(self.query_parameters),
+                }
+            )
+        cursor = connection.cursor()
+        cursor.execute(formatted_sql, self.query_parameters)
+        return cursor
 
     def limit_to_nodes_set_fk(self):
         """Limit the search to those nodes which are included in a ForeignKey's node set.
@@ -702,5 +762,759 @@ class DownwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
                 "pk_type": self.starting_node.get_pk_type(),
                 "where_clauses_part_1": self.where_clauses_part_1,
                 "where_clauses_part_2": self.where_clauses_part_2,
+            },
+        )
+
+
+class _GraphWideNoFilterMixin:
+    """Mixin providing no-op filter methods for graph-wide queries."""
+
+    def _limit_to_nodes_set_fk(self):
+        return
+
+    def _limit_to_edges_set_fk(self):
+        return
+
+    def _disallow_nodes(self):
+        return
+
+    def _disallow_edges(self):
+        return
+
+    def _allow_nodes(self):
+        return
+
+    def _allow_edges(self):
+        return
+
+
+class AncestorDepthQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
+    """Ancestor query that returns (pk, depth) tuples."""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        if not self.instance:
+            raise ImproperlyConfigured("AncestorDepthQuery requires an instance")
+
+    def _limit_to_nodes_set_fk(self):
+        return
+
+    def _limit_to_edges_set_fk(self):
+        return
+
+    def _disallow_nodes(self):
+        return
+
+    def _allow_nodes(self):
+        return
+
+    def raw_queryset(self):
+        assert self.instance is not None
+        super().raw_queryset()
+
+        QUERY = """
+        WITH RECURSIVE traverse({pk_name}, depth) AS (
+            SELECT first.parent_id, 1
+                FROM {relationship_table} AS first
+                LEFT OUTER JOIN {relationship_table} AS second
+                ON first.parent_id = second.child_id
+            WHERE first.child_id = %(pk)s
+            {where_clauses_part_1}
+        UNION
+            SELECT DISTINCT parent_id, traverse.depth + 1
+                FROM traverse
+                INNER JOIN {relationship_table}
+                ON {relationship_table}.child_id = traverse.{pk_name}
+            WHERE 1 = 1
+            {where_clauses_part_2}
+        )
+        SELECT {pk_name}, MAX(depth) AS depth FROM traverse
+        WHERE depth <= %(max_depth)s
+        GROUP BY {pk_name}
+        ORDER BY MAX(depth) DESC, {pk_name} ASC
+        """
+
+        return self._execute_raw(
+            QUERY,
+            {
+                "relationship_table": self.edge_model_table,
+                "pk_name": self.instance.get_pk_name(),
+                "where_clauses_part_1": self.where_clauses_part_1,
+                "where_clauses_part_2": self.where_clauses_part_2,
+            },
+        )
+
+    def depth_list(self):
+        """Return list of (pk, depth) tuples."""
+        return [(item.pk, item.depth) for item in self.raw_queryset()]
+
+
+class DescendantDepthQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
+    """Descendant query that returns (pk, depth) tuples."""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        if not self.instance:
+            raise ImproperlyConfigured("DescendantDepthQuery requires an instance")
+
+    def _limit_to_nodes_set_fk(self):
+        return
+
+    def _limit_to_edges_set_fk(self):
+        return
+
+    def _disallow_nodes(self):
+        return
+
+    def _allow_nodes(self):
+        return
+
+    def raw_queryset(self):
+        assert self.instance is not None
+        super().raw_queryset()
+
+        QUERY = """
+        WITH RECURSIVE traverse({pk_name}, depth) AS (
+            SELECT first.child_id, 1
+                FROM {relationship_table} AS first
+                LEFT OUTER JOIN {relationship_table} AS second
+                ON first.child_id = second.parent_id
+            WHERE first.parent_id = %(pk)s
+            {where_clauses_part_1}
+        UNION
+            SELECT DISTINCT child_id, traverse.depth + 1
+                FROM traverse
+                INNER JOIN {relationship_table}
+                ON {relationship_table}.parent_id = traverse.{pk_name}
+            WHERE 1=1
+            {where_clauses_part_2}
+        )
+        SELECT {pk_name}, MAX(depth) AS depth FROM traverse
+        WHERE depth <= %(max_depth)s
+        GROUP BY {pk_name}
+        ORDER BY MAX(depth), {pk_name} ASC
+        """
+
+        return self._execute_raw(
+            QUERY,
+            {
+                "relationship_table": self.edge_model_table,
+                "pk_name": self.instance.get_pk_name(),
+                "where_clauses_part_1": self.where_clauses_part_1,
+                "where_clauses_part_2": self.where_clauses_part_2,
+            },
+        )
+
+    def depth_list(self):
+        """Return list of (pk, depth) tuples."""
+        return [(item.pk, item.depth) for item in self.raw_queryset()]
+
+
+class TopologicalSortQuery(_GraphWideNoFilterMixin, BaseQuery):
+    """Graph-wide topological sort query."""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        if self.instance_type != "graph_wide":
+            raise ImproperlyConfigured("TopologicalSortQuery requires node_model and edge_model")
+
+    def raw_queryset(self):
+        super().raw_queryset()
+
+        pk_name = self._get_pk_name()
+
+        QUERY = """
+        WITH RECURSIVE traverse({pk_name}, depth) AS (
+            SELECT DISTINCT e.parent_id, 0
+            FROM {edge_table} AS e
+            LEFT JOIN {edge_table} AS incoming ON e.parent_id = incoming.child_id
+            WHERE incoming.child_id IS NULL
+        UNION
+            SELECT DISTINCT {edge_table}.child_id, traverse.depth + 1
+            FROM traverse
+            INNER JOIN {edge_table} ON {edge_table}.parent_id = traverse.{pk_name}
+            WHERE traverse.depth < %(max_depth)s
+        )
+        SELECT {pk_name} FROM traverse
+        WHERE depth <= %(max_depth)s
+        GROUP BY {pk_name}
+        ORDER BY MAX(depth) ASC, {pk_name} ASC
+        """
+
+        return self._execute_raw(
+            QUERY,
+            {
+                "edge_table": self.edge_model_table,
+                "pk_name": pk_name,
+            },
+        )
+
+
+class LCAQuery(BaseQuery):
+    """Lowest Common Ancestor query using two parallel ancestor CTEs."""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        if not self.starting_node or not self.ending_node:
+            raise ImproperlyConfigured("LCAQuery requires starting_node and ending_node")
+
+    def _limit_to_nodes_set_fk(self):
+        return
+
+    def _limit_to_edges_set_fk(self):
+        return
+
+    def _disallow_nodes(self):
+        return
+
+    def _disallow_edges(self):
+        return
+
+    def _allow_nodes(self):
+        return
+
+    def _allow_edges(self):
+        return
+
+    def raw_queryset(self):
+        assert self.starting_node is not None and self.ending_node is not None
+        super().raw_queryset()
+
+        pk_name = self._get_pk_name()
+        pk_type = self._get_pk_type()
+
+        QUERY = """
+        WITH RECURSIVE
+        ancestors_a({pk_name}, depth) AS (
+            SELECT %(starting_node)s::{pk_type}, 0
+        UNION
+            SELECT first.parent_id, ancestors_a.depth + 1
+            FROM ancestors_a
+            INNER JOIN {edge_table} AS first ON first.child_id = ancestors_a.{pk_name}
+            WHERE ancestors_a.depth < %(max_depth)s
+        ),
+        ancestors_b({pk_name}, depth) AS (
+            SELECT %(ending_node)s::{pk_type}, 0
+        UNION
+            SELECT first.parent_id, ancestors_b.depth + 1
+            FROM ancestors_b
+            INNER JOIN {edge_table} AS first ON first.child_id = ancestors_b.{pk_name}
+            WHERE ancestors_b.depth < %(max_depth)s
+        ),
+        common AS (
+            SELECT a.{pk_name}
+            FROM ancestors_a a INNER JOIN ancestors_b b ON a.{pk_name} = b.{pk_name}
+            GROUP BY a.{pk_name}
+        )
+        SELECT c.{pk_name} FROM common c
+        WHERE NOT EXISTS (
+            SELECT 1 FROM {edge_table} e
+            INNER JOIN common c2 ON e.child_id = c2.{pk_name}
+            WHERE e.parent_id = c.{pk_name}
+        )
+        ORDER BY c.{pk_name} ASC
+        """
+
+        return self._execute_raw(
+            QUERY,
+            {
+                "edge_table": self.edge_model_table,
+                "pk_name": pk_name,
+                "pk_type": pk_type,
+            },
+        )
+
+
+class AllDownwardPathsQuery(_PathEdgeFilterMixin, BaseQuery):
+    """Find all paths from starting_node downward to ending_node."""
+
+    def __init__(self, **kwargs):
+        self._max_results = kwargs.pop("max_results", None)
+        super().__init__(**kwargs)
+        if not self.starting_node or not self.ending_node:
+            raise ImproperlyConfigured("AllDownwardPathsQuery requires starting_node and ending_node")
+
+    def _limit_to_nodes_set_fk(self):
+        return
+
+    def _limit_to_edges_set_fk(self):
+        return
+
+    def _disallow_nodes(self):
+        return
+
+    def _allow_nodes(self):
+        return
+
+    def raw_queryset(self):
+        """Not used for this query class -- use path_lists() instead."""
+        super().raw_queryset()
+        return None
+
+    def path_lists(self):
+        """Return list of path lists (each path is a list of PKs)."""
+        super().raw_queryset()
+
+        pk_name = self._get_pk_name()
+        pk_type = self._get_pk_type()
+
+        limit_clause = ""
+        if self._max_results is not None:
+            self.query_parameters["max_results"] = self._max_results
+            limit_clause = "LIMIT %(max_results)s"
+
+        QUERY = """
+        WITH RECURSIVE traverse(parent_id, child_id, depth, path) AS (
+            SELECT
+                first.parent_id,
+                first.child_id,
+                1 AS depth,
+                ARRAY[first.parent_id] AS path
+                FROM {relationship_table} AS first
+            WHERE parent_id = %(starting_node)s
+            {where_clauses_part_1}
+        UNION ALL
+            SELECT
+                first.parent_id,
+                first.child_id,
+                second.depth + 1 AS depth,
+                path || first.parent_id AS path
+                FROM {relationship_table} AS first, traverse AS second
+            WHERE first.parent_id = second.child_id
+            AND (first.parent_id <> ALL(second.path))
+            {where_clauses_part_2}
+        )
+        SELECT path || ARRAY[%(ending_node)s]::{pk_type}[] AS path, depth
+        FROM traverse
+        WHERE child_id = %(ending_node)s AND depth <= %(max_depth)s
+        ORDER BY depth ASC
+        {limit_clause}
+        """
+
+        formatted_sql = QUERY.format(
+            relationship_table=self.edge_model_table,
+            pk_name=pk_name,
+            pk_type=pk_type,
+            where_clauses_part_1=self.where_clauses_part_1,
+            where_clauses_part_2=self.where_clauses_part_2,
+            limit_clause=limit_clause,
+        )  # nosec B608
+
+        collector = _dag_query_collector.get(None)
+        if collector is not None:
+            collector.append(
+                {
+                    "query_class": type(self).__name__,
+                    "sql": formatted_sql,
+                    "params": dict(self.query_parameters),
+                }
+            )
+
+        with connection.cursor() as cursor:
+            cursor.execute(formatted_sql, self.query_parameters)
+            return [row[0] for row in cursor.fetchall()]
+
+
+class AllUpwardPathsQuery(_PathEdgeFilterMixin, BaseQuery):
+    """Find all paths from starting_node upward to ending_node."""
+
+    def __init__(self, **kwargs):
+        self._max_results = kwargs.pop("max_results", None)
+        super().__init__(**kwargs)
+        if not self.starting_node or not self.ending_node:
+            raise ImproperlyConfigured("AllUpwardPathsQuery requires starting_node and ending_node")
+
+    def _limit_to_nodes_set_fk(self):
+        return
+
+    def _limit_to_edges_set_fk(self):
+        return
+
+    def _disallow_nodes(self):
+        return
+
+    def _allow_nodes(self):
+        return
+
+    def raw_queryset(self):
+        """Not used for this query class -- use path_lists() instead."""
+        super().raw_queryset()
+        return None
+
+    def path_lists(self):
+        """Return list of path lists (each path is a list of PKs)."""
+        super().raw_queryset()
+
+        pk_name = self._get_pk_name()
+        pk_type = self._get_pk_type()
+
+        limit_clause = ""
+        if self._max_results is not None:
+            self.query_parameters["max_results"] = self._max_results
+            limit_clause = "LIMIT %(max_results)s"
+
+        QUERY = """
+        WITH RECURSIVE traverse(child_id, parent_id, depth, path) AS (
+            SELECT
+                first.child_id,
+                first.parent_id,
+                1 AS depth,
+                ARRAY[first.child_id] AS path
+                FROM {relationship_table} AS first
+            WHERE child_id = %(starting_node)s
+            {where_clauses_part_1}
+        UNION ALL
+            SELECT
+                first.child_id,
+                first.parent_id,
+                second.depth + 1 AS depth,
+                path || first.child_id AS path
+                FROM {relationship_table} AS first, traverse AS second
+            WHERE first.child_id = second.parent_id
+            AND (first.child_id <> ALL(second.path))
+            {where_clauses_part_2}
+        )
+        SELECT path || ARRAY[%(ending_node)s]::{pk_type}[] AS path, depth
+        FROM traverse
+        WHERE parent_id = %(ending_node)s AND depth <= %(max_depth)s
+        ORDER BY depth ASC
+        {limit_clause}
+        """
+
+        formatted_sql = QUERY.format(
+            relationship_table=self.edge_model_table,
+            pk_name=pk_name,
+            pk_type=pk_type,
+            where_clauses_part_1=self.where_clauses_part_1,
+            where_clauses_part_2=self.where_clauses_part_2,
+            limit_clause=limit_clause,
+        )  # nosec B608
+
+        collector = _dag_query_collector.get(None)
+        if collector is not None:
+            collector.append(
+                {
+                    "query_class": type(self).__name__,
+                    "sql": formatted_sql,
+                    "params": dict(self.query_parameters),
+                }
+            )
+
+        with connection.cursor() as cursor:
+            cursor.execute(formatted_sql, self.query_parameters)
+            return [row[0] for row in cursor.fetchall()]
+
+
+class WeightedDownwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
+    """Weighted shortest path query traversing downward."""
+
+    def __init__(self, weight_field="weight", **kwargs):
+        self._weight_field = weight_field
+        super().__init__(**kwargs)
+        if not self.starting_node or not self.ending_node:
+            raise ImproperlyConfigured("WeightedDownwardPathQuery requires starting_node and ending_node")
+        self._weight_column = validate_weight_field(self.edge_model, self._weight_field)
+
+    def _limit_to_nodes_set_fk(self):
+        return
+
+    def _limit_to_edges_set_fk(self):
+        return
+
+    def _disallow_nodes(self):
+        return
+
+    def _allow_nodes(self):
+        return
+
+    def result(self):
+        """Return WeightedPathResult(nodes=[pk,...], total_weight=N)."""
+        from .utils import WeightedPathResult
+
+        super().raw_queryset()
+
+        pk_name = self._get_pk_name()
+        pk_type = self._get_pk_type()
+
+        QUERY = """
+        WITH RECURSIVE traverse(parent_id, child_id, depth, path, total_weight) AS (
+            SELECT
+                first.parent_id,
+                first.child_id,
+                1 AS depth,
+                ARRAY[first.parent_id] AS path,
+                first.{weight_column}::double precision AS total_weight
+                FROM {relationship_table} AS first
+            WHERE parent_id = %(starting_node)s
+            {where_clauses_part_1}
+        UNION ALL
+            SELECT
+                first.parent_id,
+                first.child_id,
+                second.depth + 1 AS depth,
+                path || first.parent_id AS path,
+                second.total_weight + first.{weight_column}::double precision AS total_weight
+                FROM {relationship_table} AS first, traverse AS second
+            WHERE first.parent_id = second.child_id
+            AND (first.parent_id <> ALL(second.path))
+            {where_clauses_part_2}
+        )
+        SELECT path || ARRAY[%(ending_node)s]::{pk_type}[] AS path, total_weight
+        FROM traverse
+        WHERE child_id = %(ending_node)s AND depth <= %(max_depth)s
+        ORDER BY total_weight ASC
+        LIMIT 1
+        """
+
+        formatted_sql = QUERY.format(
+            relationship_table=self.edge_model_table,
+            pk_name=pk_name,
+            pk_type=pk_type,
+            weight_column=self._weight_column,
+            where_clauses_part_1=self.where_clauses_part_1,
+            where_clauses_part_2=self.where_clauses_part_2,
+        )  # nosec B608 — weight_column from Django model metadata
+
+        collector = _dag_query_collector.get(None)
+        if collector is not None:
+            collector.append(
+                {
+                    "query_class": type(self).__name__,
+                    "sql": formatted_sql,
+                    "params": dict(self.query_parameters),
+                }
+            )
+
+        with connection.cursor() as cursor:
+            cursor.execute(formatted_sql, self.query_parameters)
+            row = cursor.fetchone()
+            if row is None:
+                return None
+            return WeightedPathResult(nodes=row[0], total_weight=row[1])
+
+    def raw_queryset(self):
+        """Not directly used -- use result() instead."""
+        super().raw_queryset()
+        return None
+
+
+class WeightedUpwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
+    """Weighted shortest path query traversing upward."""
+
+    def __init__(self, weight_field="weight", **kwargs):
+        self._weight_field = weight_field
+        super().__init__(**kwargs)
+        if not self.starting_node or not self.ending_node:
+            raise ImproperlyConfigured("WeightedUpwardPathQuery requires starting_node and ending_node")
+        self._weight_column = validate_weight_field(self.edge_model, self._weight_field)
+
+    def _limit_to_nodes_set_fk(self):
+        return
+
+    def _limit_to_edges_set_fk(self):
+        return
+
+    def _disallow_nodes(self):
+        return
+
+    def _allow_nodes(self):
+        return
+
+    def result(self):
+        """Return WeightedPathResult(nodes=[pk,...], total_weight=N)."""
+        from .utils import WeightedPathResult
+
+        super().raw_queryset()
+
+        pk_name = self._get_pk_name()
+        pk_type = self._get_pk_type()
+
+        QUERY = """
+        WITH RECURSIVE traverse(child_id, parent_id, depth, path, total_weight) AS (
+            SELECT
+                first.child_id,
+                first.parent_id,
+                1 AS depth,
+                ARRAY[first.child_id] AS path,
+                first.{weight_column}::double precision AS total_weight
+                FROM {relationship_table} AS first
+            WHERE child_id = %(starting_node)s
+            {where_clauses_part_1}
+        UNION ALL
+            SELECT
+                first.child_id,
+                first.parent_id,
+                second.depth + 1 AS depth,
+                path || first.child_id AS path,
+                second.total_weight + first.{weight_column}::double precision AS total_weight
+                FROM {relationship_table} AS first, traverse AS second
+            WHERE first.child_id = second.parent_id
+            AND (first.child_id <> ALL(second.path))
+            {where_clauses_part_2}
+        )
+        SELECT path || ARRAY[%(ending_node)s]::{pk_type}[] AS path, total_weight
+        FROM traverse
+        WHERE parent_id = %(ending_node)s AND depth <= %(max_depth)s
+        ORDER BY total_weight ASC
+        LIMIT 1
+        """
+
+        formatted_sql = QUERY.format(
+            relationship_table=self.edge_model_table,
+            pk_name=pk_name,
+            pk_type=pk_type,
+            weight_column=self._weight_column,
+            where_clauses_part_1=self.where_clauses_part_1,
+            where_clauses_part_2=self.where_clauses_part_2,
+        )  # nosec B608 — weight_column from Django model metadata
+
+        collector = _dag_query_collector.get(None)
+        if collector is not None:
+            collector.append(
+                {
+                    "query_class": type(self).__name__,
+                    "sql": formatted_sql,
+                    "params": dict(self.query_parameters),
+                }
+            )
+
+        with connection.cursor() as cursor:
+            cursor.execute(formatted_sql, self.query_parameters)
+            row = cursor.fetchone()
+            if row is None:
+                return None
+            return WeightedPathResult(nodes=row[0], total_weight=row[1])
+
+    def raw_queryset(self):
+        """Not directly used -- use result() instead."""
+        super().raw_queryset()
+        return None
+
+
+class CriticalPathQuery(_GraphWideNoFilterMixin, BaseQuery):
+    """Find the longest weighted path through the entire DAG (critical path)."""
+
+    def __init__(self, weight_field=None, **kwargs):
+        self._weight_field = weight_field
+        super().__init__(**kwargs)
+        if self.instance_type != "graph_wide":
+            raise ImproperlyConfigured("CriticalPathQuery requires node_model and edge_model")
+        if self._weight_field:
+            self._weight_column = validate_weight_field(self.edge_model, self._weight_field)
+        else:
+            self._weight_column = None
+
+    def result(self):
+        """Return (path_pks_list, total_weight) or ([], 0) if empty."""
+        pk_name = self._get_pk_name()
+        pk_type = self._get_pk_type()
+        node_table = self.node_model._meta.db_table
+
+        if self._weight_column:
+            weight_expression = f"edge.{self._weight_column}::double precision"  # nosec B608
+            weight_cast = "double precision"
+        else:
+            weight_expression = "1::double precision"
+            weight_cast = "double precision"
+
+        QUERY = """
+        WITH RECURSIVE
+        roots AS (
+            SELECT {node_table}.{pk_name} FROM {node_table}
+            LEFT JOIN {edge_table} ON {edge_table}.child_id = {node_table}.{pk_name}
+            WHERE {edge_table}.child_id IS NULL
+        ),
+        traverse(node_id, depth, path, total_weight) AS (
+            SELECT roots.{pk_name}, 0, ARRAY[roots.{pk_name}], 0::{weight_cast}
+            FROM roots
+        UNION ALL
+            SELECT edge.child_id, t.depth + 1, t.path || edge.child_id,
+                   t.total_weight + {weight_expression}
+            FROM traverse t
+            INNER JOIN {edge_table} edge ON edge.parent_id = t.node_id
+            WHERE edge.child_id <> ALL(t.path) AND t.depth < %(max_depth)s
+        ),
+        leaf_paths AS (
+            SELECT t.path, t.total_weight FROM traverse t
+            LEFT JOIN {edge_table} outgoing ON outgoing.parent_id = t.node_id
+            WHERE outgoing.parent_id IS NULL
+        ),
+        best_path AS (
+            SELECT path, total_weight FROM leaf_paths
+            ORDER BY total_weight DESC LIMIT 1
+        )
+        SELECT path, total_weight FROM best_path
+        """
+
+        formatted_sql = QUERY.format(
+            node_table=node_table,
+            edge_table=self.edge_model_table,
+            pk_name=pk_name,
+            pk_type=pk_type,
+            weight_expression=weight_expression,
+            weight_cast=weight_cast,
+        )  # nosec B608 — all format values from Django model metadata
+
+        collector = _dag_query_collector.get(None)
+        if collector is not None:
+            collector.append(
+                {
+                    "query_class": type(self).__name__,
+                    "sql": formatted_sql,
+                    "params": dict(self.query_parameters),
+                }
+            )
+
+        with connection.cursor() as cursor:
+            cursor.execute(formatted_sql, self.query_parameters)
+            row = cursor.fetchone()
+            if row is None:
+                return ([], 0)
+            return (row[0], row[1])
+
+    def raw_queryset(self):
+        """Not directly used -- use result() instead."""
+        super().raw_queryset()
+        return None
+
+
+class TransitiveReductionQuery(_GraphWideNoFilterMixin, BaseQuery):
+    """Find redundant edges that can be removed (transitive reduction)."""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        if self.instance_type != "graph_wide":
+            raise ImproperlyConfigured("TransitiveReductionQuery requires node_model and edge_model")
+
+    def raw_queryset(self):
+        super().raw_queryset()
+
+        pk_name = self._get_pk_name()
+
+        QUERY = """
+        WITH RECURSIVE
+        all_descendants(start_node, current_node, depth, path) AS (
+            SELECT parent_id, child_id, 1, ARRAY[parent_id]
+            FROM {edge_table}
+        UNION ALL
+            SELECT ad.start_node, e.child_id, ad.depth + 1, ad.path || e.parent_id
+            FROM all_descendants ad
+            INNER JOIN {edge_table} e ON e.parent_id = ad.current_node
+            WHERE e.parent_id <> ALL(ad.path) AND ad.depth < %(max_depth)s
+        ),
+        indirect_reachable AS (
+            SELECT DISTINCT start_node, current_node
+            FROM all_descendants WHERE depth >= 2
+        )
+        SELECT e.id FROM {edge_table} e
+        INNER JOIN indirect_reachable ir
+            ON ir.start_node = e.parent_id AND ir.current_node = e.child_id
+        """
+
+        return self._execute_raw_on_edge_model(
+            QUERY,
+            {
+                "edge_table": self.edge_model_table,
+                "pk_name": pk_name,
             },
         )
