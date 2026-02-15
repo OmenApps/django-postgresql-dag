@@ -12,9 +12,11 @@ All core traversal methods (`ancestors()`, `descendants()`, `path()`, `connected
 
 The package also supports CTE filters (`disallow_nodes`, `allow_nodes`, `disallow_edges`, `allow_edges`, `limiting_edges_set_fk`) to limit the area of the graph searched, and optional NetworkX/RustworkX/JSON export via the `transforms` extra. Manager-level methods `connected_components()` and `graph_stats()` provide whole-graph analytics. All traversal and predicate methods accept a convenient `edge_type` parameter as shorthand for `limiting_edges_set_fk`.
 
+Additional graph algorithms include: topological sort, depth annotation, all-paths enumeration, lowest common ancestor (LCA), weighted shortest path, critical path (longest path), transitive reduction, and graph hashing (via NetworkX Weisfeiler-Lehman).
+
 ## Demo
 
-[Quickstart example](https://django-postgresql-dag.readthedocs.io/en/latest/quickstart.html)
+[Quickstart example](https://django-postgresql-dag.readthedocs.io/en/latest/quickstart.html) | [Tutorial](https://django-postgresql-dag.readthedocs.io/en/latest/tutorial.html) | [Full documentation](https://django-postgresql-dag.readthedocs.io/en/latest/)
 
 ## Install
 
