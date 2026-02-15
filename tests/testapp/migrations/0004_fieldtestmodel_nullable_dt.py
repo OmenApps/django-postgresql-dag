@@ -4,15 +4,14 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('testapp', '0003_fieldtestmodel'),
+        ("testapp", "0003_fieldtestmodel"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='fieldtestmodel',
-            name='nullable_dt',
+            model_name="fieldtestmodel",
+            name="nullable_dt",
             field=models.DateTimeField(blank=True, null=True),
         ),
     ]

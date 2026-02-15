@@ -17,6 +17,7 @@ class NodeSet(models.Model):
 
 class NetworkEdge(edge_factory("NetworkNode", concrete=False)):
     name = models.CharField(max_length=100)
+    weight = models.FloatField(default=1.0)
 
     edge_set = models.ForeignKey(EdgeSet, null=True, blank=True, on_delete=models.CASCADE)
 
