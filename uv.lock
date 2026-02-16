@@ -400,7 +400,7 @@ wheels = [
 
 [[package]]
 name = "django-postgresql-dag"
-version = "2026.2.2"
+version = "2026.2.3"
 source = { editable = "." }
 dependencies = [
     { name = "django", version = "5.2.11", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
