@@ -4,14 +4,14 @@ This tutorial builds a university course prerequisite system from scratch. By th
 
 The scenario: a computer science department needs to track which courses must be completed before a student can enroll in more advanced ones. A single course can have multiple prerequisites, and one course can be a prerequisite for many others - a natural DAG structure.
 
-```text
-Intro to CS ──→ Data Structures ──→ Algorithms ──→ Operating Systems
-                     │                   │
-                     ↓                   ↓
-               Databases          Machine Learning
-                     │
-                     ↓
-              Web Development
+```{mermaid}
+flowchart TD
+    CS101[Intro to CS] --> CS201[Data Structures]
+    CS201 --> CS301[Algorithms]
+    CS201 --> CS250[Databases]
+    CS301 --> CS350[Operating Systems]
+    CS301 --> CS340[Machine Learning]
+    CS250 --> CS260[Web Development]
 ```
 
 ## Step 1: Define your models

@@ -4,15 +4,53 @@
 
 A graph is a data structure made of two things: **nodes** (also called vertices) and **edges** (connections between nodes). If you've worked with linked lists or trees, you've already used specialized forms of graphs.
 
-A graph becomes interesting when nodes can have multiple connections. Unlike a linked list (one connection per node) or a tree (one parent per node), a general graph places no limits on how nodes connect to each other.
+A graph becomes interesting when nodes can have multiple connections. Unlike a linked list (one connection per node) or a tree (one parent per node), a general graph places no limits on how nodes connect to each other. Here are 4 different graphs.
+
+```{mermaid}
+flowchart LR
+    A --- B
+    A --- C
+    B --- C
+    A ~~~ D
+    D ~~~ E
+    E --- F
+    E --- G
+    H --- I
+    I --- J
+    J --- K
+    K --- H
+```
 
 ## What makes it "directed" and "acyclic"?
 
 **Directed** means edges have a direction - they go *from* one node *to* another. Think of one-way streets: just because you can get from A to B doesn't mean you can get from B to A.
 
+```{mermaid}
+flowchart LR
+    A --> B
+    B --> C
+    C --> A
+    C --> D
+```
+
 **Acyclic** means there are no cycles. You can never follow edges and end up back where you started. This constraint is what separates a DAG from a general directed graph, and it's what makes DAGs so useful for modeling dependencies.
 
+```{mermaid}
+flowchart LR
+    A --- B
+    A --- C
+    B --- D
+    C --- D
+```
+
 Put them together: a **Directed Acyclic Graph (DAG)** is a set of nodes connected by one-way edges, where no path loops back on itself.
+
+```{mermaid}
+flowchart TD
+    A --> B & C
+    B --> D
+    C --> D & E
+```
 
 ## Real-world examples
 

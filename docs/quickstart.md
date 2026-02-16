@@ -157,7 +157,15 @@ id  | child_id | parent_id | name
 
 ## Diagram
 
-![Diagram of Resulting Graph](https://raw.githubusercontent.com/OmenApps/django-postgresql-dag/master/docs/images/graph.png)
+```{mermaid}
+flowchart TD
+    root --> a1 & a2 & a3
+    a1 --> b1 & b2
+    a2 --> b2
+    a3 --> b3 & b4
+    b3 --> c1 & c2
+    b4 --> c1
+```
 
 ## Work with the graph in the shell (or in views, etc)
 
