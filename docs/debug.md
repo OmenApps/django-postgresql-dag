@@ -55,8 +55,16 @@ These operations are captured when called inside a `log_queries` block:
 
 - `ancestors()` / `ancestors_raw()` - records `AncestorQuery`
 - `descendants()` / `descendants_raw()` - records `DescendantQuery`
+- `ancestors_with_depth()` - records `AncestorDepthQuery`
+- `descendants_with_depth()` - records `DescendantDepthQuery`
 - `path()` / `path_raw()` - records `DownwardPathQuery` and/or `UpwardPathQuery`
+- `all_paths()` / `all_paths_as_pk_lists()` - records `AllDownwardPathsQuery` and/or `AllUpwardPathsQuery`
+- `weighted_path()` / `weighted_path_raw()` - records `WeightedDownwardPathQuery` and/or `WeightedUpwardPathQuery`
 - `connected_graph()` / `connected_graph_raw()` - records `ConnectedGraphQuery`
+- `lowest_common_ancestors()` - records `LCAQuery`
+- `topological_sort()` - records `TopologicalSortQuery`
+- `critical_path()` - records `CriticalPathQuery`
+- `transitive_reduction()` - records `TransitiveReductionQuery`
 - `node_depth()` - records `node_depth`
 
 ## `DAGQueryLog` reference

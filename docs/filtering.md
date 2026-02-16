@@ -87,6 +87,32 @@ The inverse of `disallowed_edges_queryset`: only the edges in this queryset will
 >>> node.clan(allowed_edges_queryset=relevant_edges)
 ```
 
+## Excluding nodes with `disallowed_nodes_queryset`
+
+Pass a queryset of node instances to exclude from traversal. The CTE will not traverse through or return these nodes.
+
+```python
+# Exclude inactive nodes from traversal
+>>> inactive = MyNode.objects.filter(active=False)
+>>> node.descendants(disallowed_nodes_queryset=inactive)
+
+# Exclude a specific node
+>>> blocked = MyNode.objects.filter(pk=5)
+>>> node.ancestors(disallowed_nodes_queryset=blocked)
+```
+
+This is useful for pruning parts of the graph without modifying the data. Descendants of excluded nodes are also excluded (since the CTE cannot traverse through the excluded node).
+
+## Restricting to specific nodes with `allowed_nodes_queryset`
+
+The inverse of `disallowed_nodes_queryset`: only these nodes will be included in the traversal results. Nodes not in this queryset are skipped.
+
+```python
+# Only traverse through approved nodes
+>>> approved = MyNode.objects.filter(approved=True)
+>>> node.descendants(allowed_nodes_queryset=approved)
+```
+
 ## Combining filters
 
 Filters can be combined. For example, you can restrict to a specific edge type *and* limit depth:
@@ -100,5 +126,14 @@ Or restrict to allowed edges with a depth limit:
 ```python
 >>> node.ancestors(allowed_edges_queryset=approved, max_depth=5)
 ```
+
+## Method support
+
+All filter parameters (`max_depth`, `edge_type`, `disallowed_edges_queryset`, `allowed_edges_queryset`, `disallowed_nodes_queryset`, `allowed_nodes_queryset`, `limiting_edges_set_fk`) are supported by:
+
+- `ancestors()`, `descendants()`, `clan()` and their variants
+- `path()`, `path_exists()`, `distance()`
+- `connected_graph()`
+- `ancestors_with_depth()`, `descendants_with_depth()`
 
 For the complete list of methods that accept these parameters, see the [Node API Reference](node-reference.md) and [Edge API Reference](edge-reference.md).

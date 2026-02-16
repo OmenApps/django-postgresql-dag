@@ -17,7 +17,7 @@ The `transforms` extra installs `networkx`, `rustworkx`, and `pandas`.
 ## Requirements
 
 - **PostgreSQL** - required. django-postgresql-dag uses recursive CTEs (`WITH RECURSIVE`), which are PostgreSQL-specific. It is not compatible with SQLite, MySQL, or other databases.
-- **Supported primary key types**: `integer`, `bigint`, `uuid`. The query builders handle type casting automatically.
+- **Supported primary key types**: `integer`, `smallint`, `bigint`, `uuid`, `text`. The query builders handle type casting automatically based on your model's primary key field type (`AutoField`, `SmallAutoField`, `BigAutoField`, `IntegerField`, `SmallIntegerField`, `BigIntegerField`, `UUIDField`, `CharField`, `SlugField`, `TextField`).
 
 ## Django settings
 
@@ -31,6 +31,17 @@ DJANGO_POSTGRESQL_DAG_MAX_DEPTH = 50
 ```
 
 You can override this per-call by passing `max_depth=N` to any traversal method.
+
+**`DJANGO_POSTGRESQL_DAG_ALLOW_REDUNDANT_EDGES`**
+
+Sets the project-wide default for whether redundant (transitively reachable) edges are allowed. Defaults to `True`. A redundant edge is one where the child is already reachable from the parent via an existing path (e.g. adding A->C when A->B->C already exists).
+
+```python
+# settings.py
+DJANGO_POSTGRESQL_DAG_ALLOW_REDUNDANT_EDGES = False  # block redundant edges by default
+```
+
+You can override this per-call by passing `allow_redundant_edges=True/False` to `add_child()` or `add_parent()`.
 
 ## Factory functions
 
@@ -49,6 +60,7 @@ The generated model provides:
 - `child` - ForeignKey to the node model (the "to" side)
 - Circular reference checking on save (unless disabled)
 - Duplicate edge checking on save (unless disabled)
+- Redundant edge checking on save (unless allowed)
 
 ### `node_factory(edge_model, children_null=True, base_model=models.Model)`
 
@@ -85,10 +97,14 @@ These class attributes can be set on your Edge subclass to change validation beh
 : Default: `False`. When `True`, the edge model will not check for circular paths on save. The resulting graph may no longer be acyclic.
 
 **`allow_duplicate_edges`**
-: Default: `True`. When `False`, saving an edge that would create a duplicate direct connection between two nodes raises an error.
+: Default: `True`. When `False`, saving an exact duplicate edge (same parent and child as an existing edge) raises `ValidationError`.
+
+**`allow_redundant_edges`**
+: Default: `True` (or the value of the `DJANGO_POSTGRESQL_DAG_ALLOW_REDUNDANT_EDGES` setting). When `False`, saving an edge where the child is already transitively reachable from the parent raises `ValidationError`. For example, adding A->C when A->B->C already exists.
 
 ```python
 class MyEdge(edge_factory("MyNode", concrete=False)):
-    disable_circular_check = False   # default
-    allow_duplicate_edges = True     # default
+    disable_circular_check = False    # default
+    allow_duplicate_edges = True      # default
+    allow_redundant_edges = True      # default
 ```

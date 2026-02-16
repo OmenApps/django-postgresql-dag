@@ -4,13 +4,14 @@ Beyond basic ancestor/descendant traversal, django-postgresql-dag provides sever
 
 The examples on this page use the graph from the [Quickstart](quickstart.md):
 
-```text
-root → a1 → b1
-     → a1 → b2
-     → a2 → b2
-     → a3 → b3 → c1
-              → c2
-          → b4 → c1
+```{mermaid}
+flowchart TD
+    root --> a1 & a2 & a3
+    a1 --> b1 & b2
+    a2 --> b2
+    a3 --> b3 & b4
+    b3 --> c1 & c2
+    b4 --> c1
 ```
 
 ## Shortest path

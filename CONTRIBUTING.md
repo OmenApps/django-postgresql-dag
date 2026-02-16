@@ -22,8 +22,8 @@ Or fork the repository on GitHub first, then clone your fork.
 ## Prerequisites
 
 - **Python 3.11+**
-- **[uv](https://docs.astral.sh/uv/)** — for dependency management
-- **Docker** — for running PostgreSQL (or a local PostgreSQL 16+ instance)
+- **[uv](https://docs.astral.sh/uv/)** - for dependency management
+- **Docker** - for running PostgreSQL (or a local PostgreSQL 16+ instance)
 
 ## Installing Dependencies
 
@@ -100,15 +100,15 @@ uv run nox -s docs-build
 
 Running `nox` with no arguments executes the default sessions:
 
-- **pre-commit** — runs all pre-commit hooks
-- **pip-audit** — scans dependencies for known vulnerabilities
-- **tests** — runs the test suite across the Python/Django version matrix
+- **pre-commit** - runs all pre-commit hooks
+- **pip-audit** - scans dependencies for known vulnerabilities
+- **tests** - runs the test suite across the Python/Django version matrix
 
 Additional sessions:
 
-- **docs** — builds and serves docs with live reload
-- **docs-build** — builds docs to `docs/_build/`
-- **coverage** — combines and reports test coverage
+- **docs** - builds and serves docs with live reload
+- **docs-build** - builds docs to `docs/_build/`
+- **coverage** - combines and reports test coverage
 
 ## Code Changes Happen Through Pull Requests
 

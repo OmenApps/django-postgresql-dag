@@ -58,7 +58,7 @@ class NetworkNode(node_factory(NetworkEdge)):
         return self.name
 ```
 
-For details on `edge_factory` and `node_factory` arguments (like `disable_circular_check` and `allow_duplicate_edges`), see the [Configuration Reference](configuration.md).
+For details on `edge_factory` and `node_factory` arguments (like `disable_circular_check`, `allow_duplicate_edges`, and `allow_redundant_edges`), see the [Configuration Reference](configuration.md).
 
 ## Add some instances via the shell (or in views, etc)
 
