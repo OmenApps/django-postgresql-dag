@@ -288,6 +288,7 @@ def subgraph_hashes(
         edge_attr=edge_attr,
         iterations=iterations,
         digest_size=digest_size,
+        include_initial_labels=include_initial_labels,
     )
 
 
