@@ -826,12 +826,57 @@ class AncestorDepthQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
         return
 
     def _limit_to_edges_set_fk(self):
+        if self.limiting_edges_set_fk is None:
+            raise ValueError("limiting_edges_set_fk must not be None")
+        LIMITING_EDGES_SET_FK_CLAUSE_1 = """AND second.{fk_field_name}_id = %(limiting_edges_set_fk_pk)s"""
+        LIMITING_EDGES_SET_FK_CLAUSE_2 = (
+            """AND {relationship_table}.{fk_field_name}_id = %(limiting_edges_set_fk_pk)s"""
+        )
+
+        fk_field_name = self._get_node_instance().get_foreign_key_field(fk_instance=self.limiting_edges_set_fk)
+        if fk_field_name is not None:
+            self.where_clauses_part_1 += "\n" + LIMITING_EDGES_SET_FK_CLAUSE_1.format(
+                relationship_table=self.edge_model_table,
+                fk_field_name=fk_field_name,
+            )
+            self.where_clauses_part_2 += "\n" + LIMITING_EDGES_SET_FK_CLAUSE_2.format(
+                relationship_table=self.edge_model_table,
+                fk_field_name=fk_field_name,
+            )
+            self.query_parameters["limiting_edges_set_fk_pk"] = self.limiting_edges_set_fk.pk
+
         return
 
     def _disallow_nodes(self):
+        if self.disallowed_nodes_queryset is None:
+            raise ValueError("disallowed_nodes_queryset must not be None")
+        DISALLOWED_NODES_CLAUSE_1 = """AND first.parent_id <> ALL(%(disallowed_node_pks)s)"""
+        DISALLOWED_NODES_CLAUSE_2 = """AND {relationship_table}.parent_id <> ALL(%(disallowed_node_pks)s)"""
+
+        self.where_clauses_part_1 += "\n" + DISALLOWED_NODES_CLAUSE_1.format(
+            relationship_table=self.edge_model_table,
+        )
+        self.where_clauses_part_2 += "\n" + DISALLOWED_NODES_CLAUSE_2.format(
+            relationship_table=self.edge_model_table,
+        )
+        self.query_parameters["disallowed_node_pks"] = list(self.disallowed_nodes_queryset.values_list("pk", flat=True))
+
         return
 
     def _allow_nodes(self):
+        if self.allowed_nodes_queryset is None:
+            raise ValueError("allowed_nodes_queryset must not be None")
+        ALLOWED_NODES_CLAUSE_1 = """AND first.parent_id = ANY(%(allowed_node_pks)s)"""
+        ALLOWED_NODES_CLAUSE_2 = """AND {relationship_table}.parent_id = ANY(%(allowed_node_pks)s)"""
+
+        self.where_clauses_part_1 += "\n" + ALLOWED_NODES_CLAUSE_1.format(
+            relationship_table=self.edge_model_table,
+        )
+        self.where_clauses_part_2 += "\n" + ALLOWED_NODES_CLAUSE_2.format(
+            relationship_table=self.edge_model_table,
+        )
+        self.query_parameters["allowed_node_pks"] = list(self.allowed_nodes_queryset.values_list("pk", flat=True))
+
         return
 
     def raw_queryset(self):
@@ -888,12 +933,57 @@ class DescendantDepthQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
         return
 
     def _limit_to_edges_set_fk(self):
+        if self.limiting_edges_set_fk is None:
+            raise ValueError("limiting_edges_set_fk must not be None")
+        LIMITING_EDGES_SET_FK_CLAUSE_1 = """AND second.{fk_field_name}_id = %(limiting_edges_set_fk_pk)s"""
+        LIMITING_EDGES_SET_FK_CLAUSE_2 = (
+            """AND {relationship_table}.{fk_field_name}_id = %(limiting_edges_set_fk_pk)s"""
+        )
+
+        fk_field_name = self._get_node_instance().get_foreign_key_field(fk_instance=self.limiting_edges_set_fk)
+        if fk_field_name is not None:
+            self.where_clauses_part_1 += "\n" + LIMITING_EDGES_SET_FK_CLAUSE_1.format(
+                relationship_table=self.edge_model_table,
+                fk_field_name=fk_field_name,
+            )
+            self.where_clauses_part_2 += "\n" + LIMITING_EDGES_SET_FK_CLAUSE_2.format(
+                relationship_table=self.edge_model_table,
+                fk_field_name=fk_field_name,
+            )
+            self.query_parameters["limiting_edges_set_fk_pk"] = self.limiting_edges_set_fk.pk
+
         return
 
     def _disallow_nodes(self):
+        if self.disallowed_nodes_queryset is None:
+            raise ValueError("disallowed_nodes_queryset must not be None")
+        DISALLOWED_NODES_CLAUSE_1 = """AND first.child_id <> ALL(%(disallowed_node_pks)s)"""
+        DISALLOWED_NODES_CLAUSE_2 = """AND {relationship_table}.child_id <> ALL(%(disallowed_node_pks)s)"""
+
+        self.where_clauses_part_1 += "\n" + DISALLOWED_NODES_CLAUSE_1.format(
+            relationship_table=self.edge_model_table,
+        )
+        self.where_clauses_part_2 += "\n" + DISALLOWED_NODES_CLAUSE_2.format(
+            relationship_table=self.edge_model_table,
+        )
+        self.query_parameters["disallowed_node_pks"] = list(self.disallowed_nodes_queryset.values_list("pk", flat=True))
+
         return
 
     def _allow_nodes(self):
+        if self.allowed_nodes_queryset is None:
+            raise ValueError("allowed_nodes_queryset must not be None")
+        ALLOWED_NODES_CLAUSE_1 = """AND first.child_id = ANY(%(allowed_node_pks)s)"""
+        ALLOWED_NODES_CLAUSE_2 = """AND {relationship_table}.child_id = ANY(%(allowed_node_pks)s)"""
+
+        self.where_clauses_part_1 += "\n" + ALLOWED_NODES_CLAUSE_1.format(
+            relationship_table=self.edge_model_table,
+        )
+        self.where_clauses_part_2 += "\n" + ALLOWED_NODES_CLAUSE_2.format(
+            relationship_table=self.edge_model_table,
+        )
+        self.query_parameters["allowed_node_pks"] = list(self.allowed_nodes_queryset.values_list("pk", flat=True))
+
         return
 
     def raw_queryset(self):
