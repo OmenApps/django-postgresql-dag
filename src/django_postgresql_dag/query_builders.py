@@ -122,22 +122,6 @@ class BaseQuery(ABC):
             )
         return self.edge_model.objects.raw(formatted_sql, self.query_parameters)
 
-    def _execute_cursor(self, sql_template, format_kwargs):
-        """Format the SQL template and execute via cursor, returning (cursor, formatted_sql)."""
-        formatted_sql = sql_template.format(**format_kwargs)  # nosec B608
-        collector = _dag_query_collector.get(None)
-        if collector is not None:
-            collector.append(
-                {
-                    "query_class": type(self).__name__,
-                    "sql": formatted_sql,
-                    "params": dict(self.query_parameters),
-                }
-            )
-        cursor = connection.cursor()
-        cursor.execute(formatted_sql, self.query_parameters)
-        return cursor
-
     def limit_to_nodes_set_fk(self):
         """Limit the search to those nodes which are included in a ForeignKey's node set.
 
