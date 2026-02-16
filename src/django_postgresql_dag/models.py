@@ -425,6 +425,8 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             The resulting Queryset is sorted from root-side, toward leaf-side, regardless of the relative position of
             starting and ending nodes.
             """
+            if self == ending_node:
+                return self.ordered_queryset_from_pks([self.pk])
             pks = self._pks_from_raw(self.path_raw(ending_node, **kwargs))
             return self.ordered_queryset_from_pks(pks)
 
