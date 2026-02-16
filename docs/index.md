@@ -16,8 +16,8 @@ tutorial
 :caption: Guides
 :maxdepth: 2
 
-filtering
 paths-and-algorithms
+filtering
 transformations
 debug
 ```
