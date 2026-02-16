@@ -20,10 +20,8 @@ class PathTestCase(TenNodeDAGFixtureMixin, TestCase):
         )
 
     def test_path_unreachable_raises(self):
-        try:
-            [p.name for p in self.c1.shortest_path(self.root)]
-        except Exception:
-            self.assertRaises(NodeNotReachableException)
+        with self.assertRaises(NodeNotReachableException):
+            list(self.c1.path(self.root))
 
     def test_path_nondirectional(self):
         result = [p.name for p in self.c1.path(self.root, directional=False)]
@@ -55,7 +53,6 @@ class PathEdgeCasesTestCase(DAGFixtureMixin, TestCase):
             self.b1.path_raw(self.root)
 
     def test_distance_self(self):
-        # Uses `is` comparison, so same object returns 0
         self.assertEqual(self.root.distance(self.root), 0)
 
 
