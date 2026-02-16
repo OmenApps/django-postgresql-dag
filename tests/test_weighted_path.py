@@ -102,3 +102,27 @@ class WeightedPathHeavyRouteTestCase(TestCase):
         names = list(qs.values_list("name", flat=True))
         self.assertEqual(names, ["n1", "n2", "n3", "n4"])
         self.assertAlmostEqual(weight, 3.0)
+
+
+class WeightedUpwardPathTestCase(WeightedPathFixtureMixin, TestCase):
+    """Test weighted path traversing upward (leaf to root)."""
+
+    def test_weighted_path_upward_non_directional(self):
+        """Weighted path from leaf to root using directional=False."""
+        qs, weight = self.leaf.weighted_path(self.root, directional=False)
+        names = list(qs.values_list("name", flat=True))
+        # Should find the lightest path: leaf -> a1 -> root (total=3)
+        self.assertEqual(names, ["leaf", "a1", "root"])
+        self.assertAlmostEqual(weight, 3.0)
+
+    def test_weighted_distance_upward(self):
+        dist = self.leaf.weighted_distance(self.root, directional=False)
+        self.assertAlmostEqual(dist, 3.0)
+
+    def test_weighted_path_upward_no_path(self):
+        """Weighted upward path raises when no path exists."""
+        from django_postgresql_dag.exceptions import NodeNotReachableException
+
+        island = NetworkNode.objects.create(name="island")
+        with self.assertRaises(NodeNotReachableException):
+            island.weighted_path(self.root, directional=False)

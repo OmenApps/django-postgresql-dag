@@ -3,6 +3,7 @@
 from django.test import TestCase
 
 from tests.helpers import DAGFixtureMixin, TenNodeDAGFixtureMixin
+from tests.testapp.models import NetworkNode
 
 
 class AllPathsFromDAGTestCase(DAGFixtureMixin, TestCase):
@@ -94,3 +95,26 @@ class AllPathsFromTenNodeDAGTestCase(TenNodeDAGFixtureMixin, TestCase):
         # Only one path: root -> a3 -> b3 -> c2
         paths = self.root.all_paths_as_pk_lists(self.c2)
         self.assertEqual(len(paths), 1)
+
+
+class AllUpwardPathsMaxResultsTestCase(TenNodeDAGFixtureMixin, TestCase):
+    """Tests for upward all-paths with max_results (AllUpwardPathsQuery)."""
+
+    def test_upward_all_paths_max_results(self):
+        """Upward all-paths with max_results limits results."""
+        paths = self.c1.all_paths_as_pk_lists(self.root, directional=False, max_results=1)
+        self.assertEqual(len(paths), 1)
+        self.assertEqual(paths[0][0], self.c1.pk)
+        self.assertEqual(paths[0][-1], self.root.pk)
+
+    def test_upward_all_paths_returns_all_without_limit(self):
+        """Without max_results, all upward paths are returned."""
+        paths = self.c1.all_paths_as_pk_lists(self.root, directional=False)
+        # c1 -> b3 -> a3 -> root AND c1 -> b4 -> a3 -> root
+        self.assertEqual(len(paths), 2)
+
+    def test_upward_all_paths_no_path(self):
+        """Upward all-paths returns empty when no path exists."""
+        island = NetworkNode.objects.create(name="island")
+        paths = island.all_paths_as_pk_lists(self.root, directional=False)
+        self.assertEqual(len(paths), 0)

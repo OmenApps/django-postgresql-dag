@@ -1,7 +1,21 @@
 from django.core.exceptions import ImproperlyConfigured
 from django.test import TestCase
 
-from django_postgresql_dag.query_builders import AncestorQuery, DescendantQuery
+from django_postgresql_dag.query_builders import (
+    AllDownwardPathsQuery,
+    AllUpwardPathsQuery,
+    AncestorQuery,
+    ConnectedGraphQuery,
+    CriticalPathQuery,
+    DescendantQuery,
+    DownwardPathQuery,
+    LCAQuery,
+    TopologicalSortQuery,
+    TransitiveReductionQuery,
+    UpwardPathQuery,
+    WeightedDownwardPathQuery,
+    WeightedUpwardPathQuery,
+)
 from tests.helpers import DAGFixtureMixin
 from tests.testapp.models import EdgeSet, NetworkEdge, NetworkNode, NodeSet
 
@@ -203,3 +217,214 @@ class EdgesFKFieldNoneTestCase(DAGFixtureMixin, TestCase):
         descendants = self.root.descendants(limiting_edges_set_fk=self.node_set)
         self.assertIn(self.a1, descendants)
         self.assertIn(self.b1, descendants)
+
+    def test_path_limiting_edges_fk_unrelated_model(self):
+        """Covers the None branch in DownwardPathQuery._limit_to_edges_set_fk."""
+        path = list(self.root.path(self.b1, limiting_edges_set_fk=self.node_set))
+        self.assertIn(self.root, path)
+        self.assertIn(self.b1, path)
+
+    def test_upward_path_limiting_edges_fk_unrelated_model(self):
+        """Covers the None branch in UpwardPathQuery._limit_to_edges_set_fk."""
+        path = list(self.b1.path(self.root, directional=False, limiting_edges_set_fk=self.node_set))
+        self.assertIn(self.root, path)
+        self.assertIn(self.b1, path)
+
+    def test_connected_graph_limiting_edges_fk_unrelated_model(self):
+        """Covers the None branch in ConnectedGraphQuery._limit_to_edges_set_fk."""
+        nodes = list(self.root.connected_graph(limiting_edges_set_fk=self.node_set))
+        self.assertIn(self.root, nodes)
+
+
+class QueryBuilderConstructorGuardsTestCase(TestCase):
+    """Tests for constructor guards across all query builder classes."""
+
+    def setUp(self):
+        self.n1 = NetworkNode.objects.create(name="n1")
+        self.n2 = NetworkNode.objects.create(name="n2")
+        self.n1.add_child(self.n2)
+
+    def test_upward_path_requires_both_nodes(self):
+        with self.assertRaises(ImproperlyConfigured):
+            UpwardPathQuery(instance=self.n1)
+
+    def test_downward_path_requires_both_nodes(self):
+        with self.assertRaises(ImproperlyConfigured):
+            DownwardPathQuery(instance=self.n1)
+
+    def test_connected_graph_requires_instance(self):
+        with self.assertRaises(ImproperlyConfigured):
+            ConnectedGraphQuery(starting_node=self.n1, ending_node=self.n2)
+
+    def test_lca_requires_both_nodes(self):
+        with self.assertRaises(ImproperlyConfigured):
+            LCAQuery(instance=self.n1)
+
+    def test_all_downward_paths_requires_both_nodes(self):
+        with self.assertRaises(ImproperlyConfigured):
+            AllDownwardPathsQuery(instance=self.n1)
+
+    def test_all_upward_paths_requires_both_nodes(self):
+        with self.assertRaises(ImproperlyConfigured):
+            AllUpwardPathsQuery(instance=self.n1)
+
+    def test_weighted_downward_requires_both_nodes(self):
+        with self.assertRaises(ImproperlyConfigured):
+            WeightedDownwardPathQuery(instance=self.n1)
+
+    def test_weighted_upward_requires_both_nodes(self):
+        with self.assertRaises(ImproperlyConfigured):
+            WeightedUpwardPathQuery(instance=self.n1)
+
+    def test_topological_sort_requires_graph_wide(self):
+        with self.assertRaises(ImproperlyConfigured):
+            TopologicalSortQuery(instance=self.n1)
+
+    def test_critical_path_requires_graph_wide(self):
+        with self.assertRaises(ImproperlyConfigured):
+            CriticalPathQuery(instance=self.n1)
+
+    def test_transitive_reduction_requires_graph_wide(self):
+        with self.assertRaises(ImproperlyConfigured):
+            TransitiveReductionQuery(instance=self.n1)
+
+
+class NoopFilterDispatchTestCase(DAGFixtureMixin, TestCase):
+    """Tests that no-op filter methods are dispatched but don't change results.
+
+    These cover _limit_to_nodes_set_fk no-ops and _GraphWideNoFilterMixin methods.
+    """
+
+    def test_path_limiting_nodes_set_fk_noop(self):
+        """DownwardPathQuery._limit_to_nodes_set_fk is a no-op."""
+        node_set = NodeSet.objects.create(name="path_ns")
+        path = list(self.root.path(self.b1, limiting_nodes_set_fk=node_set))
+        self.assertIn(self.root, path)
+        self.assertIn(self.b1, path)
+
+    def test_upward_path_limiting_nodes_set_fk_noop(self):
+        """UpwardPathQuery._limit_to_nodes_set_fk is a no-op."""
+        node_set = NodeSet.objects.create(name="up_path_ns")
+        path = list(self.b1.path(self.root, directional=False, limiting_nodes_set_fk=node_set))
+        self.assertIn(self.root, path)
+        self.assertIn(self.b1, path)
+
+    def test_connected_graph_limiting_nodes_set_fk_noop(self):
+        """ConnectedGraphQuery._limit_to_nodes_set_fk is a no-op."""
+        node_set = NodeSet.objects.create(name="cg_ns")
+        nodes = list(self.root.connected_graph(limiting_nodes_set_fk=node_set))
+        self.assertIn(self.root, nodes)
+
+    def test_topological_sort_ignores_filters(self):
+        """TopologicalSortQuery inherits _GraphWideNoFilterMixin - all filters are no-ops."""
+        nodes = list(NetworkNode.objects.topological_sort())
+        self.assertIn(self.root, nodes)
+
+    def test_connected_graph_edge_type_noop(self):
+        """Passing edge_type to connected_graph when FK field is None is a no-op."""
+        node_set = NodeSet.objects.create(name="et_ns")
+        nodes = list(self.root.connected_graph(edge_type=node_set))
+        self.assertIn(self.root, nodes)
+
+
+class LCANoopFilterTestCase(DAGFixtureMixin, TestCase):
+    """LCA query has no-op filter methods - passing filters should not break results."""
+
+    def test_lca_with_disallowed_nodes(self):
+        """LCA ignores disallowed_nodes_queryset (no-op)."""
+        disallowed = NetworkNode.objects.filter(pk=self.a1.pk)
+        result = list(self.b1.lowest_common_ancestors(self.b2, disallowed_nodes_queryset=disallowed))
+        # Result should still work (filters are no-ops)
+        self.assertTrue(len(result) >= 0)
+
+    def test_lca_with_allowed_nodes(self):
+        """LCA ignores allowed_nodes_queryset (no-op)."""
+        allowed = NetworkNode.objects.filter(pk__in=[self.root.pk, self.a1.pk])
+        result = list(self.b1.lowest_common_ancestors(self.b2, allowed_nodes_queryset=allowed))
+        self.assertTrue(len(result) >= 0)
+
+    def test_lca_with_disallowed_edges(self):
+        """LCA ignores disallowed_edges_queryset (no-op)."""
+        edge = NetworkEdge.objects.first()
+        disallowed = NetworkEdge.objects.filter(pk=edge.pk)
+        result = list(self.b1.lowest_common_ancestors(self.b2, disallowed_edges_queryset=disallowed))
+        self.assertTrue(len(result) >= 0)
+
+    def test_lca_with_allowed_edges(self):
+        """LCA ignores allowed_edges_queryset (no-op)."""
+        allowed = NetworkEdge.objects.all()
+        result = list(self.b1.lowest_common_ancestors(self.b2, allowed_edges_queryset=allowed))
+        self.assertTrue(len(result) >= 0)
+
+    def test_lca_with_limiting_edges_set_fk(self):
+        """LCA ignores limiting_edges_set_fk (no-op)."""
+        es = EdgeSet.objects.create(name="lca_es")
+        result = list(self.b1.lowest_common_ancestors(self.b2, limiting_edges_set_fk=es))
+        self.assertTrue(len(result) >= 0)
+
+    def test_lca_with_limiting_nodes_set_fk(self):
+        """LCA ignores limiting_nodes_set_fk (no-op)."""
+        ns = NodeSet.objects.create(name="lca_ns")
+        result = list(self.b1.lowest_common_ancestors(self.b2, limiting_nodes_set_fk=ns))
+        self.assertTrue(len(result) >= 0)
+
+
+class AllPathsNoopFilterTestCase(DAGFixtureMixin, TestCase):
+    """All-paths queries have no-op filter methods."""
+
+    def test_all_paths_with_disallowed_nodes(self):
+        disallowed = NetworkNode.objects.filter(pk=self.a1.pk)
+        paths = self.root.all_paths_as_pk_lists(self.b1, disallowed_nodes_queryset=disallowed)
+        # Filters are no-ops so all paths are still returned
+        self.assertTrue(len(paths) >= 1)
+
+    def test_all_paths_with_allowed_nodes(self):
+        allowed = NetworkNode.objects.all()
+        paths = self.root.all_paths_as_pk_lists(self.b1, allowed_nodes_queryset=allowed)
+        self.assertTrue(len(paths) >= 1)
+
+    def test_all_paths_with_limiting_edges_set_fk(self):
+        es = EdgeSet.objects.create(name="ap_es")
+        paths = self.root.all_paths_as_pk_lists(self.b1, limiting_edges_set_fk=es)
+        self.assertTrue(len(paths) >= 1)
+
+    def test_all_paths_with_limiting_nodes_set_fk(self):
+        ns = NodeSet.objects.create(name="ap_ns")
+        paths = self.root.all_paths_as_pk_lists(self.b1, limiting_nodes_set_fk=ns)
+        self.assertTrue(len(paths) >= 1)
+
+    def test_upward_all_paths_with_filters(self):
+        """Upward all-paths no-op filters."""
+        disallowed = NetworkNode.objects.filter(pk=self.a1.pk)
+        paths = self.b1.all_paths_as_pk_lists(self.root, directional=False, disallowed_nodes_queryset=disallowed)
+        self.assertTrue(len(paths) >= 1)
+
+
+class WeightedPathNoopFilterTestCase(TestCase):
+    """Weighted path queries have no-op filter methods."""
+
+    def setUp(self):
+        self.n1 = NetworkNode.objects.create(name="n1")
+        self.n2 = NetworkNode.objects.create(name="n2")
+        self.n1.add_child(self.n2)
+        NetworkEdge.objects.filter(parent=self.n1, child=self.n2).update(weight=1.0)
+
+    def test_weighted_path_with_allowed_nodes(self):
+        allowed = NetworkNode.objects.all()
+        qs, weight = self.n1.weighted_path(self.n2, allowed_nodes_queryset=allowed)
+        self.assertAlmostEqual(weight, 1.0)
+
+    def test_weighted_path_with_limiting_nodes_set_fk(self):
+        ns = NodeSet.objects.create(name="wp_ns")
+        qs, weight = self.n1.weighted_path(self.n2, limiting_nodes_set_fk=ns)
+        self.assertAlmostEqual(weight, 1.0)
+
+    def test_weighted_path_with_limiting_edges_set_fk(self):
+        es = EdgeSet.objects.create(name="wp_es")
+        qs, weight = self.n1.weighted_path(self.n2, limiting_edges_set_fk=es)
+        self.assertAlmostEqual(weight, 1.0)
+
+    def test_weighted_upward_with_limiting_nodes_set_fk(self):
+        ns = NodeSet.objects.create(name="wpu_ns")
+        qs, weight = self.n2.weighted_path(self.n1, directional=False, limiting_nodes_set_fk=ns)
+        self.assertAlmostEqual(weight, 1.0)

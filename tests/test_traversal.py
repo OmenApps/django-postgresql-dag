@@ -99,6 +99,89 @@ class TraversalTestCase(TenNodeDAGFixtureMixin, TestCase):
         self.assertEqual(self.a1.clan()[3], self.b2)
 
 
+class OrderingConsistencyTestCase(TenNodeDAGFixtureMixin, TestCase):
+    """Explicit ordering tests for self_and_*/  *_and_self methods."""
+
+    def test_self_and_ancestors_starts_with_self(self):
+        result = list(self.c1.self_and_ancestors())
+        self.assertEqual(result[0], self.c1)
+
+    def test_self_and_ancestors_ends_with_root(self):
+        result = list(self.c1.self_and_ancestors())
+        self.assertEqual(result[-1], self.root)
+
+    def test_ancestors_and_self_starts_with_root(self):
+        result = list(self.c1.ancestors_and_self())
+        self.assertEqual(result[0], self.root)
+
+    def test_ancestors_and_self_ends_with_self(self):
+        result = list(self.c1.ancestors_and_self())
+        self.assertEqual(result[-1], self.c1)
+
+    def test_self_and_descendants_starts_with_self(self):
+        result = list(self.root.self_and_descendants())
+        self.assertEqual(result[0], self.root)
+
+    def test_self_and_descendants_nearest_first(self):
+        result = list(self.root.self_and_descendants())
+        # After self, nearest descendants (a1, a2, a3) come before deeper ones
+        names = [n.name for n in result]
+        idx_a1 = names.index("a1")
+        idx_c1 = names.index("c1")
+        self.assertLess(idx_a1, idx_c1)
+
+    def test_descendants_and_self_ends_with_self(self):
+        result = list(self.root.descendants_and_self())
+        self.assertEqual(result[-1], self.root)
+
+    def test_descendants_and_self_furthest_first(self):
+        result = list(self.root.descendants_and_self())
+        # Furthest descendants (c1, c2) come first, nearest (a1, a2, a3) before self
+        names = [n.name for n in result]
+        idx_c1 = names.index("c1")
+        idx_a1 = names.index("a1")
+        self.assertLess(idx_c1, idx_a1)
+
+    def test_ancestors_and_self_mirrors_self_and_ancestors(self):
+        """ancestors_and_self should be the reverse of self_and_ancestors."""
+        sa = list(self.c1.self_and_ancestors())
+        as_ = list(self.c1.ancestors_and_self())
+        self.assertEqual(sa, list(reversed(as_)))
+
+
+class MaxDepthTestCase(TenNodeDAGFixtureMixin, TestCase):
+    """Test that max_depth kwarg limits traversal depth."""
+
+    def test_descendants_max_depth_1(self):
+        result = self.root.descendants(max_depth=1)
+        names = set(result.values_list("name", flat=True))
+        # Only immediate children at depth 1
+        self.assertEqual(names, {"a1", "a2", "a3"})
+
+    def test_descendants_max_depth_2(self):
+        result = self.root.descendants(max_depth=2)
+        names = set(result.values_list("name", flat=True))
+        # Depth 1 + depth 2
+        self.assertIn("a1", names)
+        self.assertIn("b1", names)
+        # c1 is at depth 3, should not be included
+        self.assertNotIn("c1", names)
+
+    def test_ancestors_max_depth_1(self):
+        result = self.c1.ancestors(max_depth=1)
+        names = set(result.values_list("name", flat=True))
+        # Only immediate parents
+        self.assertEqual(names, {"b3", "b4"})
+
+    def test_ancestors_max_depth_2(self):
+        result = self.c1.ancestors(max_depth=2)
+        names = set(result.values_list("name", flat=True))
+        self.assertIn("b3", names)
+        self.assertIn("b4", names)
+        self.assertIn("a3", names)
+        self.assertNotIn("root", names)
+
+
 class NodeCountMethodsTestCase(DAGFixtureMixin, TestCase):
     def test_ancestors_count(self):
         self.assertEqual(self.root.ancestors_count(), 0)

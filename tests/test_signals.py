@@ -110,7 +110,7 @@ class EdgeDeleteSignalTestCase(TestCase):
             self.assertIn("instance", call)
 
     def test_insert_node_fires_delete_signal(self):
-        """insert_node() removes the original edge — signals should fire."""
+        """insert_node() removes the original edge - signals should fire."""
         self.parent.add_child(self.child)
         mid = NetworkNode.objects.create(name="mid")
         edge = NetworkEdge.objects.get(parent=self.parent, child=self.child)

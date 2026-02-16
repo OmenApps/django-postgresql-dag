@@ -281,6 +281,102 @@ class ModelToDictM2MBranchesTestCase(DAGFixtureMixin, TestCase):
         self.assertEqual(set(result["children"]), {"a1", "a2"})
 
 
+class NxFromEdgesQuerysetTestCase(DAGFixtureMixin, TestCase):
+    """Test nx_from_queryset when given an edges queryset instead of nodes."""
+
+    def setUp(self):
+        if not HAS_NETWORKX:
+            self.skipTest("networkx not installed")
+        super().setUp()
+
+    def test_nx_from_edges_queryset(self):
+        """Passing an edges queryset auto-converts to nodes internally."""
+        edges_qs = NetworkEdge.objects.filter(
+            parent__in=self.root.clan(),
+            child__in=self.root.clan(),
+        )
+        graph = nx_from_queryset(edges_qs, digraph=True)
+        self.assertIn(self.root.pk, graph.nodes)
+        self.assertTrue(graph.number_of_edges() > 0)
+
+    def test_nx_from_edges_queryset_with_attributes(self):
+        edges_qs = NetworkEdge.objects.filter(
+            parent__in=self.root.clan(),
+            child__in=self.root.clan(),
+        )
+        graph = nx_from_queryset(
+            edges_qs,
+            node_attribute_fields_list=["name"],
+            edge_attribute_fields_list=["name"],
+        )
+        self.assertEqual(graph.nodes[self.root.pk]["name"], "root")
+
+
+class GraphHashShorthandTestCase(DAGFixtureMixin, TestCase):
+    """Test graph_hash/subgraph_hashes with node_attr/edge_attr shorthand."""
+
+    def setUp(self):
+        if not HAS_NETWORKX:
+            self.skipTest("networkx not installed")
+        super().setUp()
+
+    def test_graph_hash_with_node_attr_shorthand(self):
+        """Passing node_attr without node_attr_fields_list converts automatically."""
+        from django_postgresql_dag.transformations import graph_hash
+
+        h = graph_hash(self.root.clan(), node_attr="name")
+        self.assertIsInstance(h, str)
+
+    def test_graph_hash_with_edge_attr_shorthand(self):
+        """Passing edge_attr without edge_attr_fields_list converts automatically."""
+        from django_postgresql_dag.transformations import graph_hash
+
+        h = graph_hash(self.root.clan(), edge_attr="name")
+        self.assertIsInstance(h, str)
+
+    def test_subgraph_hashes_with_node_attr_shorthand(self):
+        """Passing node_attr without node_attr_fields_list converts automatically."""
+        import networkx as nx
+
+        if not hasattr(nx, "weisfeiler_lehman_subgraph_hashes"):
+            self.skipTest("networkx >= 3.3 required")
+        from django_postgresql_dag.transformations import subgraph_hashes
+
+        result = subgraph_hashes(self.root.clan(), node_attr="name")
+        self.assertIsInstance(result, dict)
+
+    def test_subgraph_hashes_with_edge_attr_shorthand(self):
+        """Passing edge_attr without edge_attr_fields_list converts automatically."""
+        import networkx as nx
+
+        if not hasattr(nx, "weisfeiler_lehman_subgraph_hashes"):
+            self.skipTest("networkx >= 3.3 required")
+        from django_postgresql_dag.transformations import subgraph_hashes
+
+        result = subgraph_hashes(self.root.clan(), edge_attr="name")
+        self.assertIsInstance(result, dict)
+
+
+class TransformationImportGuardTestCase(TestCase):
+    """Test import guard branches with mocked unavailable packages."""
+
+    def test_graph_hash_import_guard(self):
+        from django_postgresql_dag import transformations
+
+        with patch.object(transformations, "nx", None):
+            with self.assertRaises(ImportError) as ctx:
+                transformations.graph_hash(NetworkNode.objects.none())
+            self.assertIn("pip install", str(ctx.exception))
+
+    def test_subgraph_hashes_import_guard(self):
+        from django_postgresql_dag import transformations
+
+        with patch.object(transformations, "nx", None):
+            with self.assertRaises(ImportError) as ctx:
+                transformations.subgraph_hashes(NetworkNode.objects.none())
+            self.assertIn("pip install", str(ctx.exception))
+
+
 class RustworkXExportTestCase(DAGFixtureMixin, TestCase):
     """Tests for rx_from_queryset()."""
 

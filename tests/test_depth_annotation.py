@@ -3,6 +3,7 @@
 from django.test import TestCase
 
 from tests.helpers import DAGFixtureMixin, TenNodeDAGFixtureMixin
+from tests.testapp.models import EdgeSet, NetworkEdge, NetworkNode
 
 
 class DepthAnnotationFromDAGTestCase(DAGFixtureMixin, TestCase):
@@ -88,3 +89,78 @@ class DepthAnnotationFromTenNodeDAGTestCase(TenNodeDAGFixtureMixin, TestCase):
         for node, depth in result:
             self.assertTrue(hasattr(node, "name"))
             self.assertIsInstance(depth, int)
+
+
+class DepthAnnotationFilterTestCase(DAGFixtureMixin, TestCase):
+    """Tests for filters on AncestorDepthQuery and DescendantDepthQuery."""
+
+    def setUp(self):
+        super().setUp()
+        self.edge_set = EdgeSet.objects.create(name="depth_set")
+        NetworkEdge.objects.all().update(edge_set=self.edge_set)
+
+    def test_descendants_with_depth_disallow_nodes(self):
+        """Disallow a1 from root's descendants_with_depth."""
+        disallowed = NetworkNode.objects.filter(pk=self.a1.pk)
+        result = self.root.descendants_with_depth(disallowed_nodes_queryset=disallowed)
+        depth_dict = {node.name: depth for node, depth in result}
+        self.assertNotIn("a1", depth_dict)
+        # a2 and a3 should still be present
+        self.assertIn("a2", depth_dict)
+        self.assertIn("a3", depth_dict)
+
+    def test_ancestors_with_depth_disallow_nodes(self):
+        """Disallow a1 from b1's ancestors_with_depth."""
+        disallowed = NetworkNode.objects.filter(pk=self.a1.pk)
+        result = self.b1.ancestors_with_depth(disallowed_nodes_queryset=disallowed)
+        depth_dict = {node.name: depth for node, depth in result}
+        self.assertNotIn("a1", depth_dict)
+        # a2 should still be reachable
+        self.assertIn("a2", depth_dict)
+
+    def test_descendants_with_depth_allow_nodes(self):
+        """Only allow specific nodes in root's descendants_with_depth."""
+        allowed = NetworkNode.objects.filter(pk__in=[self.a1.pk, self.b1.pk])
+        result = self.root.descendants_with_depth(allowed_nodes_queryset=allowed)
+        depth_dict = {node.name: depth for node, depth in result}
+        self.assertIn("a1", depth_dict)
+        self.assertNotIn("a2", depth_dict)
+
+    def test_ancestors_with_depth_allow_nodes(self):
+        """Only allow specific nodes in b1's ancestors_with_depth."""
+        allowed = NetworkNode.objects.filter(pk__in=[self.a1.pk, self.root.pk])
+        result = self.b1.ancestors_with_depth(allowed_nodes_queryset=allowed)
+        depth_dict = {node.name: depth for node, depth in result}
+        self.assertNotIn("a2", depth_dict)
+
+    def test_descendants_with_depth_limiting_edges_set_fk(self):
+        """Limit descendants_with_depth to edges in a specific edge set."""
+        other_set = EdgeSet.objects.create(name="other_set")
+        # Only assign root->a1 and a1->b1 to other_set
+        NetworkEdge.objects.filter(parent=self.root, child=self.a1).update(edge_set=other_set)
+        NetworkEdge.objects.filter(parent=self.a1, child=self.b1).update(edge_set=other_set)
+        result = self.root.descendants_with_depth(limiting_edges_set_fk=other_set)
+        depth_dict = {node.name: depth for node, depth in result}
+        self.assertIn("a1", depth_dict)
+        self.assertIn("b1", depth_dict)
+        self.assertNotIn("a2", depth_dict)
+
+    def test_ancestors_with_depth_limiting_edges_set_fk(self):
+        """Limit ancestors_with_depth to edges in a specific edge set."""
+        other_set = EdgeSet.objects.create(name="other_set")
+        NetworkEdge.objects.filter(parent=self.root, child=self.a1).update(edge_set=other_set)
+        NetworkEdge.objects.filter(parent=self.a1, child=self.b1).update(edge_set=other_set)
+        result = self.b1.ancestors_with_depth(limiting_edges_set_fk=other_set)
+        depth_dict = {node.name: depth for node, depth in result}
+        self.assertIn("a1", depth_dict)
+        self.assertIn("root", depth_dict)
+        self.assertNotIn("a2", depth_dict)
+
+    def test_descendants_with_depth_disallow_edges(self):
+        """Disallow specific edges in descendants_with_depth."""
+        edge_root_a1 = NetworkEdge.objects.get(parent=self.root, child=self.a1)
+        disallowed = NetworkEdge.objects.filter(pk=edge_root_a1.pk)
+        result = self.root.descendants_with_depth(disallowed_edges_queryset=disallowed)
+        depth_dict = {node.name: depth for node, depth in result}
+        self.assertNotIn("a1", depth_dict)
+        self.assertIn("a2", depth_dict)

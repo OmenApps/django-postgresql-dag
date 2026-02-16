@@ -2,6 +2,7 @@ from django.test import TestCase
 
 from django_postgresql_dag.debug import DAGQueryLog, _dag_query_collector, log_queries
 from tests.helpers import TenNodeDAGFixtureMixin
+from tests.testapp.models import NetworkEdge, NetworkNode
 
 
 class LogQueriesContextManagerTestCase(TenNodeDAGFixtureMixin, TestCase):
@@ -164,3 +165,88 @@ class LogQueriesIsolationTestCase(TenNodeDAGFixtureMixin, TestCase):
         self.assertEqual(log1.queries[0]["query_class"], "DescendantQuery")
         self.assertEqual(len(log2.queries), 1)
         self.assertEqual(log2.queries[0]["query_class"], "AncestorQuery")
+
+
+class LogCursorBasedQueriesTestCase(TenNodeDAGFixtureMixin, TestCase):
+    """Tests that cursor-based queries (all_paths, weighted, critical_path, etc.) are captured."""
+
+    def setUp(self):
+        super().setUp()
+        # Add weights for weighted path tests
+        NetworkEdge.objects.filter(parent=self.root, child=self.a3).update(weight=1.0)
+        NetworkEdge.objects.filter(parent=self.a3, child=self.b3).update(weight=1.0)
+        NetworkEdge.objects.filter(parent=self.b3, child=self.c1).update(weight=1.0)
+        NetworkEdge.objects.filter(parent=self.a3, child=self.b4).update(weight=2.0)
+        NetworkEdge.objects.filter(parent=self.b4, child=self.c1).update(weight=2.0)
+
+    def test_captures_all_paths_downward(self):
+        with log_queries() as log:
+            self.root.all_paths_as_pk_lists(self.c1)
+
+        query_classes = [q["query_class"] for q in log.queries]
+        self.assertIn("AllDownwardPathsQuery", query_classes)
+
+    def test_captures_all_paths_upward(self):
+        with log_queries() as log:
+            self.c1.all_paths_as_pk_lists(self.root, directional=False)
+
+        query_classes = [q["query_class"] for q in log.queries]
+        self.assertIn("AllUpwardPathsQuery", query_classes)
+
+    def test_captures_weighted_downward_path(self):
+        with log_queries() as log:
+            self.root.weighted_path(self.c1)
+
+        query_classes = [q["query_class"] for q in log.queries]
+        self.assertIn("WeightedDownwardPathQuery", query_classes)
+
+    def test_captures_weighted_upward_path(self):
+        with log_queries() as log:
+            self.c1.weighted_path(self.root, directional=False)
+
+        query_classes = [q["query_class"] for q in log.queries]
+        self.assertIn("WeightedUpwardPathQuery", query_classes)
+
+    def test_captures_lca_query(self):
+        with log_queries() as log:
+            list(self.b1.lowest_common_ancestors(self.b3))
+
+        query_classes = [q["query_class"] for q in log.queries]
+        self.assertIn("LCAQuery", query_classes)
+
+    def test_captures_topological_sort(self):
+        with log_queries() as log:
+            list(NetworkNode.objects.topological_sort())
+
+        query_classes = [q["query_class"] for q in log.queries]
+        self.assertIn("TopologicalSortQuery", query_classes)
+
+    def test_captures_critical_path(self):
+        with log_queries() as log:
+            NetworkNode.objects.critical_path()
+
+        query_classes = [q["query_class"] for q in log.queries]
+        self.assertIn("CriticalPathQuery", query_classes)
+
+    def test_captures_transitive_reduction(self):
+        # Add a redundant edge so TransitiveReductionQuery has work to do
+        self.root.add_child(self.b3)
+        with log_queries() as log:
+            list(NetworkNode.objects.transitive_reduction())
+
+        query_classes = [q["query_class"] for q in log.queries]
+        self.assertIn("TransitiveReductionQuery", query_classes)
+
+    def test_captures_ancestor_depth_query(self):
+        with log_queries() as log:
+            self.c1.ancestors_with_depth()
+
+        query_classes = [q["query_class"] for q in log.queries]
+        self.assertIn("AncestorDepthQuery", query_classes)
+
+    def test_captures_descendant_depth_query(self):
+        with log_queries() as log:
+            self.root.descendants_with_depth()
+
+        query_classes = [q["query_class"] for q in log.queries]
+        self.assertIn("DescendantDepthQuery", query_classes)

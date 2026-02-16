@@ -220,13 +220,55 @@ class EdgeSaveOptionsTestCase(TestCase):
         self.assertTrue(NetworkEdge.objects.filter(parent=self.n1, child=self.n2).exists())
 
     def test_allow_duplicate_edges_false(self):
-        """Should raise ValidationError when duplicate edge exists"""
+        """Should raise ValidationError when exact duplicate edge exists"""
         self.n1.add_child(self.n2)
-        with self.assertRaises(ValidationError):
+        with self.assertRaises(ValidationError) as ctx:
             self.n1.add_child(self.n2, allow_duplicate_edges=False)
+        self.assertEqual(ctx.exception.message, "An edge already exists between these nodes.")
 
     def test_duplicate_edge_allowed_by_default(self):
         """By default, duplicate edges are allowed"""
         self.n1.add_child(self.n2)
         self.n1.add_child(self.n2)
         self.assertEqual(NetworkEdge.objects.filter(parent=self.n1, child=self.n2).count(), 2)
+
+
+class RedundantEdgeCheckerTestCase(TestCase):
+    """Tests for the redundant_edge_checker (transitive reachability check)."""
+
+    def setUp(self):
+        self.n1 = NetworkNode.objects.create(name="n1")
+        self.n2 = NetworkNode.objects.create(name="n2")
+        self.n3 = NetworkNode.objects.create(name="n3")
+        self.n1.add_child(self.n2)
+        self.n2.add_child(self.n3)
+
+    def test_redundant_edge_blocked_when_disabled(self):
+        """Adding n1->n3 when n3 is already reachable via n1->n2->n3 should raise."""
+        with self.assertRaises(ValidationError) as ctx:
+            self.n1.add_child(self.n3, allow_redundant_edges=False)
+        self.assertEqual(ctx.exception.message, "The child is already reachable from the parent.")
+
+    def test_redundant_edge_allowed_by_default(self):
+        """By default, redundant edges are allowed."""
+        self.n1.add_child(self.n3)
+        self.assertTrue(NetworkEdge.objects.filter(parent=self.n1, child=self.n3).exists())
+
+    def test_duplicate_checker_does_not_block_redundant(self):
+        """duplicate_edge_checker should not block n1->n3 (not an exact duplicate)."""
+        self.n1.add_child(self.n3, allow_duplicate_edges=False)
+        self.assertTrue(NetworkEdge.objects.filter(parent=self.n1, child=self.n3).exists())
+
+    def test_both_checkers_together(self):
+        """Both checks can be enabled at the same time."""
+        # First add n1->n3 (redundant but allowed since we only block duplicates here)
+        self.n1.add_child(self.n3, allow_duplicate_edges=False)
+        # Now adding the exact same edge should fail on duplicate check
+        with self.assertRaises(ValidationError) as ctx:
+            self.n1.add_child(self.n3, allow_duplicate_edges=False, allow_redundant_edges=False)
+        self.assertEqual(ctx.exception.message, "An edge already exists between these nodes.")
+
+    def test_add_parent_passes_through_allow_redundant_edges(self):
+        """add_parent should also support allow_redundant_edges."""
+        with self.assertRaises(ValidationError):
+            self.n3.add_parent(self.n1, allow_redundant_edges=False)

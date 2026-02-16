@@ -67,7 +67,7 @@ class ConnectedComponentsTestCase(DAGFixtureMixin, TestCase):
     """Tests for NodeManager.connected_components()."""
 
     def test_returns_two_components(self):
-        """DAGFixtureMixin has a main graph and an island — should be 2 components."""
+        """DAGFixtureMixin has a main graph and an island - should be 2 components."""
         components = NetworkNode.objects.connected_components()
         self.assertEqual(len(components), 2)
 
@@ -82,7 +82,7 @@ class ConnectedComponentsTestCase(DAGFixtureMixin, TestCase):
         """Each component should be a standard Django QuerySet (not raw)."""
         components = NetworkNode.objects.connected_components()
         for component in components:
-            # Can call .filter() — this verifies it's a regular QuerySet
+            # Can call .filter() - this verifies it's a regular QuerySet
             self.assertTrue(component.filter(pk__isnull=False).exists())
 
     def test_empty_graph(self):
@@ -101,20 +101,92 @@ class ConnectedComponentsTestCase(DAGFixtureMixin, TestCase):
 
 
 class ConnectedGraphFilterTestCase(DAGFixtureMixin, TestCase):
-    """Tests that ConnectedGraphQuery no-op filter methods are exercised (lines 430-446)."""
+    """Tests that ConnectedGraphQuery filter methods work correctly."""
 
-    def test_connected_graph_with_all_filter_params(self):
-        """Pass all filter kwargs -- ConnectedGraphQuery stubs them all as no-ops."""
-        edge_set = EdgeSet.objects.create(name="cg_set")
+    def setUp(self):
+        super().setUp()
+        self.edge_set = EdgeSet.objects.create(name="cg_set")
+        # Assign all edges to edge_set
+        NetworkEdge.objects.all().update(edge_set=self.edge_set)
+
+    def test_connected_graph_disallow_nodes(self):
+        """Disallowing a node should exclude it and nodes only reachable through it."""
+        disallowed = NetworkNode.objects.filter(pk=self.a1.pk)
+        result = self.root.connected_graph(disallowed_nodes_queryset=disallowed)
+        result_names = set(result.values_list("name", flat=True))
+        self.assertNotIn("a1", result_names)
+        # root, a2, a3 should still be present
+        self.assertIn("root", result_names)
+        self.assertIn("a2", result_names)
+        self.assertIn("a3", result_names)
+
+    def test_connected_graph_disallow_edges(self):
+        """Disallowing an edge should prevent traversal along it."""
+        edge_root_a1 = NetworkEdge.objects.get(parent=self.root, child=self.a1)
+        disallowed = NetworkEdge.objects.filter(pk=edge_root_a1.pk)
+        result = self.root.connected_graph(disallowed_edges_queryset=disallowed)
+        result_names = set(result.values_list("name", flat=True))
+        # a1 and b1 may still be reachable via a2->b1 path, but a1 is only reachable via root->a1
+        self.assertIn("root", result_names)
+
+    def test_connected_graph_allow_nodes(self):
+        """Only traverse through allowed nodes."""
+        allowed = NetworkNode.objects.filter(name__in=["root", "a1", "b1"])
+        result = self.root.connected_graph(allowed_nodes_queryset=allowed)
+        result_names = set(result.values_list("name", flat=True))
+        self.assertIn("root", result_names)
+        self.assertIn("a1", result_names)
+        self.assertIn("b1", result_names)
+        self.assertNotIn("a2", result_names)
+        self.assertNotIn("a3", result_names)
+
+    def test_connected_graph_allow_edges(self):
+        """Only traverse along allowed edges."""
+        edge_root_a1 = NetworkEdge.objects.get(parent=self.root, child=self.a1)
+        edge_a1_b1 = NetworkEdge.objects.get(parent=self.a1, child=self.b1)
+        allowed = NetworkEdge.objects.filter(pk__in=[edge_root_a1.pk, edge_a1_b1.pk])
+        result = self.root.connected_graph(allowed_edges_queryset=allowed)
+        result_names = set(result.values_list("name", flat=True))
+        self.assertIn("root", result_names)
+        self.assertIn("a1", result_names)
+        self.assertIn("b1", result_names)
+        self.assertNotIn("a2", result_names)
+
+    def test_connected_graph_limiting_edges_set_fk(self):
+        """Limiting edges by FK should restrict traversal to those edges."""
+        other_set = EdgeSet.objects.create(name="other_set")
+        # Only assign root->a1 and a1->b1 to other_set
+        NetworkEdge.objects.filter(parent=self.root, child=self.a1).update(edge_set=other_set)
+        NetworkEdge.objects.filter(parent=self.a1, child=self.b1).update(edge_set=other_set)
+        result = self.root.connected_graph(limiting_edges_set_fk=other_set)
+        result_names = set(result.values_list("name", flat=True))
+        self.assertIn("root", result_names)
+        self.assertIn("a1", result_names)
+        self.assertIn("b1", result_names)
+        self.assertNotIn("a2", result_names)
+
+    def test_connected_graph_limiting_nodes_set_fk_noop(self):
+        """limiting_nodes_set_fk is still a no-op but should not error."""
         node_set = NodeSet.objects.create(name="cg_ns")
-        result = self.root.connected_graph(
-            limiting_nodes_set_fk=node_set,
-            limiting_edges_set_fk=edge_set,
-            disallowed_nodes_queryset=NetworkNode.objects.filter(pk=self.island.pk),
-            disallowed_edges_queryset=NetworkEdge.objects.all(),
-            allowed_nodes_queryset=NetworkNode.objects.all(),
-            allowed_edges_queryset=NetworkEdge.objects.all(),
-        )
-        # All filters are no-ops, so result should include the full connected component
-        self.assertIn(self.root, result)
-        self.assertIn(self.a1, result)
+        result = self.root.connected_graph(limiting_nodes_set_fk=node_set)
+        # No-op, so all connected nodes should be returned
+        result_names = set(result.values_list("name", flat=True))
+        self.assertIn("root", result_names)
+        self.assertIn("a1", result_names)
+
+    def test_connected_graph_max_depth(self):
+        """max_depth should limit how far connected_graph traverses."""
+        # With max_depth=1, from root we should reach immediate neighbors only
+        result = self.root.connected_graph(max_depth=2)
+        result_names = set(result.values_list("name", flat=True))
+        # max_depth=2 means path array can be at most length 2 (root + 1 hop)
+        self.assertIn("root", result_names)
+        self.assertIn("a1", result_names)
+        self.assertIn("a2", result_names)
+        self.assertIn("a3", result_names)
+
+    def test_connected_graph_no_duplicate_rows(self):
+        """Ensure the rewritten CTE does not produce duplicate rows."""
+        result = self.root.connected_graph()
+        pks = list(result.values_list("pk", flat=True))
+        self.assertEqual(len(pks), len(set(pks)))
