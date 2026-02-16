@@ -349,7 +349,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
         def descendants_and_self(self, **kwargs):
             """Return a QuerySet of all nodes in connected paths in a leafward direction, appending with self."""
             descendant_pks = self._pks_from_raw(self.descendants_raw(**kwargs))
-            pks = descendant_pks + [self.pk]
+            pks = descendant_pks[::-1] + [self.pk]
             return self.ordered_queryset_from_pks(pks)
 
         def clan(self, **kwargs):
