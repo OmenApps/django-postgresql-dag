@@ -238,7 +238,7 @@ class BaseQuery(ABC):
 
     def _execute_raw(self, sql_template, format_kwargs):
         """Format the SQL template, optionally record it, and return a RawQuerySet."""
-        formatted_sql = sql_template.format(**format_kwargs)  # nosec B608 — format_kwargs are Django model metadata (table/column names), not user input
+        formatted_sql = sql_template.format(**format_kwargs)  # nosec B608 - format_kwargs are Django model metadata (table/column names), not user input
         collector = _dag_query_collector.get(None)
         if collector is not None:
             collector.append(
@@ -269,13 +269,13 @@ class _AncestorDescendantEdgeFilterMixin:
     In these CTEs the anchor aliases the edge table as ``first`` while the
     recursive part references it by its real table name.
 
-    Note: this is a cooperative mixin — attributes come from BaseQuery via MRO.
+    Note: this is a cooperative mixin - attributes come from BaseQuery via MRO.
     """
 
     def _disallow_edges(self):
         self._add_filter_clause(  # type: ignore[attr-defined]
             "AND first.id <> ALL(%(disallowed_edge_pks)s)",
-            f"AND {self.edge_model_table}.id <> ALL(%(disallowed_edge_pks)s)",  # type: ignore[attr-defined]  # nosec B608 — edge_model_table from Django model metadata
+            f"AND {self.edge_model_table}.id <> ALL(%(disallowed_edge_pks)s)",  # type: ignore[attr-defined]  # nosec B608 - edge_model_table from Django model metadata
             "disallowed_edge_pks",
             self.disallowed_edges_queryset,  # type: ignore[attr-defined]
         )
@@ -283,7 +283,7 @@ class _AncestorDescendantEdgeFilterMixin:
     def _allow_edges(self):
         self._add_filter_clause(  # type: ignore[attr-defined]
             "AND first.id = ANY(%(allowed_edge_pks)s)",
-            f"AND {self.edge_model_table}.id = ANY(%(allowed_edge_pks)s)",  # type: ignore[attr-defined]  # nosec B608 — edge_model_table from Django model metadata
+            f"AND {self.edge_model_table}.id = ANY(%(allowed_edge_pks)s)",  # type: ignore[attr-defined]  # nosec B608 - edge_model_table from Django model metadata
             "allowed_edge_pks",
             self.allowed_edges_queryset,  # type: ignore[attr-defined]
         )
@@ -295,7 +295,7 @@ class _PathEdgeFilterMixin:
     In path CTEs both the anchor and recursive parts alias the edge table as
     ``first``, so the same clause is appended to both parts.
 
-    Note: this is a cooperative mixin — attributes come from BaseQuery via MRO.
+    Note: this is a cooperative mixin - attributes come from BaseQuery via MRO.
     """
 
     def _disallow_edges(self):
@@ -597,10 +597,12 @@ class UpwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
 
         fk_field_name = self._get_node_instance().get_foreign_key_field(fk_instance=self.limiting_edges_set_fk)
         if fk_field_name is not None:
-            self.where_clauses_part_2 += "\n" + LIMITING_EDGES_SET_FK_CLAUSE.format(
+            formatted_clause = LIMITING_EDGES_SET_FK_CLAUSE.format(
                 relationship_table=self.edge_model_table,
                 fk_field_name=fk_field_name,
             )
+            self.where_clauses_part_1 += "\n" + formatted_clause
+            self.where_clauses_part_2 += "\n" + formatted_clause
             self.query_parameters["limiting_edges_set_fk_pk"] = self.limiting_edges_set_fk.pk
 
         return
@@ -608,8 +610,9 @@ class UpwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
     def _disallow_nodes(self):
         if self.disallowed_nodes_queryset is None:
             raise ValueError("disallowed_nodes_queryset must not be None")
-        DISALLOWED_NODES_CLAUSE = """AND second.parent_id <> ALL(%(disallowed_path_node_pks)s)"""
+        DISALLOWED_NODES_CLAUSE = """AND first.parent_id <> ALL(%(disallowed_path_node_pks)s)"""
 
+        self.where_clauses_part_1 += "\n" + DISALLOWED_NODES_CLAUSE
         self.where_clauses_part_2 += "\n" + DISALLOWED_NODES_CLAUSE
         self.query_parameters["disallowed_path_node_pks"] = list(
             self.disallowed_nodes_queryset.values_list("pk", flat=True)
@@ -620,8 +623,9 @@ class UpwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
     def _allow_nodes(self):
         if self.allowed_nodes_queryset is None:
             raise ValueError("allowed_nodes_queryset must not be None")
-        ALLOWED_NODES_CLAUSE = """AND second.parent_id = ANY(%(allowed_path_node_pks)s)"""
+        ALLOWED_NODES_CLAUSE = """AND first.parent_id = ANY(%(allowed_path_node_pks)s)"""
 
+        self.where_clauses_part_1 += "\n" + ALLOWED_NODES_CLAUSE
         self.where_clauses_part_2 += "\n" + ALLOWED_NODES_CLAUSE
         self.query_parameters["allowed_path_node_pks"] = list(self.allowed_nodes_queryset.values_list("pk", flat=True))
 
@@ -651,10 +655,6 @@ class UpwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
                 FROM {relationship_table} AS first, traverse AS second
             WHERE first.child_id = second.parent_id
             AND (first.child_id <> ALL(second.path))
-            -- PATH_LIMITING_FK_EDGES_CLAUSE
-            -- DISALLOWED_UPWARD_PATH_NODES_CLAUSE
-            -- ALLOWED_UPWARD_PATH_NODES_CLAUSE
-            -- LIMITING_UPWARD_NODES_CLAUSE_1  -- CORRECT?
             {where_clauses_part_2}
         )
         SELECT
@@ -700,10 +700,12 @@ class DownwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
 
         fk_field_name = self._get_node_instance().get_foreign_key_field(fk_instance=self.limiting_edges_set_fk)
         if fk_field_name is not None:
-            self.where_clauses_part_2 += "\n" + LIMITING_EDGES_SET_FK_CLAUSE.format(
+            formatted_clause = LIMITING_EDGES_SET_FK_CLAUSE.format(
                 relationship_table=self.edge_model_table,
                 fk_field_name=fk_field_name,
             )
+            self.where_clauses_part_1 += "\n" + formatted_clause
+            self.where_clauses_part_2 += "\n" + formatted_clause
             self.query_parameters["limiting_edges_set_fk_pk"] = self.limiting_edges_set_fk.pk
 
         return
@@ -711,8 +713,9 @@ class DownwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
     def _disallow_nodes(self):
         if self.disallowed_nodes_queryset is None:
             raise ValueError("disallowed_nodes_queryset must not be None")
-        DISALLOWED_NODES_CLAUSE = """AND second.child_id <> ALL(%(disallowed_path_node_pks)s)"""
+        DISALLOWED_NODES_CLAUSE = """AND first.child_id <> ALL(%(disallowed_path_node_pks)s)"""
 
+        self.where_clauses_part_1 += "\n" + DISALLOWED_NODES_CLAUSE
         self.where_clauses_part_2 += "\n" + DISALLOWED_NODES_CLAUSE
         self.query_parameters["disallowed_path_node_pks"] = list(
             self.disallowed_nodes_queryset.values_list("pk", flat=True)
@@ -723,8 +726,9 @@ class DownwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
     def _allow_nodes(self):
         if self.allowed_nodes_queryset is None:
             raise ValueError("allowed_nodes_queryset must not be None")
-        ALLOWED_NODES_CLAUSE = """AND second.child_id = ANY(%(allowed_path_node_pks)s)"""
+        ALLOWED_NODES_CLAUSE = """AND first.child_id = ANY(%(allowed_path_node_pks)s)"""
 
+        self.where_clauses_part_1 += "\n" + ALLOWED_NODES_CLAUSE
         self.where_clauses_part_2 += "\n" + ALLOWED_NODES_CLAUSE
         self.query_parameters["allowed_path_node_pks"] = list(self.allowed_nodes_queryset.values_list("pk", flat=True))
 
@@ -754,10 +758,6 @@ class DownwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
                 FROM {relationship_table} AS first, traverse AS second
             WHERE first.parent_id = second.child_id
             AND (first.parent_id <> ALL(second.path))
-            -- PATH_LIMITING_FK_EDGES_CLAUSE
-            -- DISALLOWED_DOWNWARD_PATH_NODES_CLAUSE
-            -- ALLOWED_DOWNWARD_PATH_NODES_CLAUSE
-            -- LIMITING_DOWNWARD_NODES_CLAUSE_1  -- CORRECT?
             {where_clauses_part_2}
         )
         SELECT
@@ -1294,7 +1294,7 @@ class WeightedDownwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
             weight_column=self._weight_column,
             where_clauses_part_1=self.where_clauses_part_1,
             where_clauses_part_2=self.where_clauses_part_2,
-        )  # nosec B608 — weight_column from Django model metadata
+        )  # nosec B608 - weight_column from Django model metadata
 
         collector = _dag_query_collector.get(None)
         if collector is not None:
@@ -1387,7 +1387,7 @@ class WeightedUpwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
             weight_column=self._weight_column,
             where_clauses_part_1=self.where_clauses_part_1,
             where_clauses_part_2=self.where_clauses_part_2,
-        )  # nosec B608 — weight_column from Django model metadata
+        )  # nosec B608 - weight_column from Django model metadata
 
         collector = _dag_query_collector.get(None)
         if collector is not None:
@@ -1474,7 +1474,7 @@ class CriticalPathQuery(_GraphWideNoFilterMixin, BaseQuery):
             pk_type=pk_type,
             weight_expression=weight_expression,
             weight_cast=weight_cast,
-        )  # nosec B608 — all format values from Django model metadata
+        )  # nosec B608 - all format values from Django model metadata
 
         collector = _dag_query_collector.get(None)
         if collector is not None:
