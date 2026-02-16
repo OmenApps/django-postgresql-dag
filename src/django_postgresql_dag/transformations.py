@@ -9,14 +9,14 @@ from .utils import (
 )
 
 try:
-    import networkx as nx
+    import networkx as nx  # pyright: ignore[reportMissingModuleSource]
 except ImportError:
     nx = None  # type: ignore[assignment]
 
 HAS_NETWORKX = nx is not None
 
 try:
-    import rustworkx as rx
+    import rustworkx as rx  # pyright: ignore[reportMissingImports]
 except ImportError:
     rx = None  # type: ignore[assignment]
 
