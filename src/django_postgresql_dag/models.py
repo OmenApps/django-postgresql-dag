@@ -578,12 +578,12 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             """Provided an ending_node Node instance, returns True if the current Node instance is a descendant."""
             self._resolve_edge_type(kwargs)
             # If self is an ancestor, it cannot also be a descendant.
-            # Note: unlike is_ancestor_of, we don't need to catch NodeNotReachableException
-            # here because path_raw with directional=False never raises it when a
-            # bidirectional path exists.
             if self.is_ancestor_of(ending_node, **kwargs):
                 return False
-            return len(self.path_raw(ending_node, directional=False, **kwargs)) >= 1
+            try:
+                return len(self.path_raw(ending_node, directional=False, **kwargs)) >= 1
+            except NodeNotReachableException:
+                return False
 
         def is_sibling_of(self, ending_node):
             """Provided an ending_node Node instance, returns True if this node and the ending node share a parent."""
