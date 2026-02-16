@@ -109,11 +109,11 @@ def model_to_dict(instance, fields=None, date_strf=None):
                 data[f.name] = dt.strftime(date_strf) if date_strf else dt.timestamp()
 
         elif isinstance(f, ImageField):
-            image = f.value_from_object(instance)
+            image = getattr(instance, f.name)  # pyright: ignore[reportArgumentType]
             data[f.name] = image.url if image else None
 
         elif isinstance(f, FileField):
-            file = f.value_from_object(instance)
+            file = getattr(instance, f.name)  # pyright: ignore[reportArgumentType]
             data[f.name] = file.url if file else None
 
         elif isinstance(f, ManyToManyField):
