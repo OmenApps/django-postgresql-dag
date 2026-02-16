@@ -236,7 +236,9 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             Otherwise removes the edges connecting to all children. Optionally deletes the child(ren) node(s) as well.
             """
             edge_model = self.children.through  # type: ignore[attr-defined]
-            if child is not None and self.children.filter(pk=child.pk).exists():  # type: ignore[attr-defined]
+            if child is not None:
+                if not self.children.filter(pk=child.pk).exists():  # type: ignore[attr-defined]
+                    return
                 qs = edge_model.objects.filter(parent=self, child=child)
                 pre_edge_delete.send(sender=edge_model, parent=self, child=child)
                 qs.delete()
@@ -270,7 +272,9 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             Otherwise removes the edges connecting to all parents. Optionally deletes the parent node(s) as well.
             """
             edge_model = self.children.through  # type: ignore[attr-defined]
-            if parent is not None and self.parents.filter(pk=parent.pk).exists():  # type: ignore[attr-defined]
+            if parent is not None:
+                if not self.parents.filter(pk=parent.pk).exists():  # type: ignore[attr-defined]
+                    return
                 qs = edge_model.objects.filter(parent=parent, child=self)
                 pre_edge_delete.send(sender=edge_model, parent=parent, child=self)
                 qs.delete()
