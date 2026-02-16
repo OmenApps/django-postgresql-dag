@@ -7,6 +7,19 @@ from django.db import connection
 from .debug import _dag_query_collector
 from .utils import get_instance_characteristics, validate_weight_field
 
+_PK_TYPE_MAP = {
+    "AutoField": "integer",
+    "SmallAutoField": "smallint",
+    "BigAutoField": "bigint",
+    "IntegerField": "integer",
+    "SmallIntegerField": "smallint",
+    "BigIntegerField": "bigint",
+    "UUIDField": "uuid",
+    "CharField": "text",
+    "SlugField": "text",
+    "TextField": "text",
+}
+
 
 class BaseQuery(ABC):
     """Base Query Class."""
@@ -93,12 +106,7 @@ class BaseQuery(ABC):
         if self.starting_node is not None:
             return self.starting_node.get_pk_type()
         django_pk_type = type(self.node_model._meta.pk).__name__
-        if django_pk_type == "BigAutoField":
-            return "bigint"
-        elif django_pk_type == "UUIDField":
-            return "uuid"
-        else:
-            return "integer"
+        return _PK_TYPE_MAP.get(django_pk_type, "integer")
 
     def _execute_raw_on_edge_model(self, sql_template, format_kwargs):
         """Format the SQL template and return a RawQuerySet on the edge model."""

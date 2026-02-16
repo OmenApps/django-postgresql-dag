@@ -13,6 +13,7 @@ from django.db import models, transaction
 from .debug import _dag_query_collector
 from .exceptions import NodeNotReachableException
 from .query_builders import (
+    _PK_TYPE_MAP,
     AllDownwardPathsQuery,
     AllUpwardPathsQuery,
     AncestorDepthQuery,
@@ -204,13 +205,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             that raw queries return the correct information.
             """
             django_pk_type = type(self._meta.pk).__name__  # type: ignore[arg-type]
-
-            if django_pk_type == "BigAutoField":
-                return "bigint"
-            elif django_pk_type == "UUIDField":
-                return "uuid"
-            else:
-                return "integer"
+            return _PK_TYPE_MAP.get(django_pk_type, "integer")
 
         def _pks_from_raw(self, raw_queryset):
             """Extract primary keys from a raw queryset, preserving order."""
