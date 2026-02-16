@@ -7,6 +7,7 @@ query. These queries also topologically sort the ids by generation.
 from collections import defaultdict
 from copy import deepcopy
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
 
@@ -221,9 +222,17 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
             disable_circular_check = kwargs.pop("disable_circular_check", False)
             allow_duplicate_edges = kwargs.pop("allow_duplicate_edges", True)
+            allow_redundant_edges = kwargs.pop("allow_redundant_edges", None)
+
+            save_kwargs = {
+                "disable_circular_check": disable_circular_check,
+                "allow_duplicate_edges": allow_duplicate_edges,
+            }
+            if allow_redundant_edges is not None:
+                save_kwargs["allow_redundant_edges"] = allow_redundant_edges
 
             cls = self.children.through(**kwargs)  # type: ignore[attr-defined]
-            return cls.save(disable_circular_check=disable_circular_check, allow_duplicate_edges=allow_duplicate_edges)
+            return cls.save(**save_kwargs)
 
         def remove_child(self, child=None, delete_node=False):
             """Remove the edge connecting this node to child if a child Node instance is provided.
@@ -612,7 +621,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
                     ON {edge_table}.child_id = traverse.{pk_name}
             )
             SELECT COALESCE(MAX(depth), 0) FROM traverse
-            """.format(pk_name=pk_name, edge_table=edge_table)  # nosec B608 — pk_name/edge_table from Django model metadata, not user input
+            """.format(pk_name=pk_name, edge_table=edge_table)  # nosec B608 - pk_name/edge_table from Django model metadata, not user input
             collector = _dag_query_collector.get(None)
             if collector is not None:
                 collector.append(
@@ -743,8 +752,13 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         @staticmethod
         def duplicate_edge_checker(parent, child):
+            if edge_model.objects.filter(parent=parent, child=child).exists():
+                raise ValidationError("An edge already exists between these nodes.")
+
+        @staticmethod
+        def redundant_edge_checker(parent, child):
             if child in parent.self_and_descendants():
-                raise ValidationError("The edge is a duplicate.")
+                raise ValidationError("The child is already reachable from the parent.")
 
     return Node
 
@@ -966,6 +980,12 @@ def edge_factory(
 
             if not kwargs.pop("allow_duplicate_edges", True):
                 self.parent.__class__.duplicate_edge_checker(self.parent, self.child)  # type: ignore[attr-defined]
+
+            if not kwargs.pop(
+                "allow_redundant_edges",
+                getattr(settings, "DJANGO_POSTGRESQL_DAG_ALLOW_REDUNDANT_EDGES", True),
+            ):
+                self.parent.__class__.redundant_edge_checker(self.parent, self.child)  # type: ignore[attr-defined]
 
             is_new = self._state.adding
             if is_new:
