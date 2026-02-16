@@ -542,19 +542,49 @@ class ConnectedGraphQuery(BaseQuery):
         return
 
     def _limit_to_edges_set_fk(self):
-        return
+        if self.limiting_edges_set_fk is None:
+            raise ValueError("limiting_edges_set_fk must not be None")
+        LIMITING_EDGES_SET_FK_CLAUSE = """AND edge.{fk_field_name}_id = %(limiting_edges_set_fk_pk)s"""
+
+        fk_field_name = self._get_node_instance().get_foreign_key_field(fk_instance=self.limiting_edges_set_fk)
+        if fk_field_name is not None:
+            formatted_clause = LIMITING_EDGES_SET_FK_CLAUSE.format(fk_field_name=fk_field_name)
+            self.where_clauses_part_2 += "\n" + formatted_clause
+            self.query_parameters["limiting_edges_set_fk_pk"] = self.limiting_edges_set_fk.pk
 
     def _disallow_nodes(self):
-        return
+        self._add_filter_clause(
+            None,
+            "AND CASE WHEN edge.child_id = traverse.{pk_name} THEN edge.parent_id ELSE edge.child_id END"
+            " <> ALL(%(disallowed_node_pks)s)".format(pk_name=self._get_node_instance().get_pk_name()),
+            "disallowed_node_pks",
+            self.disallowed_nodes_queryset,
+        )
 
     def _disallow_edges(self):
-        return
+        self._add_filter_clause(
+            None,
+            "AND edge.id <> ALL(%(disallowed_edge_pks)s)",
+            "disallowed_edge_pks",
+            self.disallowed_edges_queryset,
+        )
 
     def _allow_nodes(self):
-        return
+        self._add_filter_clause(
+            None,
+            "AND CASE WHEN edge.child_id = traverse.{pk_name} THEN edge.parent_id ELSE edge.child_id END"
+            " = ANY(%(allowed_node_pks)s)".format(pk_name=self._get_node_instance().get_pk_name()),
+            "allowed_node_pks",
+            self.allowed_nodes_queryset,
+        )
 
     def _allow_edges(self):
-        return
+        self._add_filter_clause(
+            None,
+            "AND edge.id = ANY(%(allowed_edge_pks)s)",
+            "allowed_edge_pks",
+            self.allowed_edges_queryset,
+        )
 
     def raw_queryset(self):
         if self.instance is None:
@@ -562,18 +592,23 @@ class ConnectedGraphQuery(BaseQuery):
         super().raw_queryset()
 
         QUERY = """
-        WITH RECURSIVE traverse AS
-            (SELECT %(pk)s::{pk_type} AS {pk_name}
-            UNION SELECT
-                CASE
-                    WHEN edge.child_id = traverse.{pk_name} THEN edge.parent_id
-                    ELSE edge.child_id
-                END
+        WITH RECURSIVE traverse({pk_name}, path) AS (
+            SELECT %(pk)s::{pk_type}, ARRAY[%(pk)s::{pk_type}]
+        UNION ALL
+            SELECT
+                CASE WHEN edge.child_id = traverse.{pk_name}
+                     THEN edge.parent_id ELSE edge.child_id END,
+                path || CASE WHEN edge.child_id = traverse.{pk_name}
+                             THEN edge.parent_id ELSE edge.child_id END
             FROM traverse
-            JOIN {relationship_table} edge ON edge.parent_id = traverse.{pk_name}
-            OR edge.child_id = traverse.{pk_name})
-        SELECT *
-        FROM traverse;
+            JOIN {relationship_table} edge
+                ON (edge.parent_id = traverse.{pk_name} OR edge.child_id = traverse.{pk_name})
+            WHERE CASE WHEN edge.child_id = traverse.{pk_name}
+                       THEN edge.parent_id ELSE edge.child_id END <> ALL(path)
+            AND array_length(path, 1) < %(max_depth)s
+            {where_clauses_part_2}
+        )
+        SELECT DISTINCT {pk_name} FROM traverse;
         """
 
         return self._execute_raw(
@@ -582,6 +617,7 @@ class ConnectedGraphQuery(BaseQuery):
                 "relationship_table": self.edge_model_table,
                 "pk_name": self.instance.get_pk_name(),
                 "pk_type": self.instance.get_pk_type(),
+                "where_clauses_part_2": self.where_clauses_part_2,
             },
         )
 
