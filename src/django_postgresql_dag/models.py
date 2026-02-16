@@ -432,7 +432,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         def distance(self, ending_node, **kwargs):
             """Return the shortest hops count to the target node."""
-            if self is ending_node:
+            if self == ending_node:
                 return 0
             else:
                 return self.path(ending_node, **kwargs).count() - 1
