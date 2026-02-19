@@ -1,6 +1,10 @@
-[![codecov](https://codecov.io/gh/OmenApps/django-postgresql-dag/branch/master/graph/badge.svg?token=IJRBEE6R0C)](https://codecov.io/gh/OmenApps/django-postgresql-dag) ![PyPI](https://img.shields.io/pypi/v/django-postgresql-dag?color=green) ![last commit](https://badgen.net/github/last-commit/OmenApps/django-postgresql-dag/main) [![Documentation Status](https://readthedocs.org/projects/django-postgresql-dag/badge/?version=latest)](http://django-postgresql-dag.readthedocs.io/) [![made-with-python](https://img.shields.io/badge/Made%20with-Python-1f425f.svg)](https://www.python.org/)
-
 # Django & Postgresql-based Directed Acyclic Graphs
+
+[![PyPI](https://img.shields.io/pypi/v/django-postgresql-dag)](https://pypi.org/project/django-postgresql-dag/)
+[![Python versions](https://img.shields.io/pypi/pyversions/django-postgresql-dag)](https://pypi.org/project/django-postgresql-dag/)
+[![Django versions](https://img.shields.io/pypi/djversions/django-postgresql-dag)](https://pypi.org/project/django-postgresql-dag/)
+[![Documentation](https://readthedocs.org/projects/django-postgresql-dag/badge/?version=latest)](https://django-postgresql-dag.readthedocs.io/en/latest/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 The main distinguishing factor for this project is that it can retrieve entire sections of a graph with far
 fewer queries than most other packages. The trade off is portability: it uses Postgres' Common Table
