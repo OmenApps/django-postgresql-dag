@@ -216,6 +216,16 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             """Generate a queryset, based on the current class and ordered by the provided pks."""
             return _ordered_filter(type(self).objects, "pk", pks)
 
+        def _ancestor_pks(self, **kwargs):
+            """Return ancestor PKs as a plain list (no model instantiation)."""
+            self._resolve_edge_type(kwargs)
+            return AncestorQuery(instance=self, **kwargs).pk_list()
+
+        def _descendant_pks(self, **kwargs):
+            """Return descendant PKs as a plain list (no model instantiation)."""
+            self._resolve_edge_type(kwargs)
+            return DescendantQuery(instance=self, **kwargs).pk_list()
+
         def add_child(self, child, **kwargs):
             """Provided with a Node instance, attaches that instance as a child to the current Node instance."""
             kwargs.update({"parent": self, "child": child})
@@ -316,8 +326,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         def ancestors(self, **kwargs):
             """Return a QuerySet of all nodes in connected paths in a rootward direction."""
-            pks = self._pks_from_raw(self.ancestors_raw(**kwargs))
-            return self.ordered_queryset_from_pks(pks)
+            return self.ordered_queryset_from_pks(self._ancestor_pks(**kwargs))
 
         def ancestors_count(self):
             """Return an integer number representing the total number of ancestor nodes."""
@@ -325,14 +334,13 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         def self_and_ancestors(self, **kwargs):
             """Return a QuerySet of all nodes in connected paths in a rootward direction, prepending with self."""
-            ancestor_pks = self._pks_from_raw(self.ancestors_raw(**kwargs))
+            ancestor_pks = self._ancestor_pks(**kwargs)
             pks = [self.pk] + ancestor_pks[::-1]
             return self.ordered_queryset_from_pks(pks)
 
         def ancestors_and_self(self, **kwargs):
             """Return a QuerySet of all nodes in connected paths in a rootward direction, appending with self."""
-            ancestor_pks = self._pks_from_raw(self.ancestors_raw(**kwargs))
-            pks = ancestor_pks + [self.pk]
+            pks = self._ancestor_pks(**kwargs) + [self.pk]
             return self.ordered_queryset_from_pks(pks)
 
         def descendants_raw(self, **kwargs):
@@ -342,8 +350,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         def descendants(self, **kwargs):
             """Return a QuerySet of all nodes in connected paths in a leafward direction."""
-            pks = self._pks_from_raw(self.descendants_raw(**kwargs))
-            return self.ordered_queryset_from_pks(pks)
+            return self.ordered_queryset_from_pks(self._descendant_pks(**kwargs))
 
         def descendants_count(self):
             """Return an integer number representing the total number of descendant nodes."""
@@ -351,21 +358,18 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         def self_and_descendants(self, **kwargs):
             """Return a QuerySet of all nodes in connected paths in a leafward direction, prepending with self."""
-            descendant_pks = self._pks_from_raw(self.descendants_raw(**kwargs))
-            pks = [self.pk] + descendant_pks
+            pks = [self.pk] + self._descendant_pks(**kwargs)
             return self.ordered_queryset_from_pks(pks)
 
         def descendants_and_self(self, **kwargs):
             """Return a QuerySet of all nodes in connected paths in a leafward direction, appending with self."""
-            descendant_pks = self._pks_from_raw(self.descendants_raw(**kwargs))
-            pks = descendant_pks[::-1] + [self.pk]
+            pks = self._descendant_pks(**kwargs)[::-1] + [self.pk]
             return self.ordered_queryset_from_pks(pks)
 
         def clan(self, **kwargs):
             """Return a QuerySet with all ancestors nodes, self, and all descendant nodes."""
-            self._resolve_edge_type(kwargs)
-            ancestor_pks = self._pks_from_raw(self.ancestors_raw(**kwargs))
-            descendant_pks = self._pks_from_raw(self.descendants_raw(**kwargs))
+            ancestor_pks = self._ancestor_pks(**kwargs)
+            descendant_pks = self._descendant_pks(**kwargs)
             pks = ancestor_pks + [self.pk] + descendant_pks
             return self.ordered_queryset_from_pks(pks)
 
@@ -469,8 +473,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         def topological_descendants(self, **kwargs):
             """Return self + descendants in topological order."""
-            descendant_pks = self._pks_from_raw(self.descendants_raw(**kwargs))
-            pks = [self.pk] + descendant_pks
+            pks = [self.pk] + self._descendant_pks(**kwargs)
             return self.ordered_queryset_from_pks(pks)
 
         def lowest_common_ancestors(self, other, **kwargs):
@@ -642,7 +645,8 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         def connected_graph(self, **kwargs):
             """Return a QuerySet of all nodes connected in any way to the current Node instance."""
-            pks = self._pks_from_raw(self.connected_graph_raw(**kwargs))
+            self._resolve_edge_type(kwargs)
+            pks = ConnectedGraphQuery(instance=self, **kwargs).pk_list()
             return self.ordered_queryset_from_pks(pks)
 
         def connected_graph_node_count(self, **kwargs):
