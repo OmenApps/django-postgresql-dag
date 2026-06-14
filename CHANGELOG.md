@@ -32,6 +32,11 @@
   The new indexes are additive over Django's single-column FK indexes (small extra write
   cost on `add_child`); see the Edge Reference for the `db_index=False` opt-in and the
   `AddIndexConcurrently` zero-downtime option. Warrants at least a minor version bump.
+- **Edge index system check**: an info-level Django system check (`django_postgresql_dag.I001`)
+  runs on `manage.py check` and `runserver` and flags any concrete edge model missing an index
+  covering `(parent, child)` or `(child, parent)` - usually an Edge `Meta` that does not subclass
+  the factory `Meta`. The message names the missing index(es) and how to add them. It is
+  coverage-based (a model with its own equivalent indexes is not flagged) and informational only.
 - **PK-only marshaling**: unfiltered traversals (`ancestors`, `descendants`, `clan`,
   `connected_graph`, `*_and_self`, `topological_descendants`) and the manager methods
   (`topological_sort`, `transitive_reduction`, `redundant_edges`) now read result PKs

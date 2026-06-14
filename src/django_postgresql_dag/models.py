@@ -11,6 +11,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
 
+from .checks import DAG_EDGE_INDEX_FIELDS_ATTR
 from .debug import _dag_query_collector
 from .exceptions import NodeNotReachableException
 from .query_builders import (
@@ -1007,5 +1008,9 @@ def edge_factory(
             result = super().delete(*args, **kwargs)
             post_edge_delete.send(sender=type(self), instance=self, parent=self.parent, child=self.child)
             return result
+
+    # Stamp the edge marker so the system check (checks.py) can recognise concrete
+    # subclasses and warn when they did not inherit the composite indexes above.
+    setattr(Edge, DAG_EDGE_INDEX_FIELDS_ATTR, (("parent", "child"), ("child", "parent")))
 
     return Edge

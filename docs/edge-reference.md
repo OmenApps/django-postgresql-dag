@@ -190,6 +190,15 @@ Verify the indexes actually landed on your model:
 assert {tuple(i.fields) for i in MyEdge._meta.indexes} >= {("parent", "child"), ("child", "parent")}
 ```
 
+You don't have to remember to run that assertion: the library registers a Django
+system check (`django_postgresql_dag.I001`, info level) that runs on every
+`manage.py check` and `runserver`. If a concrete edge model is missing an index
+covering `(parent, child)` or `(child, parent)`, it prints an actionable note
+telling you which index is missing and how to add it. A model that already
+declares its own equivalent indexes (under any name) is considered covered and is
+not flagged. The check is informational only - it never fails `check` or blocks a
+deploy.
+
 ### Write cost and the single-column index redundancy
 
 These two composites are added **on top of** Django's default single-column FK indexes
