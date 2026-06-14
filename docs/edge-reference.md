@@ -141,3 +141,110 @@ def pre_save(new_edge):
 
 NetworkEdge.objects.insert_node(e1, n2, clone_to_rootside=True, pre_save=pre_save)
 ```
+
+## Edge table indexes
+
+`edge_factory` declares two composite (covering) indexes on the abstract Edge model:
+`(parent, child)` and `(child, parent)`. These let the recursive ancestor/descendant
+CTEs satisfy their self-joins from the index (the join key *and* the column read on
+each recursion step are both in the index), and `(parent, child)` is also an exact
+covering match for the `filter(parent=X, child=Y)` lookup the duplicate-edge check
+(`duplicate_edge_checker`) runs when an edge is saved with `allow_duplicate_edges=False`.
+(The redundant-edge check is a
+descendant traversal, not an exact-pair lookup, so it benefits via the CTE path, not
+this index.) Whether Postgres performs a true index-only scan depends on the visibility
+map and the planner; measure on your own data with `EXPLAIN (ANALYZE, BUFFERS)` rather
+than assuming a fixed speedup.
+
+### Required: subclass the factory Meta if you define your own
+
+Django only propagates an abstract model's `Meta.indexes` to a concrete child when the
+child either declares **no** `Meta`, or declares a `Meta` that **subclasses** the
+abstract one. If your concrete Edge model defines its own `Meta` (for `app_label`,
+`db_table`, `ordering`, constraints, etc.) you **must** subclass the factory's `Meta`,
+or the indexes are **silently dropped** (no error, and no migration is generated):
+
+```python
+EdgeBase = edge_factory("MyNode", concrete=False)
+
+class MyEdge(EdgeBase):
+    # ... your fields ...
+
+    class Meta(EdgeBase.Meta):   # <-- subclass, or you lose the indexes
+        app_label = "myapp"
+```
+
+If your Edge model has no `Meta` at all, the indexes are inherited automatically.
+
+If your `Meta` already declares its own `indexes`, subclassing **overrides** rather than
+merges - keep both explicitly:
+
+```python
+    class Meta(EdgeBase.Meta):
+        indexes = [*EdgeBase.Meta.indexes, *my_own_indexes]
+```
+
+Verify the indexes actually landed on your model:
+
+```python
+assert {tuple(i.fields) for i in MyEdge._meta.indexes} >= {("parent", "child"), ("child", "parent")}
+```
+
+### Write cost and the single-column index redundancy
+
+These two composites are added **on top of** Django's default single-column FK indexes
+on `parent_id` and `child_id`. A composite `(parent, child)` already serves `parent_id`
+lookups as a left-prefix, and `(child, parent)` serves `child_id` lookups - so the
+standalone FK indexes become redundant. Adding the composites therefore increases the
+number of indexes maintained on every edge insert (`add_child`) and the storage used.
+(The one non-obvious lookup site is the `connected_graph` traversal, which joins on
+`parent_id OR child_id`; that disjunction is served by a BitmapOr over the two composites
+- coverage is preserved, but as a different plan shape, so verify it with `EXPLAIN` on
+representative data before relying on it.)
+
+**Advanced opt-in (write-heavy graphs).** You can drop the redundant single-column
+indexes by setting `db_index=False` on the `parent`/`child` FKs. These FKs are declared
+*inside* `edge_factory`, so this requires re-declaring both on your concrete Edge model -
+and you **must** replicate the factory's exact `related_name` and `on_delete`, or you
+will silently rewire your reverse accessors and break the node relations. Read the
+generated values first:
+
+```python
+for fname in ("parent", "child"):
+    f = MyEdge._meta.get_field(fname)
+    print(fname, f.remote_field.related_name, f.remote_field.on_delete)
+```
+
+then re-declare both FKs on your model with those exact values plus `db_index=False`.
+This changes the generated migration (an `AlterField` per FK in addition to the two
+`AddIndex` ops), so update your migration-inspection expectations accordingly. If you are
+unsure, leave the FKs as-is: the redundant single-column indexes are cheap relative to
+the cost of getting the reverse-accessor wiring wrong. A first-class
+`edge_factory(..., fk_db_index=False)` option would make this clean and is tracked as
+future work.
+
+### Migrating an existing project
+
+Upgrading adds two indexes, so every concrete Edge model needs a new migration
+(`python manage.py makemigrations`). The library ships the index *declaration*; it
+cannot generate your migration for you - each project runs `makemigrations` locally,
+and the auto-generated index names are derived from your table name and are **not**
+portable (don't hand-copy a name from another project).
+
+On a large existing edge table, a plain `CREATE INDEX` takes a lock that blocks writes
+for the build. For zero-downtime deploys, hand-edit the generated migration to build the
+indexes concurrently (this is your project's migration, not something the library does):
+
+```python
+from django.contrib.postgres.operations import AddIndexConcurrently
+
+class Migration(migrations.Migration):
+    atomic = False   # required for CONCURRENTLY; cannot run inside a transactional TestCase
+    operations = [
+        AddIndexConcurrently(model_name="myedge", index=models.Index(fields=["parent", "child"], name="...")),
+        AddIndexConcurrently(model_name="myedge", index=models.Index(fields=["child", "parent"], name="...")),
+    ]
+```
+
+Use the exact index `name` Django generated for your model (read it from the
+autogenerated migration) so migration state and the database stay in sync.

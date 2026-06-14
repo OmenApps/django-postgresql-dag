@@ -20,6 +20,19 @@
 - Added `validate_weight_field()` and `WeightedPathResult` namedtuple to `utils.py`.
 - Added 10 new query builder classes to `query_builders.py`.
 
+### Performance
+
+- **Edge indexes**: `edge_factory` now adds composite indexes `(parent, child)` and
+  `(child, parent)` to the edge table so the planner can use them for the
+  ancestor/descendant CTE self-joins. **Action required on upgrade:** run `makemigrations`
+  for each concrete Edge model. **If your Edge model defines its own `Meta`, it must now
+  subclass the factory `Meta` (`class Meta(EdgeBase.Meta)`), or the indexes are silently
+  dropped - no error and no migration.** Verify with:
+  `python -c "from myapp.models import MyEdge; assert {tuple(i.fields) for i in MyEdge._meta.indexes} >= {('parent','child'),('child','parent')}"`.
+  The new indexes are additive over Django's single-column FK indexes (small extra write
+  cost on `add_child`); see the Edge Reference for the `db_index=False` opt-in and the
+  `AddIndexConcurrently` zero-downtime option. Warrants at least a minor version bump.
+
 ## [0.3.1] - 2021-09-15
 
 ### Potential breaking changes

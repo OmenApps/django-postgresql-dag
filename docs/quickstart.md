@@ -58,6 +58,11 @@ class NetworkNode(node_factory(NetworkEdge)):
         return self.name
 ```
 
+> The two composite edge indexes from `edge_factory` are inherited automatically here
+> because `NetworkEdge` declares no `Meta`. If you add your own `Meta`, subclass the
+> factory's (`class Meta(EdgeBase.Meta)`) or the indexes are silently dropped - see the
+> [Edge Reference](edge-reference.md#edge-table-indexes).
+
 For details on `edge_factory` and `node_factory` arguments (like `disable_circular_check`, `allow_duplicate_edges`, and `allow_redundant_edges`), see the [Configuration Reference](configuration.md).
 
 ## Add some instances via the shell (or in views, etc)
