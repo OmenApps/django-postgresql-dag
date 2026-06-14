@@ -108,9 +108,15 @@ class BaseQuery(ABC):
         django_pk_type = type(self.node_model._meta.pk).__name__
         return _PK_TYPE_MAP.get(django_pk_type, "integer")
 
-    def _execute_raw_on_edge_model(self, sql_template, format_kwargs):
-        """Format the SQL template and return a RawQuerySet on the edge model."""
-        formatted_sql = sql_template.format(**format_kwargs)  # nosec B608
+    def _record_and_format(self, sql_template, format_kwargs):
+        """Format the SQL, record it for the debug collector (once), and stash it for reuse.
+
+        ``pk_list()`` re-executes the stashed SQL through a raw cursor, so the SQL recorded
+        for the collector is byte-identical to what is actually executed.
+        """
+        formatted_sql = sql_template.format(**format_kwargs)  # nosec B608 - format_kwargs are Django model metadata (table/column names), not user input
+        self._formatted_sql = formatted_sql
+        self._formatted_params = dict(self.query_parameters)
         collector = _dag_query_collector.get(None)
         if collector is not None:
             collector.append(
@@ -120,6 +126,11 @@ class BaseQuery(ABC):
                     "params": dict(self.query_parameters),
                 }
             )
+        return formatted_sql
+
+    def _execute_raw_on_edge_model(self, sql_template, format_kwargs):
+        """Format the SQL template and return a RawQuerySet on the edge model."""
+        formatted_sql = self._record_and_format(sql_template, format_kwargs)
         return self.edge_model.objects.raw(formatted_sql, self.query_parameters)
 
     def limit_to_nodes_set_fk(self):
@@ -230,21 +241,30 @@ class BaseQuery(ABC):
 
     def _execute_raw(self, sql_template, format_kwargs):
         """Format the SQL template, optionally record it, and return a RawQuerySet."""
-        formatted_sql = sql_template.format(**format_kwargs)  # nosec B608 - format_kwargs are Django model metadata (table/column names), not user input
-        collector = _dag_query_collector.get(None)
-        if collector is not None:
-            collector.append(
-                {
-                    "query_class": type(self).__name__,
-                    "sql": formatted_sql,
-                    "params": dict(self.query_parameters),
-                }
-            )
+        formatted_sql = self._record_and_format(sql_template, format_kwargs)
         return self.node_model.objects.raw(formatted_sql, self.query_parameters)
 
     def id_list(self):
         """Return a list of ids in the resulting query."""
         return [item.pk for item in self.raw_queryset()]  # type: ignore[union-attr]
+
+    def pk_list(self):
+        """Return the result PKs as a plain list, without instantiating model objects.
+
+        Builds the CTE SQL via ``raw_queryset()`` (which records one collector entry
+        and stashes the formatted SQL+params) but does not iterate the RawQuerySet,
+        then executes the stashed SQL once through a raw cursor and reads column 0.
+
+        Contract: this assumes the query's final SELECT returns the pk (or edge id) as
+        its first column. That holds for every query routed through it here (Ancestor /
+        Descendant / ConnectedGraph / TopologicalSort select the pk; TransitiveReduction
+        selects ``e.id``). Do NOT route the depth queries through this - their SELECT is
+        ``{pk_name}, MAX(depth)`` and column 0 being the pk is incidental to needing the depth.
+        """
+        self.raw_queryset()  # builds + records SQL; the RawQuerySet is not evaluated, so no DB hit here
+        with connection.cursor() as cursor:
+            cursor.execute(self._formatted_sql, self._formatted_params)
+            return [row[0] for row in cursor.fetchall()]
 
     def __str__(self):
         """Return a string representation of the RawQueryset."""
