@@ -973,6 +973,10 @@ def edge_factory(
 
         class Meta:
             abstract = not concrete
+            indexes = [
+                models.Index(fields=["parent", "child"]),
+                models.Index(fields=["child", "parent"]),
+            ]
 
         def save(self, *args, **kwargs):
             if not kwargs.pop("disable_circular_check", False):

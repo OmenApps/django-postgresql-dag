@@ -15,7 +15,10 @@ class NodeSet(models.Model):
     name = models.CharField(max_length=100)
 
 
-class NetworkEdge(edge_factory("NetworkNode", concrete=False)):
+_NetworkEdgeBase = edge_factory("NetworkNode", concrete=False)
+
+
+class NetworkEdge(_NetworkEdgeBase):
     name = models.CharField(max_length=100)
     weight = models.FloatField(default=1.0)
 
@@ -28,7 +31,7 @@ class NetworkEdge(edge_factory("NetworkNode", concrete=False)):
         self.name = f"{self.parent.name} {self.child.name}"
         super().save(*args, **kwargs)
 
-    class Meta:
+    class Meta(_NetworkEdgeBase.Meta):
         app_label = "testapp"
 
 
