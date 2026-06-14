@@ -76,7 +76,7 @@ class NodeManager(models.Manager):
         """
         edge_model = self.model.children.through
         query = TopologicalSortQuery(node_model=self.model, edge_model=edge_model, max_depth=max_depth)
-        cte_pks = [item.pk for item in query.raw_queryset()]
+        cte_pks = query.pk_list()
         # Include island nodes not found by the CTE
         all_pks = set(self.values_list("pk", flat=True))
         island_pks = sorted(all_pks - set(cte_pks))
@@ -104,7 +104,7 @@ class NodeManager(models.Manager):
         """
         edge_model = self.model.children.through
         query = TransitiveReductionQuery(node_model=self.model, edge_model=edge_model)
-        redundant_edge_ids = [item.pk for item in query.raw_queryset()]
+        redundant_edge_ids = query.pk_list()
         qs = edge_model.objects.filter(pk__in=redundant_edge_ids)
         if delete:
             count = qs.count()
@@ -792,7 +792,7 @@ class EdgeManager(models.Manager):
         """Return QuerySet of redundant edges (those removable by transitive reduction)."""
         node_model = self.model._meta.get_field("parent").related_model
         query = TransitiveReductionQuery(node_model=node_model, edge_model=self.model)
-        redundant_edge_ids = [item.pk for item in query.raw_queryset()]
+        redundant_edge_ids = query.pk_list()
         return self.filter(pk__in=redundant_edge_ids)
 
     def transitive_reduction(self, delete=False):

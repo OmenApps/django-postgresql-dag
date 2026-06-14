@@ -32,6 +32,12 @@
   The new indexes are additive over Django's single-column FK indexes (small extra write
   cost on `add_child`); see the Edge Reference for the `db_index=False` opt-in and the
   `AddIndexConcurrently` zero-downtime option. Warrants at least a minor version bump.
+- **PK-only marshaling**: unfiltered traversals (`ancestors`, `descendants`, `clan`,
+  `connected_graph`, `*_and_self`, `topological_descendants`) and the manager methods
+  (`topological_sort`, `transitive_reduction`, `redundant_edges`) now read result PKs
+  through a raw cursor (`BaseQuery.pk_list()`) instead of building a throwaway
+  `RawQuerySet`, saving one full result-set instantiation per call. Query count, public
+  APIs, and results are unchanged.
 
 ## [0.3.1] - 2021-09-15
 

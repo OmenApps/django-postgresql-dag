@@ -5,6 +5,7 @@ from django.test import TestCase
 from django_postgresql_dag.debug import log_queries
 from django_postgresql_dag.query_builders import AncestorQuery, DescendantQuery
 from tests.helpers import TenNodeDAGFixtureMixin
+from tests.testapp.models import NetworkEdge, NetworkNode
 
 
 class PkListTestCase(TenNodeDAGFixtureMixin, TestCase):
@@ -67,3 +68,21 @@ class NodeMethodParityTestCase(TenNodeDAGFixtureMixin, TestCase):
         # One CTE (cursor) + one pk__in requery when the queryset is evaluated.
         with self.assertNumQueries(2):
             list(self.root.descendants())
+
+
+class ManagerMethodParityTestCase(TenNodeDAGFixtureMixin, TestCase):
+    def test_topological_sort_orders_parents_before_children(self):
+        ordered = list(NetworkNode.objects.topological_sort().values_list("name", flat=True))
+        self.assertLess(ordered.index("root"), ordered.index("a1"))
+        self.assertLess(ordered.index("a3"), ordered.index("b3"))
+        self.assertLess(ordered.index("b3"), ordered.index("c1"))
+
+    def test_transitive_reduction_dry_run_returns_edge_queryset(self):
+        # Add a redundant root->c1 edge (c1 already reachable via a3->b3->c1).
+        self.root.add_child(self.c1)
+        redundant = NetworkNode.objects.transitive_reduction()
+        self.assertTrue(redundant.filter(parent=self.root, child=self.c1).exists())
+
+    def test_redundant_edges_manager_matches(self):
+        self.root.add_child(self.c1)
+        self.assertTrue(NetworkEdge.objects.redundant_edges().filter(parent=self.root, child=self.c1).exists())
