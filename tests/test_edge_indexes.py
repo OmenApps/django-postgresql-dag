@@ -1,5 +1,8 @@
 """Tests for the composite/covering indexes on the edge table (Feature 1.1)."""
 
+from io import StringIO
+
+from django.core.management import call_command
 from django.test import TestCase
 
 from tests.testapp.models import NetworkEdge
@@ -22,3 +25,28 @@ class EdgeCompositeIndexTestCase(TestCase):
         self.assertEqual(len(names), 2)
         self.assertTrue(all(names))
         self.assertEqual(len(set(names)), 2)
+
+
+class NoMissingMigrationsTestCase(TestCase):
+    def test_makemigrations_reports_no_changes(self):
+        """makemigrations --check exits 1 when a model change lacks a migration.
+
+        It exits 2 for a bad app label (a test-environment problem, not a
+        missing migration), so distinguish the two by the exit code.
+        """
+        out = StringIO()
+        try:
+            call_command(
+                "makemigrations",
+                "testapp",
+                check=True,
+                dry_run=True,
+                verbosity=0,
+                stdout=out,
+                stderr=out,
+            )
+        except SystemExit as exc:
+            if exc.code == 1:
+                self.fail(f"Missing migration detected by makemigrations --check: {out.getvalue()}")
+            # exc.code == 2 (or other) => environment/app-label problem, re-raise
+            raise
