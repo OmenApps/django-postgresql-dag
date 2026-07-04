@@ -174,7 +174,15 @@ def validate_edge_filter(edge_model, edge_filter):
     resolved = []
     for field_name, value in edge_filter.items():
         field = edge_model._meta.get_field(field_name)
-        resolved.append((field.column, value))
+        # A reverse relation or many-to-many resolves via get_field but has no local column to filter on
+        # (it would raise a bare AttributeError below), so reject it with a clear message.
+        column = getattr(field, "column", None)
+        if column is None:
+            raise FieldDoesNotExist(
+                f"Field '{field_name}' on {edge_model.__name__} has no database column to filter on "
+                f"(reverse relations and many-to-many fields cannot be used in edge_filter)."
+            )
+        resolved.append((column, value))
     return resolved
 
 

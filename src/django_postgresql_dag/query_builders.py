@@ -280,16 +280,27 @@ class BaseQuery(ABC):
         return
 
     def apply_edge_filter(self):
-        """Scope the walk to edges whose discriminator columns match ``edge_filter``, if provided."""
+        """Scope the walk to edges whose discriminator columns match ``edge_filter``, if provided.
+
+        Raises if a filter is set on a query type that cannot honour it (graph-wide, LCA), rather than
+        silently returning an unscoped result - a silent no-op there is a footgun, since the caller
+        believes they scoped the walk.
+        """
         if not self._edge_filter_pairs:
             return
+        if type(self)._apply_edge_filter is BaseQuery._apply_edge_filter:
+            raise NotImplementedError(
+                f"{type(self).__name__} does not support edge_filter scoping and would silently ignore "
+                f"{self.edge_filter!r}. Use a query type that filters per traversed edge "
+                f"(ancestor/descendant/connected-graph/path), or remove edge_filter."
+            )
         return self._apply_edge_filter()
 
     def _apply_edge_filter(self):
         """Emit the ``edge_filter`` WHERE clauses. Overridden by query classes that traverse edges.
 
-        The base is a no-op so a query type that does not carry a per-edge WHERE (graph-wide, LCA)
-        simply ignores ``edge_filter`` rather than emitting an unaliased column reference.
+        The base is left unoverridden by query types with no per-edge WHERE (graph-wide, LCA);
+        ``apply_edge_filter`` detects that and raises rather than dropping the filter on the floor.
         """
         return
 

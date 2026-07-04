@@ -324,9 +324,21 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
 
         @staticmethod
         def _resolve_edge_type(kwargs):
-            """Pop ``edge_type`` from *kwargs* and translate it to ``limiting_edges_set_fk``."""
+            """Pop ``edge_type`` from *kwargs* and translate it to ``limiting_edges_set_fk``.
+
+            ``edge_type=`` is the ForeignKey-based edge-set scoping and expects a model instance. It is
+            one keyword away from ``edge_filter={"edge_type": ...}`` (the discriminator-column scoping),
+            so a caller reaching for column scoping via the wrong kwarg would otherwise fail deep in the
+            query with a cryptic ``AttributeError``. Reject a non-instance early and point at edge_filter.
+            """
             edge_type = kwargs.pop("edge_type", None)
             if edge_type is not None:
+                if not hasattr(edge_type, "_meta"):
+                    raise TypeError(
+                        "edge_type= expects a model instance (it maps to the ForeignKey-based "
+                        "limiting_edges_set_fk). To scope a traversal by a discriminator column such as a "
+                        "CharField edge_type, use edge_filter={'edge_type': value} instead."
+                    )
                 kwargs.setdefault("limiting_edges_set_fk", edge_type)
 
         def ancestors_raw(self, **kwargs):

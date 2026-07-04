@@ -38,11 +38,17 @@ class EdgeFilterTestCase(TestCase):
         scoped = self.root.descendants(edge_filter={"weight": 5.0})
         self.assertEqual(set(scoped.values_list("pk", flat=True)), {self.b.pk})
 
-    def test_edge_filter_depth_is_not_inflated_by_other_representation(self):
-        """Scoping keeps depth accurate: the weight-1.0 chain is two hops, not confused by root->b."""
-        query = DescendantQuery(instance=self.root, edge_filter={"weight": 1.0})
-        pks = query.pk_list()
-        self.assertEqual(len(pks), 2)
+    def test_edge_filter_composes_with_using(self):
+        """edge_filter and using= combine: the scoped walk runs on the named alias."""
+        scoped = self.root.descendants(edge_filter={"weight": 1.0}, using="default")
+        self.assertEqual(scoped.db, "default")
+        self.assertEqual(set(scoped.values_list("pk", flat=True)), {self.a.pk, self.c.pk})
+
+    def test_unsupported_query_raises_on_edge_filter(self):
+        """A query type that cannot honour edge_filter raises rather than silently ignoring it."""
+        with pytest.raises(NotImplementedError):
+            # LCA has no per-edge WHERE, so scoping it would be a silent no-op - now a loud error.
+            list(self.root.lowest_common_ancestors(self.c, edge_filter={"weight": 1.0}))
 
     def test_unknown_field_raises(self):
         """An unknown edge_filter field is rejected at query construction (injection-safe)."""
@@ -73,3 +79,23 @@ class EdgeFilterTestCase(TestCase):
         query = ConnectedGraphQuery(instance=self.root, edge_filter={"weight": 1.0})
         query.pk_list()
         self.assertFalse(query.truncated)
+
+
+class AncestorEdgeFilterTestCase(TestCase):
+    """A node with two parents reached by different-weight edges proves ancestor scoping excludes one."""
+
+    def setUp(self):
+        # p1 -> child via weight 1.0; p2 -> child via weight 5.0.
+        self.p1 = NetworkNode.objects.create(name="p1")
+        self.p2 = NetworkNode.objects.create(name="p2")
+        self.child = NetworkNode.objects.create(name="child")
+        self.p1.add_child(self.child, weight=1.0)
+        self.p2.add_child(self.child, weight=5.0)
+
+    def test_ancestors_unscoped_returns_both_parents(self):
+        self.assertEqual(set(self.child.ancestors().values_list("pk", flat=True)), {self.p1.pk, self.p2.pk})
+
+    def test_ancestors_scoped_excludes_the_other_parent(self):
+        """The weight-1.0 ancestor walk returns only the parent reached by a weight-1.0 edge."""
+        scoped = self.child.ancestors(edge_filter={"weight": 1.0})
+        self.assertEqual(set(scoped.values_list("pk", flat=True)), {self.p1.pk})

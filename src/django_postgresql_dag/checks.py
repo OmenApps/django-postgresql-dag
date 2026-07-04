@@ -1,4 +1,4 @@
-"""Info-level system check that surfaces edge models which silently did not
+"""Warning-level system check that surfaces edge models which silently did not
 receive ``edge_factory``'s performance-improving composite indexes.
 
 Adding ``indexes`` to the abstract Edge ``Meta`` only propagates to a concrete
@@ -6,7 +6,7 @@ child whose ``Meta`` subclasses the factory's (or that declares no ``Meta`` at
 all). A child with its own non-subclassing ``Meta`` - or one whose ``Meta``
 inherits from a different base (e.g. django-auto-prefetch) - silently drops the
 indexes, with no error and no migration. This check turns that silent no-op into
-an actionable ``Info`` message.
+an actionable ``Warning`` message.
 
 The check is coverage-based: it only flags a model that actually lacks an index
 covering ``(parent, child)`` or ``(child, parent)``. A model that already
@@ -66,7 +66,7 @@ def _format_tuple(field_tuple):
 
 
 def _check_models(models):
-    """Build the list of ``Info`` messages for the given models. Pure - easy to unit test."""
+    """Build the list of ``Warning`` messages for the given models. Pure - easy to unit test."""
     messages = []
     for model in models:
         if not _is_checkable_edge_model(model):
