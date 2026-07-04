@@ -20,6 +20,12 @@
 
 ### Infrastructure
 
+- **Consistent connection routing (`using=`)**: traversal methods now accept a `using=<alias>`
+  keyword that pins both the pk list and the row hydration to the same database connection.
+  Before, they could split across a primary/replica pair, so a write-then-traverse could drop
+  rows a lagging replica had not caught up on. Threaded through the ancestor/descendant/
+  connected-graph node methods, the `*_raw` variants, and `ordered_queryset_from_pks()`. Default
+  (`None`) keeps the old behaviour.
 - Extended `BaseQuery` to support graph-wide queries (no instance required) via `node_model`/`edge_model` parameters.
 - Added `WeightFieldDoesNotExistException` to `exceptions.py`.
 - Added `validate_weight_field()` and `WeightedPathResult` namedtuple to `utils.py`.

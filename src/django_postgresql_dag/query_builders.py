@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
-from django.db import connection
+from django.db import connection, connections
 
 from .debug import _dag_query_collector
 from .utils import get_instance_characteristics, validate_weight_field
@@ -50,10 +50,16 @@ class BaseQuery(ABC):
         allowed_edges_queryset=None,
         node_model=None,
         edge_model=None,
+        using=None,
     ):
         self.instance = instance
         self.starting_node = starting_node
         self.ending_node = ending_node
+        # Optional database alias. When set, both the pk-list cursor path and the raw-queryset
+        # hydration run on this connection, so a write-then-traverse stays read-consistent instead of
+        # splitting between the primary (cursor) and a router-chosen replica (raw). ``None`` keeps the
+        # historical behaviour: the cursor uses the ``default`` alias and raw querysets follow the router.
+        self.using = using
         # Set True when a truncation-tracking walk reaches ``max_depth`` and rows beyond it were
         # dropped, so the result may be incomplete. Callers can read this after ``pk_list()``.
         self.truncated = False
@@ -143,10 +149,18 @@ class BaseQuery(ABC):
             )
         return formatted_sql
 
+    def _connection(self):
+        """Return the DB connection for raw-cursor execution, honouring an explicit ``using`` alias.
+
+        Falls back to the module-level ``default`` connection so callers that do not pass ``using``
+        keep the historical behaviour.
+        """
+        return connections[self.using] if self.using else connection
+
     def _execute_raw_on_edge_model(self, sql_template, format_kwargs):
         """Format the SQL template and return a RawQuerySet on the edge model."""
         formatted_sql = self._record_and_format(sql_template, format_kwargs)
-        return self.edge_model.objects.raw(formatted_sql, self.query_parameters)
+        return self.edge_model.objects.raw(formatted_sql, self.query_parameters, using=self.using)
 
     def limit_to_nodes_set_fk(self):
         """Limit the search to those nodes which are included in a ForeignKey's node set.
@@ -257,7 +271,7 @@ class BaseQuery(ABC):
     def _execute_raw(self, sql_template, format_kwargs):
         """Format the SQL template, optionally record it, and return a RawQuerySet."""
         formatted_sql = self._record_and_format(sql_template, format_kwargs)
-        return self.node_model.objects.raw(formatted_sql, self.query_parameters)
+        return self.node_model.objects.raw(formatted_sql, self.query_parameters, using=self.using)
 
     def id_list(self):
         """Return a list of ids in the resulting query."""
@@ -277,7 +291,7 @@ class BaseQuery(ABC):
         ``{pk_name}, MAX(depth)`` and column 0 being the pk is incidental to needing the depth.
         """
         self.raw_queryset()  # builds + records SQL; the RawQuerySet is not evaluated, so no DB hit here
-        with connection.cursor() as cursor:
+        with self._connection().cursor() as cursor:
             cursor.execute(self._formatted_sql, self._formatted_params)
             rows = cursor.fetchall()
         if self._tracks_truncation and rows:
@@ -1314,7 +1328,7 @@ class AllDownwardPathsQuery(_PathEdgeFilterMixin, BaseQuery):
                 }
             )
 
-        with connection.cursor() as cursor:
+        with self._connection().cursor() as cursor:
             cursor.execute(formatted_sql, self.query_parameters)
             return [row[0] for row in cursor.fetchall()]
 
@@ -1404,7 +1418,7 @@ class AllUpwardPathsQuery(_PathEdgeFilterMixin, BaseQuery):
                 }
             )
 
-        with connection.cursor() as cursor:
+        with self._connection().cursor() as cursor:
             cursor.execute(formatted_sql, self.query_parameters)
             return [row[0] for row in cursor.fetchall()]
 
@@ -1489,7 +1503,7 @@ class WeightedDownwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
                 }
             )
 
-        with connection.cursor() as cursor:
+        with self._connection().cursor() as cursor:
             cursor.execute(formatted_sql, self.query_parameters)
             row = cursor.fetchone()
             if row is None:
@@ -1582,7 +1596,7 @@ class WeightedUpwardPathQuery(_PathEdgeFilterMixin, BaseQuery):
                 }
             )
 
-        with connection.cursor() as cursor:
+        with self._connection().cursor() as cursor:
             cursor.execute(formatted_sql, self.query_parameters)
             row = cursor.fetchone()
             if row is None:
@@ -1669,7 +1683,7 @@ class CriticalPathQuery(_GraphWideNoFilterMixin, BaseQuery):
                 }
             )
 
-        with connection.cursor() as cursor:
+        with self._connection().cursor() as cursor:
             cursor.execute(formatted_sql, self.query_parameters)
             row = cursor.fetchone()
             if row is None:
