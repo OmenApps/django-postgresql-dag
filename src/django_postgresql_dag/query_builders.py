@@ -301,15 +301,21 @@ class BaseQuery(ABC):
         return [row[0] for row in rows]
 
     def _note_truncation(self, is_truncated):
-        """Record whether the walk was truncated at ``max_depth`` and warn once if so."""
+        """Record whether the walk was truncated at ``max_depth`` and warn once if so.
+
+        The warning is gated behind ``DJANGO_POSTGRESQL_DAG_WARN_ON_TRUNCATION`` (default True) so a
+        project that deliberately runs shallow walks with a low ``max_depth`` can silence the notice
+        without losing the ``truncated`` flag.
+        """
         if is_truncated and not self.truncated:
             self.truncated = True
-            logger.warning(
-                "django_postgresql_dag: %s reached max_depth=%s; results may be truncated. Increase the "
-                "max_depth argument or the DJANGO_POSTGRESQL_DAG_MAX_DEPTH setting if the graph is deeper.",
-                type(self).__name__,
-                self.max_depth,
-            )
+            if getattr(settings, "DJANGO_POSTGRESQL_DAG_WARN_ON_TRUNCATION", True):
+                logger.warning(
+                    "django_postgresql_dag: %s reached max_depth=%s; results may be truncated. Increase the "
+                    "max_depth argument or the DJANGO_POSTGRESQL_DAG_MAX_DEPTH setting if the graph is deeper.",
+                    type(self).__name__,
+                    self.max_depth,
+                )
         return self.truncated
 
     def __str__(self):
@@ -461,7 +467,8 @@ class AncestorQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
             {where_clauses_part_2}
         )
         SELECT {pk_name},
-               (SELECT COALESCE(bool_or(depth > %(max_depth)s), false) FROM traverse) AS dag_truncated
+               (SELECT COALESCE(bool_or(grouped.min_depth > %(max_depth)s), false)
+                FROM (SELECT MIN(depth) AS min_depth FROM traverse GROUP BY {pk_name}) grouped) AS dag_truncated
         FROM traverse
         WHERE depth <= %(max_depth)s
         GROUP BY {pk_name}
@@ -569,7 +576,8 @@ class DescendantQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
             {where_clauses_part_2}
         )
         SELECT {pk_name},
-               (SELECT COALESCE(bool_or(depth > %(max_depth)s), false) FROM traverse) AS dag_truncated
+               (SELECT COALESCE(bool_or(grouped.min_depth > %(max_depth)s), false)
+                FROM (SELECT MIN(depth) AS min_depth FROM traverse GROUP BY {pk_name}) grouped) AS dag_truncated
         FROM traverse
         WHERE depth <= %(max_depth)s
         GROUP BY {pk_name}
@@ -669,8 +677,16 @@ class ConnectedGraphQuery(BaseQuery):
             {where_clauses_part_2}
         )
         SELECT DISTINCT {pk_name},
-               (SELECT COALESCE(bool_or(array_length(path, 1) >= %(max_depth)s), false) FROM traverse)
-               AS dag_truncated
+               (SELECT EXISTS(
+                   -- Truncation is precise here: a reachable node was dropped iff some node we did
+                   -- return has an edge to a node we did NOT return. If every returned node's
+                   -- neighbours are all returned, the connected component is complete.
+                   SELECT 1 FROM {relationship_table} boundary_edge
+                   WHERE (boundary_edge.parent_id IN (SELECT {pk_name} FROM traverse)
+                          AND boundary_edge.child_id NOT IN (SELECT {pk_name} FROM traverse))
+                      OR (boundary_edge.child_id IN (SELECT {pk_name} FROM traverse)
+                          AND boundary_edge.parent_id NOT IN (SELECT {pk_name} FROM traverse))
+               )) AS dag_truncated
         FROM traverse;
         """
 

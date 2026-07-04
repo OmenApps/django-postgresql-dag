@@ -14,7 +14,7 @@ from django_postgresql_dag.query_builders import (
     ConnectedGraphQuery,
     DescendantQuery,
 )
-from tests.testapp.models import NetworkNode
+from tests.testapp.models import NetworkEdge, NetworkNode
 
 
 class SerialChainFixtureMixin:
@@ -97,4 +97,57 @@ class TruncationTestCase(SerialChainFixtureMixin, TestCase):
         self.assertEqual(query.max_depth, 20)
         pks = query.pk_list()
         self.assertEqual(len(pks), 20)
+        self.assertTrue(query.truncated)
+
+    def test_boundary_exactly_at_ceiling_not_truncated(self):
+        """A ceiling equal to the deepest node returns everything and does not flag truncation."""
+        # 30 nodes -> head has 29 descendants, deepest at depth 29. max_depth=29 keeps them all.
+        query = DescendantQuery(instance=self.head, max_depth=self.CHAIN_LENGTH - 1)
+        pks = query.pk_list()
+        self.assertEqual(len(pks), self.CHAIN_LENGTH - 1)
+        self.assertFalse(query.truncated)
+
+    def test_boundary_one_below_ceiling_is_truncated(self):
+        """A ceiling one below the deepest node drops the last node and flags truncation."""
+        query = DescendantQuery(instance=self.head, max_depth=self.CHAIN_LENGTH - 2)
+        pks = query.pk_list()
+        self.assertEqual(len(pks), self.CHAIN_LENGTH - 2)
+        self.assertTrue(query.truncated)
+
+    def test_connected_graph_boundary_returns_all_no_false_positive(self):
+        """A connected-graph ceiling that returns the whole component does not false-warn."""
+        # The chain has CHAIN_LENGTH nodes; a ceiling of exactly CHAIN_LENGTH reaches them all.
+        query = ConnectedGraphQuery(instance=self.head, max_depth=self.CHAIN_LENGTH)
+        pks = query.pk_list()
+        self.assertEqual(len(pks), self.CHAIN_LENGTH)
+        self.assertFalse(query.truncated)
+
+
+class TruncationPrecisionTestCase(TestCase):
+    """A node reachable at both a shallow and a deep depth must not trip a false truncation flag."""
+
+    def setUp(self):
+        # Diamond: s -> a -> x and s -> x. x is reachable at depth 1 (s->x) and depth 2 (s->a->x).
+        self.s = NetworkNode.objects.create(name="s")
+        self.a = NetworkNode.objects.create(name="a")
+        self.x = NetworkNode.objects.create(name="x")
+        self.s.add_child(self.a, disable_circular_check=True)
+        self.a.add_child(self.x, disable_circular_check=True)
+        self.s.add_child(self.x, disable_circular_check=True)
+
+    def test_node_reachable_within_ceiling_is_not_flagged(self):
+        """With max_depth=1, both a and x survive (depth 1); the depth-2 path to x must not warn."""
+        query = DescendantQuery(instance=self.s, max_depth=1)
+        pks = query.pk_list()
+        self.assertEqual(set(pks), {self.a.pk, self.x.pk})
+        self.assertFalse(query.truncated)
+
+
+class TruncationWarningToggleTestCase(SerialChainFixtureMixin, TestCase):
+    @override_settings(DJANGO_POSTGRESQL_DAG_WARN_ON_TRUNCATION=False)
+    def test_warning_suppressed_but_flag_still_set(self):
+        """Disabling the warning setting silences the log but keeps the truncated flag."""
+        query = DescendantQuery(instance=self.head, max_depth=10)
+        with self.assertNoLogs("django_postgresql_dag", level="WARNING"):
+            query.pk_list()
         self.assertTrue(query.truncated)

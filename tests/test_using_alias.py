@@ -6,7 +6,9 @@ write-then-traverse stays read-consistent. The test suite runs a single database
 prove the plumbing (the alias reaches the cursor and the hydration queryset) rather than replica lag.
 """
 
+import pytest
 from django.db import connections
+from django.db.utils import ConnectionDoesNotExist
 from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
 
@@ -56,3 +58,12 @@ class UsingAliasTestCase(TestCase):
         default_pks = set(self.root.descendants().values_list("pk", flat=True))
         pinned_pks = set(self.root.descendants(using="default").values_list("pk", flat=True))
         self.assertEqual(default_pks, pinned_pks)
+
+    def test_bogus_alias_is_actually_honored(self):
+        """A non-existent alias raises, proving the alias reaches the cursor rather than being dropped.
+
+        The single-DB test setup means asserting ``db == "default"`` alone cannot tell "honored" from
+        "silently ignored"; routing a walk to a bogus alias must fail loudly.
+        """
+        with pytest.raises(ConnectionDoesNotExist):
+            DescendantQuery(instance=self.root, using="does_not_exist").pk_list()

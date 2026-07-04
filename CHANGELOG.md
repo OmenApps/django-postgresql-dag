@@ -13,19 +13,21 @@
 - **Transitive reduction**: `NodeManager.transitive_reduction()` and `EdgeManager.redundant_edges()` identify and optionally delete redundant edges (A->C is redundant if A->B->...->C exists).
 - **Graph hashing**: `graph_hash()`, `subgraph_hashes()`, and `graphs_are_isomorphic()` in `transformations.py` use NetworkX Weisfeiler-Lehman hashing. Node-level convenience methods: `node.graph_hash()`, `node.subgraph_hashes()`.
 - **Loud truncation signal**: ancestor, descendant, and connected-graph walks now set a
-  `query.truncated` flag and log a warning when a walk hits `max_depth` and drops rows beyond
-  it. Before, a graph deeper than `max_depth` was cut silently. The returned pk set and the
-  default `max_depth` (`20`) are unchanged. Raise the `django_postgresql_dag` logger above
-  `WARNING` to silence the notice.
+  `query.truncated` flag and log a warning when a walk hits `max_depth` and drops a reachable
+  node. Before, a graph deeper than `max_depth` was cut silently. Detection is exact, so a walk
+  that returns the whole (sub)graph never false-warns. The returned pk set and the default
+  `max_depth` (`20`) are unchanged. Gate the warning with
+  `DJANGO_POSTGRESQL_DAG_WARN_ON_TRUNCATION` (default `True`).
 
 ### Infrastructure
 
 - **Consistent connection routing (`using=`)**: traversal methods now accept a `using=<alias>`
   keyword that pins both the pk list and the row hydration to the same database connection.
   Before, they could split across a primary/replica pair, so a write-then-traverse could drop
-  rows a lagging replica had not caught up on. Threaded through the ancestor/descendant/
-  connected-graph node methods, the `*_raw` variants, and `ordered_queryset_from_pks()`. Default
-  (`None`) keeps the old behaviour.
+  rows a lagging replica had not caught up on. Threaded through every pk-list node method -
+  ancestor/descendant/connected-graph, `path`/`all_paths`/`weighted_path`/`lowest_common_ancestors`,
+  the `*_raw` variants - and `ordered_queryset_from_pks()`. Default (`None`) keeps the old
+  behaviour.
 - Extended `BaseQuery` to support graph-wide queries (no instance required) via `node_model`/`edge_model` parameters.
 - Added `WeightFieldDoesNotExistException` to `exceptions.py`.
 - Added `validate_weight_field()` and `WeightedPathResult` namedtuple to `utils.py`.

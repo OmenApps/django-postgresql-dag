@@ -448,9 +448,9 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             starting and ending nodes.
             """
             if self == ending_node:
-                return self.ordered_queryset_from_pks([self.pk])
+                return self.ordered_queryset_from_pks([self.pk], using=kwargs.get("using"))
             pks = self._pks_from_raw(self.path_raw(ending_node, **kwargs))
-            return self.ordered_queryset_from_pks(pks)
+            return self.ordered_queryset_from_pks(pks, using=kwargs.get("using"))
 
         def distance(self, ending_node, **kwargs):
             """Return the shortest hops count to the target node."""
@@ -491,7 +491,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             self._resolve_edge_type(kwargs)
             raw_qs = LCAQuery(starting_node=self, ending_node=other, **kwargs).raw_queryset()
             pks = [item.pk for item in raw_qs]
-            return self.ordered_queryset_from_pks(pks)
+            return self.ordered_queryset_from_pks(pks, using=kwargs.get("using"))
 
         def all_paths_as_pk_lists(self, ending_node, directional=True, max_results=None, **kwargs):
             """Return list of PK lists, one per path from self to ending_node."""
@@ -516,7 +516,8 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
             pk_lists = self.all_paths_as_pk_lists(
                 ending_node, directional=directional, max_results=max_results, **kwargs
             )
-            return [self.ordered_queryset_from_pks(pk_list) for pk_list in pk_lists]
+            using = kwargs.get("using")
+            return [self.ordered_queryset_from_pks(pk_list, using=using) for pk_list in pk_lists]
 
         def weighted_path_raw(self, ending_node, weight_field="weight", directional=True, **kwargs):
             """Return WeightedPathResult(nodes, total_weight) for shortest weighted path."""
@@ -544,7 +545,7 @@ def node_factory(edge_model, children_null=True, base_model=models.Model):
         def weighted_path(self, ending_node, weight_field="weight", **kwargs):
             """Return (QuerySet, total_weight) for shortest weighted path."""
             result = self.weighted_path_raw(ending_node, weight_field=weight_field, **kwargs)
-            return (self.ordered_queryset_from_pks(result.nodes), result.total_weight)
+            return (self.ordered_queryset_from_pks(result.nodes, using=kwargs.get("using")), result.total_weight)
 
         def weighted_distance(self, ending_node, weight_field="weight", **kwargs):
             """Return the total weight of the shortest weighted path to ending_node."""
