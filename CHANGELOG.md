@@ -21,6 +21,13 @@
 
 ### Infrastructure
 
+- **Discriminator-column scoping (`edge_filter=`)**: traversal methods now accept an
+  `edge_filter={field: value}` mapping that limits the walk to edges whose column equals the
+  value. This scopes on non-ForeignKey columns that `limiting_edges_set_fk` cannot - such as an
+  `edge_type` discriminator - so one edge table holding several edge kinds can be traversed one
+  kind at a time. Field names are validated and values are bound parameters; unknown fields raise
+  `FieldDoesNotExist`. Works on ancestor/descendant/connected-graph and path queries; graph-wide
+  and LCA queries ignore it.
 - **Consistent connection routing (`using=`)**: traversal methods now accept a `using=<alias>`
   keyword that pins both the pk list and the row hydration to the same database connection.
   Before, they could split across a primary/replica pair, so a write-then-traverse could drop

@@ -6,7 +6,7 @@ from django.core.exceptions import ImproperlyConfigured
 from django.db import connection, connections
 
 from .debug import _dag_query_collector
-from .utils import get_instance_characteristics, validate_weight_field
+from .utils import get_instance_characteristics, validate_edge_filter, validate_weight_field
 
 logger = logging.getLogger("django_postgresql_dag")
 
@@ -51,10 +51,15 @@ class BaseQuery(ABC):
         node_model=None,
         edge_model=None,
         using=None,
+        edge_filter=None,
     ):
         self.instance = instance
         self.starting_node = starting_node
         self.ending_node = ending_node
+        # Discriminator-column scoping: a ``{field_name: value}`` mapping restricting the walk to edges
+        # whose column equals the value, applied as a bound WHERE predicate inside the CTEs. Unlike
+        # ``limiting_edges_set_fk`` (which needs a ForeignKey) this expresses a CharField discriminator.
+        self.edge_filter = edge_filter
         # Optional database alias. When set, both the pk-list cursor path and the raw-queryset
         # hydration run on this connection, so a write-then-traverse stays read-consistent instead of
         # splitting between the primary (cursor) and a router-chosen replica (raw). ``None`` keeps the
@@ -103,6 +108,11 @@ class BaseQuery(ABC):
             raise ImproperlyConfigured("Either instance or both starting_node and ending_node are required")
 
         self.edge_model_table = self.edge_model._meta.db_table
+        # Resolve edge_filter field names to DB columns now (raises for unknown fields) and bind each
+        # value as a query parameter. The column name is model metadata; the value is always bound.
+        self._edge_filter_pairs = validate_edge_filter(self.edge_model, self.edge_filter)
+        for index, (_column, value) in enumerate(self._edge_filter_pairs):
+            self.query_parameters[f"edge_filter_{index}"] = value
         super().__init__()
 
     def _get_node_instance(self):
@@ -265,7 +275,22 @@ class BaseQuery(ABC):
         self.disallow_edges()
         self.allow_nodes()
         self.allow_edges()
+        self.apply_edge_filter()
 
+        return
+
+    def apply_edge_filter(self):
+        """Scope the walk to edges whose discriminator columns match ``edge_filter``, if provided."""
+        if not self._edge_filter_pairs:
+            return
+        return self._apply_edge_filter()
+
+    def _apply_edge_filter(self):
+        """Emit the ``edge_filter`` WHERE clauses. Overridden by query classes that traverse edges.
+
+        The base is a no-op so a query type that does not carry a per-edge WHERE (graph-wide, LCA)
+        simply ignores ``edge_filter`` rather than emitting an unaliased column reference.
+        """
         return
 
     def _execute_raw(self, sql_template, format_kwargs):
@@ -352,6 +377,13 @@ class _AncestorDescendantEdgeFilterMixin:
             self.allowed_edges_queryset,  # type: ignore[attr-defined]
         )
 
+    def _apply_edge_filter(self):
+        # Anchor aliases the traversed edge as ``first``; the recursive term uses the real table name.
+        for index, (column, _value) in enumerate(self._edge_filter_pairs):  # type: ignore[attr-defined]
+            param = f"edge_filter_{index}"
+            self.where_clauses_part_1 += f"\nAND first.{column} = %({param})s"  # type: ignore[attr-defined]  # nosec B608 - column from Django model metadata
+            self.where_clauses_part_2 += f"\nAND {self.edge_model_table}.{column} = %({param})s"  # type: ignore[attr-defined]  # nosec B608 - column/table from Django model metadata
+
 
 class _PathEdgeFilterMixin:
     """Shared edge filtering for UpwardPathQuery and DownwardPathQuery.
@@ -369,6 +401,13 @@ class _PathEdgeFilterMixin:
     def _allow_edges(self):
         clause = "AND first.id = ANY(%(allowed_path_edge_pks)s)"
         self._add_filter_clause(clause, clause, "allowed_path_edge_pks", self.allowed_edges_queryset)  # type: ignore[attr-defined]
+
+    def _apply_edge_filter(self):
+        # Path CTEs alias the traversed edge as ``first`` in both the anchor and the recursive term.
+        for index, (column, _value) in enumerate(self._edge_filter_pairs):  # type: ignore[attr-defined]
+            clause = f"\nAND first.{column} = %(edge_filter_{index})s"  # nosec B608 - column from Django model metadata
+            self.where_clauses_part_1 += clause  # type: ignore[attr-defined]
+            self.where_clauses_part_2 += clause  # type: ignore[attr-defined]
 
 
 class AncestorQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
@@ -654,6 +693,12 @@ class ConnectedGraphQuery(BaseQuery):
             self.allowed_edges_queryset,
         )
 
+    def _apply_edge_filter(self):
+        # The recursive term aliases the traversed edge as ``edge``; the anchor is the seed node with
+        # no edge, so only the recursive clause is scoped (the seed is always in its own component).
+        for index, (column, _value) in enumerate(self._edge_filter_pairs):
+            self.where_clauses_part_2 += f"\nAND edge.{column} = %(edge_filter_{index})s"  # nosec B608 - column from Django model metadata
+
     def raw_queryset(self):
         if self.instance is None:
             raise ValueError("instance must not be None")
@@ -679,16 +724,25 @@ class ConnectedGraphQuery(BaseQuery):
         SELECT DISTINCT {pk_name},
                (SELECT EXISTS(
                    -- Truncation is precise here: a reachable node was dropped iff some node we did
-                   -- return has an edge to a node we did NOT return. If every returned node's
-                   -- neighbours are all returned, the connected component is complete.
+                   -- return has a (matching) edge to a node we did NOT return. Non-matching edges are
+                   -- intentionally not followed, so an edge_filter excludes them from this check too;
+                   -- if every returned node's in-scope neighbours are all returned, the component is
+                   -- complete.
                    SELECT 1 FROM {relationship_table} boundary_edge
-                   WHERE (boundary_edge.parent_id IN (SELECT {pk_name} FROM traverse)
-                          AND boundary_edge.child_id NOT IN (SELECT {pk_name} FROM traverse))
-                      OR (boundary_edge.child_id IN (SELECT {pk_name} FROM traverse)
-                          AND boundary_edge.parent_id NOT IN (SELECT {pk_name} FROM traverse))
+                   WHERE 1 = 1
+                   {edge_filter_boundary_clause}
+                   AND ((boundary_edge.parent_id IN (SELECT {pk_name} FROM traverse)
+                         AND boundary_edge.child_id NOT IN (SELECT {pk_name} FROM traverse))
+                     OR (boundary_edge.child_id IN (SELECT {pk_name} FROM traverse)
+                         AND boundary_edge.parent_id NOT IN (SELECT {pk_name} FROM traverse)))
                )) AS dag_truncated
         FROM traverse;
         """
+
+        edge_filter_boundary_clause = "".join(
+            f"\n                   AND boundary_edge.{column} = %(edge_filter_{index})s"  # nosec B608 - column from Django model metadata
+            for index, (column, _value) in enumerate(self._edge_filter_pairs)
+        )
 
         return self._execute_raw(
             QUERY,
@@ -697,6 +751,7 @@ class ConnectedGraphQuery(BaseQuery):
                 "pk_name": self.instance.get_pk_name(),
                 "pk_type": self.instance.get_pk_type(),
                 "where_clauses_part_2": self.where_clauses_part_2,
+                "edge_filter_boundary_clause": edge_filter_boundary_clause,
             },
         )
 

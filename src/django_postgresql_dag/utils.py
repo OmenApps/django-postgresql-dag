@@ -158,6 +158,26 @@ def model_to_dict(instance, fields=None, date_strf=None):
     return data
 
 
+def validate_edge_filter(edge_model, edge_filter):
+    """Validate an ``edge_filter`` mapping of ``{field_name: value}`` against the edge model.
+
+    Returns a list of ``(db_column, value)`` tuples. Column names come from ``get_field(...).column``
+    (Django model metadata), so only real columns ever reach the SQL string; the value is meant to be
+    bound as a query parameter by the caller. Raises ``FieldDoesNotExist`` for an unknown field name,
+    which is the safety property that keeps this injection-free (mirrors ``validate_weight_field``).
+
+    This lets a traversal be scoped to a discriminator column - e.g. a ``CharField`` ``edge_type`` -
+    which the ForeignKey-based ``limiting_edges_set_fk`` cannot express.
+    """
+    if not edge_filter:
+        return []
+    resolved = []
+    for field_name, value in edge_filter.items():
+        field = edge_model._meta.get_field(field_name)
+        resolved.append((field.column, value))
+    return resolved
+
+
 def validate_weight_field(edge_model, weight_field):
     """Validate that weight_field exists on edge_model and is numeric. Returns the DB column name."""
     try:
