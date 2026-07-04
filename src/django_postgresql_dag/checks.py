@@ -15,7 +15,7 @@ is not flagged.
 """
 
 from django.apps import apps
-from django.core.checks import Info, Tags, register
+from django.core.checks import Tags, Warning, register
 
 # Class attribute stamped onto every model produced by ``edge_factory``. Its value
 # is the tuple of index field-tuples the factory tries to provide. Concrete
@@ -76,7 +76,7 @@ def _check_models(models):
             continue
         missing_str = ", ".join(_format_tuple(field_tuple) for field_tuple in missing)
         messages.append(
-            Info(
+            Warning(
                 f"DAG edge model '{model._meta.label}' is missing the composite index(es) "
                 f"{missing_str} that speed up ancestor/descendant traversals.",
                 hint=(
@@ -88,6 +88,10 @@ def _check_models(models):
                     "See the Edge Reference 'Edge table indexes' section."
                 ),
                 obj=model,
+                # Promoted from Info to Warning so a Meta override that silently drops the indexes is
+                # noticed (a missing covering index only shows up as extra heap I/O per recursion level,
+                # never a failure, so an Info was too quiet). The id keeps its historical "I001" so any
+                # existing SILENCED_SYSTEM_CHECKS entry still silences it.
                 id="django_postgresql_dag.I001",
             )
         )

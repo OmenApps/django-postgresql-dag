@@ -3,7 +3,7 @@ performance-improving composite indexes (Feature 1.1 DX follow-up)."""
 
 from types import SimpleNamespace
 
-from django.core.checks import Info
+from django.core.checks import Warning
 from django.test import SimpleTestCase
 
 from django_postgresql_dag.checks import (
@@ -59,12 +59,12 @@ class MissingIndexFieldTuplesTestCase(SimpleTestCase):
 
 
 class CheckModelsTestCase(SimpleTestCase):
-    def test_uncovered_edge_yields_one_info_message(self):
+    def test_uncovered_edge_yields_one_warning_message(self):
         model = _fake_edge("app.E", [])
         messages = _check_models([model])
         self.assertEqual(len(messages), 1)
         msg = messages[0]
-        self.assertIsInstance(msg, Info)
+        self.assertIsInstance(msg, Warning)
         self.assertEqual(msg.id, "django_postgresql_dag.I001")
         self.assertIn("(parent, child)", msg.msg)
         self.assertIn("(child, parent)", msg.msg)
