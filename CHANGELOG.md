@@ -12,6 +12,11 @@
 - **Critical path**: `NodeManager.critical_path(weight_field=None)` finds the longest weighted path through the entire DAG. Without a weight field, counts hops.
 - **Transitive reduction**: `NodeManager.transitive_reduction()` and `EdgeManager.redundant_edges()` identify and optionally delete redundant edges (A->C is redundant if A->B->...->C exists).
 - **Graph hashing**: `graph_hash()`, `subgraph_hashes()`, and `graphs_are_isomorphic()` in `transformations.py` use NetworkX Weisfeiler-Lehman hashing. Node-level convenience methods: `node.graph_hash()`, `node.subgraph_hashes()`.
+- **Loud truncation signal**: ancestor, descendant, and connected-graph walks now set a
+  `query.truncated` flag and log a warning when a walk hits `max_depth` and drops rows beyond
+  it. Before, a graph deeper than `max_depth` was cut silently. The returned pk set and the
+  default `max_depth` (`20`) are unchanged. Raise the `django_postgresql_dag` logger above
+  `WARNING` to silence the notice.
 
 ### Infrastructure
 

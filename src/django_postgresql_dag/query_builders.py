@@ -1,3 +1,4 @@
+import logging
 from abc import ABC, abstractmethod
 
 from django.conf import settings
@@ -6,6 +7,13 @@ from django.db import connection
 
 from .debug import _dag_query_collector
 from .utils import get_instance_characteristics, validate_weight_field
+
+logger = logging.getLogger("django_postgresql_dag")
+
+# Column alias appended by truncation-tracking queries. Its value is a boolean that is true when
+# the recursive walk reached ``max_depth`` and rows beyond it were filtered out, so the caller's
+# result may be incomplete. The pk stays in column 0 so ``pk_list()`` and ``raw()`` are unaffected.
+_TRUNCATION_COLUMN = "dag_truncated"
 
 _PK_TYPE_MAP = {
     "AutoField": "integer",
@@ -23,6 +31,10 @@ _PK_TYPE_MAP = {
 
 class BaseQuery(ABC):
     """Base Query Class."""
+
+    # Subclasses whose final SELECT appends the ``_TRUNCATION_COLUMN`` flag set this True so
+    # ``pk_list()`` reads that trailing column and can warn when the walk hit ``max_depth``.
+    _tracks_truncation = False
 
     def __init__(
         self,
@@ -42,6 +54,9 @@ class BaseQuery(ABC):
         self.instance = instance
         self.starting_node = starting_node
         self.ending_node = ending_node
+        # Set True when a truncation-tracking walk reaches ``max_depth`` and rows beyond it were
+        # dropped, so the result may be incomplete. Callers can read this after ``pk_list()``.
+        self.truncated = False
         self.max_depth = (
             max_depth if max_depth is not None else getattr(settings, "DJANGO_POSTGRESQL_DAG_MAX_DEPTH", 20)
         )
@@ -264,7 +279,24 @@ class BaseQuery(ABC):
         self.raw_queryset()  # builds + records SQL; the RawQuerySet is not evaluated, so no DB hit here
         with connection.cursor() as cursor:
             cursor.execute(self._formatted_sql, self._formatted_params)
-            return [row[0] for row in cursor.fetchall()]
+            rows = cursor.fetchall()
+        if self._tracks_truncation and rows:
+            # Truncation-tracking queries append the boolean flag as the final column; the pk is
+            # still column 0. The flag is constant across rows, so reading the first row suffices.
+            self._note_truncation(bool(rows[0][-1]))
+        return [row[0] for row in rows]
+
+    def _note_truncation(self, is_truncated):
+        """Record whether the walk was truncated at ``max_depth`` and warn once if so."""
+        if is_truncated and not self.truncated:
+            self.truncated = True
+            logger.warning(
+                "django_postgresql_dag: %s reached max_depth=%s; results may be truncated. Increase the "
+                "max_depth argument or the DJANGO_POSTGRESQL_DAG_MAX_DEPTH setting if the graph is deeper.",
+                type(self).__name__,
+                self.max_depth,
+            )
+        return self.truncated
 
     def __str__(self):
         """Return a string representation of the RawQueryset."""
@@ -321,6 +353,8 @@ class _PathEdgeFilterMixin:
 
 class AncestorQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
     """Ancestor Query Class."""
+
+    _tracks_truncation = True
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -412,7 +446,9 @@ class AncestorQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
             -- ALLOWED_ANCESTORS_NODES_CLAUSE_2
             {where_clauses_part_2}
         )
-        SELECT {pk_name} FROM traverse
+        SELECT {pk_name},
+               (SELECT COALESCE(bool_or(depth > %(max_depth)s), false) FROM traverse) AS dag_truncated
+        FROM traverse
         WHERE depth <= %(max_depth)s
         GROUP BY {pk_name}
         ORDER BY MAX(depth) DESC, {pk_name} ASC
@@ -431,6 +467,8 @@ class AncestorQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
 
 class DescendantQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
     """Descendant Query Class."""
+
+    _tracks_truncation = True
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -516,7 +554,9 @@ class DescendantQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
             WHERE 1=1
             {where_clauses_part_2}
         )
-        SELECT {pk_name} FROM traverse
+        SELECT {pk_name},
+               (SELECT COALESCE(bool_or(depth > %(max_depth)s), false) FROM traverse) AS dag_truncated
+        FROM traverse
         WHERE depth <= %(max_depth)s
         GROUP BY {pk_name}
         ORDER BY MAX(depth), {pk_name} ASC
@@ -535,6 +575,8 @@ class DescendantQuery(_AncestorDescendantEdgeFilterMixin, BaseQuery):
 
 class ConnectedGraphQuery(BaseQuery):
     """Queries for the entire graph of nodes connected to the provided instance node."""
+
+    _tracks_truncation = True
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -612,7 +654,10 @@ class ConnectedGraphQuery(BaseQuery):
             AND array_length(path, 1) < %(max_depth)s
             {where_clauses_part_2}
         )
-        SELECT DISTINCT {pk_name} FROM traverse;
+        SELECT DISTINCT {pk_name},
+               (SELECT COALESCE(bool_or(array_length(path, 1) >= %(max_depth)s), false) FROM traverse)
+               AS dag_truncated
+        FROM traverse;
         """
 
         return self._execute_raw(
