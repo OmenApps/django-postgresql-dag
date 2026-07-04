@@ -5,9 +5,9 @@ import sys
 import nox
 
 DJANGO_STABLE_VERSION = "5.2"
-DJANGO_VERSIONS = ["4.2", "5.1", "5.2", "6.0"]
+DJANGO_VERSIONS = ["5.2", "6.0"]
 PYTHON_STABLE_VERSION = "3.14"
-PYTHON_VERSIONS = ["3.11", "3.12", "3.13", "3.14"]
+PYTHON_VERSIONS = ["3.12", "3.13", "3.14"]
 PACKAGE = "django_postgresql_dag"
 
 nox.options.default_venv_backend = "uv"
@@ -37,17 +37,11 @@ def pip_audit(session: nox.Session) -> None:
 )
 @nox.parametrize("django", DJANGO_VERSIONS)
 def tests(session: nox.Session, django: str) -> None:
-    """Run the test suite across Python and Django versions."""
-    # Django 4.2 supports only Python 3.11-3.12
-    if django == "4.2" and session.python in ("3.13", "3.14"):
-        session.skip("Django 4.2 supports only Python 3.11-3.12")
-    # Django 5.1 supports only Python 3.11-3.13
-    if django == "5.1" and session.python == "3.14":
-        session.skip("Django 5.1 supports only Python 3.11-3.13")
-    # Django 6.0 requires Python 3.12+
-    if django == "6.0" and session.python == "3.11":
-        session.skip("Django 6.0 requires Python 3.12+")
+    """Run the test suite across Python and Django versions.
 
+    The PostgreSQL version is determined by the server at PG_HOST/PG_PORT
+    (set by the CI matrix), not by nox, so it is not parametrized here.
+    """
     pyproject = nox.project.load_toml("pyproject.toml")
     deps = nox.project.dependency_groups(pyproject, "dev")
     session.install(".[transforms]", *deps)

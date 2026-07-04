@@ -8,7 +8,7 @@ version = "2026.2.3"
 description = "Directed Acyclic Graph implementation for Django & Postgresql"
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 authors = [
     { name = "Jack Linke", email = "jack@watervize.com" },
 ]
@@ -17,14 +17,11 @@ classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Environment :: Web Environment",
     "Framework :: Django",
-    "Framework :: Django :: 4.2",
-    "Framework :: Django :: 5.1",
     "Framework :: Django :: 5.2",
     "Framework :: Django :: 6.0",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
@@ -33,7 +30,7 @@ classifiers = [
     "Topic :: Utilities",
 ]
 dependencies = [
-    "django>=4.2",
+    "django>=5.2",
     "psycopg[binary]>=3.1",
 ]
 
@@ -55,7 +52,7 @@ where = ["src"]
 
 [tool.ruff]
 src = ["src"]
-target-version = "py311"
+target-version = "py312"
 line-length = 120
 
 [tool.ruff.lint]
@@ -91,7 +88,7 @@ source = [
 ]
 
 [tool.pyright]
-pythonVersion = "3.11"
+pythonVersion = "3.12"
 typeCheckingMode = "basic"
 include = ["src"]
 
